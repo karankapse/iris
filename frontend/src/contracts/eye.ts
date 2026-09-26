@@ -3,6 +3,23 @@
 // The rest of the app only knows these abstract events, never raw gaze numbers.
 // ============================================================================
 
+/** The four coarse gaze regions. Options on screen sit at these positions. */
+export type Region = 'up' | 'right' | 'down' | 'left';
+
+/**
+ * Which region each on-screen option lives in, in option order (max 4 options).
+ *   2 options: left / right         3 options: up / right / down       4 options: up / right / down / left
+ * In 'vertical' mode there are no regions: options are stacked, and looking up/down steps the
+ * highlight (many locked-in users can only move their eyes vertically). The UI and the eye
+ * input both use this function, so what's drawn always matches where you have to look.
+ */
+export function optionRegions(optionCount: number, mode: 'full' | 'vertical'): Region[] {
+  if (mode === 'vertical' || optionCount <= 0) return [];
+  if (optionCount === 1) return ['up'];
+  if (optionCount === 2) return ['left', 'right'];
+  return (['up', 'right', 'down', 'left'] as const).slice(0, Math.min(optionCount, 4));
+}
+
 export type EyeMode =
   | 'full' //     left/right/up/down + blinks
   | 'vertical'; // up/down + blinks only (many locked-in users can only move eyes vertically)
@@ -35,11 +52,13 @@ export interface EyeInput {
   setOptionCount(optionCount: number): void;
   stop(): void;
   /**
-   * Short guided calibration (look straight, up, down, close your eyes). Calls `onStep` at the
-   * start of each step so the UI can show the instruction. While calibrating, no other events
-   * are emitted. Rejects with a readable message if the face isn't visible.
+   * Short guided calibration (look straight, left, right, up, down, close your eyes). Calls
+   * `onStep` at the start of each step so the UI can show the instruction. While calibrating,
+   * no other events are emitted. Rejects with a readable message if the face isn't visible.
+   * Resolves with warnings (empty = all good) for signals that were too weak to trust, so the
+   * UI can tell the person to try again instead of pretending it worked.
    */
-  calibrate(onStep?: (step: CalibrationStep) => void): Promise<void>;
+  calibrate(onStep?: (step: CalibrationStep) => void): Promise<string[]>;
   /** Subscribe to events. Returns an unsubscribe function. */
   on(handler: (event: EyeEvent) => void): () => void;
 }

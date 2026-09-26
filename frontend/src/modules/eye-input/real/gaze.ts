@@ -1,3 +1,4 @@
+import type { Region } from '../../../contracts';
 import type { EyeTuning } from './tuning';
 
 /** Once looking up/down, gaze.y must come this far back toward the middle to "let go". */
@@ -42,5 +43,91 @@ export class GazeStepper {
 
   reset() {
     this.direction = 0;
+  }
+}
+
+// ============================================================================================
+// Coarse gaze REGIONS (full mode): which of up / down / left / right is the person looking at?
+// ============================================================================================
+
+export type GazeRegion = Region | 'center';
+
+/** A different region must beat the current one by this much before we switch to it. */
+const SWITCH_MARGIN = 0.1;
+
+/**
+ * Classifies (x, y) gaze into up / down / left / right / center, using this person's
+ * calibrated thresholds. Webcam gaze is noisy, so a region must (1) be beyond its threshold,
+ * (2) stay the best candidate for `regionHoldMs`, and (3) once entered, is kept until the gaze
+ * comes back well inside it (hysteresis).
+ */
+export class RegionTracker {
+  current: GazeRegion = 'center';
+  private candidate: GazeRegion = 'center';
+  private candidateSince = 0;
+
+  constructor(private tuning: EyeTuning) {}
+
+  setTuning(tuning: EyeTuning) {
+    this.tuning = tuning;
+  }
+
+  /** How far past its threshold the gaze is for a region (>= 0 means "inside" it). */
+  private excess(region: Region, x: number, y: number): number {
+    const t = this.tuning;
+    const xr = x * t.gazeXSign; // now: negative = user's left, positive = user's right
+    switch (region) {
+      case 'up':
+        return t.gazeUp - y;
+      case 'down':
+        return y - t.gazeDown;
+      case 'left':
+        return t.gazeLeft - xr;
+      case 'right':
+        return xr - t.gazeRight;
+    }
+  }
+
+  /**
+   * `suppress`: freeze (eyes are closing/opening: gaze numbers are unreliable). The region we had
+   * just before stays current, which is what lets a blink select "the thing I was looking at".
+   * `sides`: false in vertical mode, where left/right are ignored.
+   */
+  update(t: number, x: number, y: number, suppress: boolean, sides: boolean): GazeRegion {
+    if (suppress) return this.current;
+
+    const regions: Region[] = sides ? ['up', 'down', 'left', 'right'] : ['up', 'down'];
+    let best: GazeRegion = 'center';
+    let bestExcess = -1;
+    for (const r of regions) {
+      const e = this.excess(r, x, y);
+      if (e >= 0 && e > bestExcess) {
+        best = r;
+        bestExcess = e;
+      }
+    }
+
+    let target: GazeRegion = best;
+    if (this.current !== 'center' && regions.includes(this.current)) {
+      const currentExcess = this.excess(this.current, x, y);
+      const stillInside = currentExcess >= -HYSTERESIS;
+      const clearlyBeaten =
+        best !== 'center' && best !== this.current && bestExcess > currentExcess + SWITCH_MARGIN;
+      if (stillInside && !clearlyBeaten) target = this.current;
+    }
+
+    if (target !== this.candidate) {
+      this.candidate = target;
+      this.candidateSince = t;
+    }
+    if (this.candidate !== this.current && t - this.candidateSince >= this.tuning.regionHoldMs) {
+      this.current = this.candidate;
+    }
+    return this.current;
+  }
+
+  reset() {
+    this.current = 'center';
+    this.candidate = 'center';
   }
 }
