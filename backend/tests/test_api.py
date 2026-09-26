@@ -9,7 +9,12 @@ def _samples(label, rows, source="calibration"):
 
 def test_health_reports_mock_mode(client):
     body = client.get("/api/health").json()
-    assert body == {"ok": True, "mock_llm": True, "stt_configured": False}
+    assert body == {
+        "ok": True,
+        "mock_llm": True,
+        "stt_configured": False,
+        "voice_configured": False,
+    }
 
 
 def test_suggestions_are_3_or_4_and_valid(client):
@@ -20,12 +25,45 @@ def test_suggestions_are_3_or_4_and_valid(client):
     assert res.status_code == 200
     items = res.json()["suggestions"]
     assert 3 <= len(items) <= 4
-    assert all(s["tone"] in {"neutral", "happy", "sad", "joking", "serious"} for s in items)
+    assert all(
+        s["tone"] in {"neutral", "happy", "sad", "excited", "joking", "serious"} for s in items
+    )
 
 
 def test_suggestions_reject_unknown_tone_in_mood(client):
     res = client.post("/api/suggestions", json={"history": [], "mood": "furious"})
     assert res.status_code == 422
+
+
+def test_suggestions_with_connotation_and_reaction_happy(client):
+    res = client.post(
+        "/api/suggestions",
+        json={
+            "history": [{"speaker": "partner", "text": "you got a job"}],
+            "reaction": "happy",
+        },
+    )
+    assert res.status_code == 200
+    items = res.json()["suggestions"]
+    assert 3 <= len(items) <= 4
+    texts = [s["text"] for s in items]
+    assert any("congrats" in t.lower() or "awesome" in t.lower() for t in texts)
+    # The celebratory replies should be marked with happy tone
+    assert items[0]["tone"] == "happy"
+
+
+def test_suggestions_with_connotation_and_reaction_serious(client):
+    res = client.post(
+        "/api/suggestions",
+        json={
+            "history": [{"speaker": "partner", "text": "you got a job"}],
+            "reaction": "serious",
+        },
+    )
+    assert res.status_code == 200
+    items = res.json()["suggestions"]
+    assert items[0]["tone"] == "serious"
+    assert "serious" in items[0]["text"].lower()
 
 
 def _train(client):

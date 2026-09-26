@@ -261,23 +261,91 @@ export class Orchestrator {
     effects.forEach((e) => this.run(e));
   };
 
+  /**
+   * Measures what emotion the user is feeling after a slight reaction buffer (500ms)
+   * so the user has realistic time to digest what was said and naturally react.
+   * Then tracks the peak / dominant emotion expressed across the reaction window (1200ms).
+   */
+  private async measureReaction(durationMs = 1200, delayBufferMs = 500): Promise<Emotion | null> {
+    if (delayBufferMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayBufferMs));
+    }
+    const start = Date.now();
+    let peakEmotion: Emotion | null = null;
+    let peakConfidence = 0;
+    const emotionWeights: Partial<Record<Emotion, number>> = {};
+
+    const sample = () => {
+      const live = this.services.emotion.current();
+      const stateEstimate = this.view.machine.detected;
+      const candidate = stateEstimate.confidence >= live.confidence ? stateEstimate : live;
+
+      if (candidate.confidence >= 0.5) {
+        emotionWeights[candidate.emotion] =
+          (emotionWeights[candidate.emotion] ?? 0) + candidate.confidence;
+        if (candidate.emotion !== 'neutral' && candidate.confidence > peakConfidence) {
+          peakConfidence = candidate.confidence;
+          peakEmotion = candidate.emotion;
+        }
+      }
+    };
+
+    sample();
+
+    if (durationMs > 0) {
+      await new Promise<void>((resolve) => {
+        const interval = setInterval(() => {
+          sample();
+          if (Date.now() - start >= durationMs) {
+            clearInterval(interval);
+            resolve();
+          }
+        }, 100);
+      });
+    }
+
+    if (peakEmotion) return peakEmotion;
+
+    let bestEmotion: Emotion | null = null;
+    let bestWeight = 0;
+    for (const [e, weight] of Object.entries(emotionWeights) as [Emotion, number][]) {
+      if (e !== 'neutral' && (weight ?? 0) > bestWeight) {
+        bestWeight = weight ?? 0;
+        bestEmotion = e;
+      }
+    }
+    return bestEmotion;
+  }
+
   private run(effect: Effect) {
     const { conversation, tts, emotion } = this.services;
     switch (effect.type) {
       case 'suggest':
         conversation.addTurn({ speaker: 'partner', text: effect.partnerText });
-        conversation
-          .suggestReplies(effect.mood, this.view.profile)
-          .then((suggestions) =>
-            this.dispatch({ type: 'suggestions_ready', requestId: effect.requestId, suggestions }),
-          )
-          .catch((e) =>
+        void (async () => {
+          try {
+            // Wait a slight reaction buffer (500ms) then measure the user's emotion across 1200ms
+            const measured = await this.measureReaction(1200, 500);
+            const reaction = measured ?? effect.reaction ?? effect.mood ?? null;
+            const suggestions = await conversation.suggestReplies(
+              effect.mood,
+              this.view.profile,
+              reaction,
+            );
+            this.dispatch({
+              type: 'suggestions_ready',
+              requestId: effect.requestId,
+              suggestions,
+              reaction,
+            });
+          } catch (e) {
             this.dispatch({
               type: 'suggestions_failed',
               requestId: effect.requestId,
               message: `Could not get suggestions: ${e instanceof Error ? e.message : e}`,
-            }),
-          );
+            });
+          }
+        })();
         break;
 
       case 'snapshot_features':

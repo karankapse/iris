@@ -7,13 +7,15 @@ interface Props {
   mocks: Services['mocks'];
   /** Feed text in as if the partner had just said it. */
   onPartnerText: (text: string) => void;
+  /** Simulate what the user's face shows (e.g. happy reaction). */
+  onSimulateEmotion?: (emotion: Emotion | '') => void;
 }
 
 /**
  * Always available: a text box to enter what the partner says (a caregiver fallback when the
  * microphone is off or unreliable). Extra controls appear for whichever modules are mocked.
  */
-export function DevPanel({ mocks, onPartnerText }: Props) {
+export function DevPanel({ mocks, onPartnerText, onSimulateEmotion }: Props) {
   const [text, setText] = useState('');
 
   return (
@@ -38,23 +40,24 @@ export function DevPanel({ mocks, onPartnerText }: Props) {
         <button type="submit">Send</button>
       </form>
 
-      {mocks.emotion && (
-        <label>
-          Pretend the user's face shows:{' '}
-          <select
-            defaultValue=""
-            onChange={(e) => {
-              const v = e.target.value as Emotion | '';
-              mocks.emotion?.setEmotion(v || 'neutral', v ? 0.9 : 0);
-            }}
-          >
-            <option value="">(nothing detected)</option>
-            {EMOTIONS.map((e) => (
-              <option key={e}>{e}</option>
-            ))}
-          </select>
-        </label>
-      )}
+      <label>
+        Simulate user face reaction:{' '}
+        <select
+          defaultValue=""
+          onChange={(e) => {
+            const v = e.target.value as Emotion | '';
+            if (mocks.emotion) {
+              mocks.emotion.setEmotion(v || 'neutral', v ? 0.9 : 0);
+            }
+            onSimulateEmotion?.(v);
+          }}
+        >
+          <option value="">(automatic / live camera)</option>
+          {EMOTIONS.map((e) => (
+            <option key={e}>{e}</option>
+          ))}
+        </select>
+      </label>
 
       {mocks.eye && (
         <p className="keys">

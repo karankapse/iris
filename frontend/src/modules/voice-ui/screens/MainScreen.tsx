@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { Emotion } from '../../../contracts';
 import type { Services } from '../../../app/services';
 import { useOrchestrator } from '../../../app/useOrchestrator';
 import { CameraPreview } from './CameraPreview';
@@ -87,6 +88,15 @@ export function MainScreen({ services }: { services: Services }) {
       <DevPanel
         mocks={services.mocks}
         onPartnerText={(text) => orchestrator.dispatch({ type: 'partner_final', text })}
+        onSimulateEmotion={(emotion) =>
+          orchestrator.dispatch({
+            type: 'emotion_estimate',
+            estimate: {
+              emotion: (emotion || 'neutral') as Emotion,
+              confidence: emotion ? 0.95 : 0,
+            },
+          })
+        }
       />
     </>
   );

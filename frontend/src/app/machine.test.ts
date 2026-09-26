@@ -70,23 +70,21 @@ function typeSymbol(s: State, symbol: string): State {
 }
 
 describe('happy path', () => {
-  it('goes listening -> suggesting -> selectReply -> confirmTone -> speaking -> feedback -> listening', () => {
+  it('goes listening -> suggesting -> selectReply -> speaking -> feedback -> listening', () => {
     const start = run([{ type: 'partner_final', text: 'How are you?' }]);
     expect(start.state.phase).toBe('suggesting');
     expect(start.effects).toEqual([
-      { type: 'suggest', requestId: 1, partnerText: 'How are you?', mood: null },
+      { type: 'suggest', requestId: 1, partnerText: 'How are you?', mood: null, reaction: null },
     ]);
 
-    let s = atSelectReply();
+    const s = atSelectReply();
     expect(s.phase).toBe('selectReply');
 
-    s = run([select(0)], s).state;
-    expect(s.phase).toBe('confirmTone');
-    expect(s.tone).toBe('happy'); // no mood, no detection -> the AI's tone
-
-    const spoke = run([eye({ type: 'confirm' })], s);
+    // Selecting a reply immediately speaks in the measured emotion tone without asking
+    const spoke = run([select(0)], s);
     expect(spoke.state.phase).toBe('speaking');
     expect(spoke.effects).toEqual([
+      { type: 'snapshot_features' },
       { type: 'speak', spoken: { id: 'utt-1', text: 'reply 1', tone: 'happy' } },
     ]);
 
@@ -96,20 +94,62 @@ describe('happy path', () => {
       { type: 'user_feedback', spoken: { id: 'utt-1', text: 'reply 1', tone: 'happy' }, ok: true },
     ]);
   });
-});
 
-describe('never speaks without confirmation', () => {
-  const speaks = (effects: Effect[]) => effects.some((e) => e.type === 'speak');
-
-  it('selecting a reply or a phrase does not speak', () => {
-    expect(speaks(run([select(0)], atSelectReply()).effects)).toBe(false);
-    const phrases = choose(initialState(), 'Quick phrases');
-    expect(speaks(run([select(0)], phrases).effects)).toBe(false);
+  it('includes live detected facial emotion as reaction when partner speaks', () => {
+    const smilingState = {
+      ...initialState(),
+      detected: { emotion: 'happy' as const, confidence: 0.9 },
+    };
+    const res = run([{ type: 'partner_final', text: 'you got a job' }], smilingState);
+    expect(res.state.phase).toBe('suggesting');
+    expect(res.effects).toEqual([
+      {
+        type: 'suggest',
+        requestId: 1,
+        partnerText: 'you got a job',
+        mood: null,
+        reaction: 'happy',
+      },
+    ]);
   });
 
-  it('choosing a different tone returns to confirmTone instead of speaking', () => {
-    let s = run([select(0)], atSelectReply()).state; // confirmTone
-    s = run([eye({ type: 'cancel' })], s).state;
+  it('speaks in the measured post-statement emotion when reply is selected', () => {
+    const state = run(
+      [
+        { type: 'partner_final', text: 'you got a job' },
+        {
+          type: 'suggestions_ready',
+          requestId: 1,
+          suggestions: [sug(1, 'neutral'), sug(2, 'neutral')],
+          reaction: 'happy',
+        },
+      ],
+      initialState(),
+    ).state;
+    expect(state.phase).toBe('selectReply');
+    expect(state.measuredEmotion).toBe('happy');
+
+    // Selecting reply 1 speaks directly in the measured happy tone
+    const spoke = run([select(0)], state);
+    expect(spoke.state.phase).toBe('speaking');
+    expect(spoke.effects).toContainEqual({
+      type: 'speak',
+      spoken: { id: 'utt-1', text: 'reply 1', tone: 'happy' },
+    });
+  });
+});
+
+describe('tone selection and speaking', () => {
+  const speaks = (effects: Effect[]) => effects.some((e) => e.type === 'speak');
+
+  it('choosing a different tone in pickTone returns to confirmTone', () => {
+    const inConfirm: State = {
+      ...initialState(),
+      phase: 'confirmTone',
+      reply: { text: 'Hi', suggestedTone: 'neutral' },
+      tone: 'neutral',
+    };
+    const s = run([eye({ type: 'cancel' })], inConfirm).state;
     expect(s.phase).toBe('pickTone');
     const r = run([select(0)], s);
     expect(r.state.phase).toBe('confirmTone');
@@ -211,8 +251,13 @@ describe('tone choice', () => {
   });
 
   it('pickTone reaches every other tone through the pages (6 tones -> 5 others)', () => {
-    let s = run([select(0)], atSelectReply()).state;
-    s = run([eye({ type: 'cancel' })], s).state;
+    const inConfirm: State = {
+      ...initialState(),
+      phase: 'confirmTone',
+      reply: { text: 'reply 1', suggestedTone: 'neutral' },
+      tone: 'neutral',
+    };
+    let s = run([eye({ type: 'cancel' })], inConfirm).state;
     const seen = new Set<string>();
     for (let i = 0; i < 4; i++) {
       labels(s).forEach((l) => (EMOTIONS as readonly string[]).includes(l) && seen.add(l));
@@ -290,7 +335,12 @@ describe('quick phrases, "Other…" and mood', () => {
   });
 
   it('on the tone screen, "Other reply…" goes back to choosing a reply without speaking', () => {
-    const s = run([select(0)], atSelectReply()).state;
+    const s: State = {
+      ...atSelectReply(),
+      phase: 'confirmTone',
+      reply: { text: 'reply 1', suggestedTone: 'neutral' },
+      tone: 'neutral',
+    };
     const r = run([select(2)], s);
     expect(r.state.phase).toBe('selectReply');
     expect(r.effects).toEqual([]);

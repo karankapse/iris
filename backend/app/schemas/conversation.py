@@ -19,6 +19,10 @@ class SuggestionsRequest(BaseModel):
     profile: UserProfile | None = Field(
         default=None, description="Who the user is, so replies feel personal"
     )
+    reaction: Emotion | None = Field(
+        default=None,
+        description="The user's immediate emotional reaction / facial expression to what was said",
+    )
 
 
 class Suggestion(BaseModel):

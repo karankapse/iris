@@ -374,6 +374,132 @@ kbd {
   margin: 8px 0;
 }
 
+.voice-selector-box {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 14px;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.voice-select {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  width: 100%;
+}
+.voice-select:focus {
+  outline: 2px solid var(--accent);
+}
+.voice-create-card {
+  background: #0d1117;
+  border: 1px dashed #30363d;
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 14px;
+}
+.voice-create-card h4 {
+  margin: 0 0 4px 0;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.voice-create-desc {
+  margin: 0 0 10px 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.voice-status-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #11271b;
+  border: 1px solid var(--good);
+  padding: 8px 14px;
+  border-radius: 8px;
+  margin: 4px 0;
+}
+.badge-active {
+  color: var(--good);
+  font-weight: 600;
+}
+.muted-id {
+  color: var(--muted);
+  font-family: monospace;
+}
+
+.voice-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.field-group input[type='text'],
+.field-group input[type='file'] {
+  background: #161b22;
+  border: 1px solid #30363d;
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+.duration-badge {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+}
+.duration-badge.valid {
+  background: #132f1e;
+  border: 1px solid #238636;
+  color: #3fb950;
+}
+.duration-badge.invalid {
+  background: #391e20;
+  border: 1px solid #da3633;
+  color: #f85149;
+}
+
+.action-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+.test-buttons {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.test-buttons button {
+  background: #21262d;
+  border: 1px solid #30363d;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 6px 12px;
+}
+
 /* --- microphone indicator ---------------------------------------------------- */
 .mic {
   background: var(--panel);

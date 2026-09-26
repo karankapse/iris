@@ -10,12 +10,29 @@ const DOT_POSITION = { ...TARGET_POSITION, up: { x: 50, y: 14 }, down: { x: 50, 
 const GET_READY_S = 2;
 const RECORD_S = 3;
 const MIN_FRAMES = 10;
+const MIN_AUDIO_DURATION_S = 30;
+
+interface VoiceItem {
+  voice_id: string;
+  name: string;
+  is_default?: boolean;
+}
+
+interface VoiceProfile {
+  user_id: string;
+  voice_id: string | null;
+  name: string | null;
+  configured: boolean;
+  voices?: VoiceItem[];
+}
 
 /**
  * Calibration, done once per person (ideally with a caregiver):
  *  1. Eyes: look straight / up / down and close the eyes, so thresholds fit this face.
  *  2. Emotions: record a few seconds of the person showing each emotion THEIR way (a small
  *     brow raise or a half-smile counts), then train their personal model.
+ *  3. Voice Banking: upload historical audio/video of the person speaking (min 30s)
+ *     to clone their voice with ElevenLabs and speak replies with feeling.
  * Eye gestures are paused while this panel is open.
  */
 export function SetupPanel({
@@ -34,11 +51,30 @@ export function SetupPanel({
   const [countdown, setCountdown] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [recorded, setRecorded] = useState<Partial<Record<Emotion, number>>>({});
+
+  // Voice banking state
+  const [voiceName, setVoiceName] = useState('My Voice');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [audioDuration, setAudioDuration] = useState<number | null>(null);
+  const [voiceProfile, setVoiceProfile] = useState<VoiceProfile | null>(null);
+
   const mounted = useRef(true);
 
   useEffect(() => {
     mounted.current = true;
     orchestrator.setSuspended(true);
+
+    // Fetch existing voice profile
+    fetch('/api/voice/profile/local-user')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: VoiceProfile | null) => {
+        if (mounted.current && data) {
+          setVoiceProfile(data);
+          if (data.name) setVoiceName(data.name);
+        }
+      })
+      .catch(() => {});
+
     return () => {
       mounted.current = false;
       orchestrator.setSuspended(false);
@@ -112,6 +148,99 @@ export function SetupPanel({
       await emotion.train();
       return 'Trained! Your emotion model is now used to suggest tones.';
     });
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    setAudioDuration(null);
+
+    if (file) {
+      const url = URL.createObjectURL(file);
+      const audio = new Audio();
+      audio.src = url;
+      audio.onloadedmetadata = () => {
+        URL.revokeObjectURL(url);
+        if (mounted.current) {
+          setAudioDuration(audio.duration);
+        }
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+      };
+    }
+  };
+
+  const selectVoice = (voiceId: string) =>
+    run('select-voice', async () => {
+      const res = await fetch('/api/voice/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: 'local-user', voice_id: voiceId }),
+      });
+      if (!res.ok) {
+        throw new Error('Failed to switch voice');
+      }
+      const data: VoiceProfile = await res.json();
+      setVoiceProfile(data);
+      return `Switched active voice to "${data.name}".`;
+    });
+
+  const cloneVoice = () =>
+    run('clone-voice', async () => {
+      if (!selectedFile) {
+        throw new Error('Please select an audio file first.');
+      }
+      if (audioDuration !== null && audioDuration < MIN_AUDIO_DURATION_S) {
+        throw new Error(
+          `Audio sample is ${audioDuration.toFixed(1)}s. Minimum ${MIN_AUDIO_DURATION_S} seconds of clear speech is required.`,
+        );
+      }
+
+      const form = new FormData();
+      const name = voiceName.trim() || 'My Voice';
+      form.append('name', name);
+      form.append('user_id', 'local-user');
+      form.append('file', selectedFile);
+      if (audioDuration !== null) {
+        form.append('duration', String(audioDuration));
+      }
+
+      const res = await fetch('/api/voice/clone', {
+        method: 'POST',
+        body: form,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || 'Voice cloning failed');
+      }
+
+      const profRes = await fetch('/api/voice/profile/local-user');
+      if (profRes.ok) {
+        const data: VoiceProfile = await profRes.json();
+        setVoiceProfile(data);
+      }
+      setSelectedFile(null);
+      setAudioDuration(null);
+      setVoiceName('');
+
+      return `Voice "${name}" created and set as active!`;
+    });
+
+  const testVoice = (tone: Emotion) =>
+    run(`test-voice-${tone}`, async () => {
+      const phrases: Partial<Record<Emotion, string>> = {
+        happy: "I'm so thrilled and happy! Everything is going wonderfully!",
+        neutral: 'This is my calm, everyday speaking voice in a neutral tone.',
+        serious: 'I need to discuss something important and serious with you.',
+        joking: 'Oh sure, because that always goes according to plan, right?',
+      };
+      const text =
+        phrases[tone] || `Hello, this is a preview speaking with feeling in a ${tone} tone.`;
+      await services.tts.speak(text, tone);
+    });
+
+  const isDurationValid = audioDuration === null || audioDuration >= MIN_AUDIO_DURATION_S;
 
   return (
     <>
@@ -193,6 +322,118 @@ export function SetupPanel({
                 </button>
               </>
             )}
+          </section>
+
+          <section>
+            <h3>3. Voice Banking & Selection</h3>
+            <p>
+              Iris synthesizes speech with emotion sliders powered by ElevenLabs. Use Roger as your
+              default voice, or upload recordings to clone your own personal voice.
+            </p>
+
+            <div className="voice-selector-box">
+              <label className="field-group">
+                <span>Active Voice:</span>
+                <select
+                  className="voice-select"
+                  value={voiceProfile?.voice_id || 'CwhRBWXzGAHq8TQ4Fs17'}
+                  onChange={(e) => selectVoice(e.target.value)}
+                  disabled={busy !== null}
+                >
+                  {voiceProfile?.voices && voiceProfile.voices.length > 0 ? (
+                    voiceProfile.voices.map((v) => (
+                      <option key={v.voice_id} value={v.voice_id}>
+                        {v.name} {v.is_default ? '(Default)' : ''}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="CwhRBWXzGAHq8TQ4Fs17">Roger (Default ElevenLabs Voice)</option>
+                  )}
+                </select>
+              </label>
+
+              {voiceProfile?.voice_id && (
+                <div className="voice-status-box">
+                  <span className="badge-active">✓ Speaking as:</span>
+                  <strong>{voiceProfile.name || 'Roger'}</strong>
+                  <small className="muted-id">(ID: {voiceProfile.voice_id})</small>
+                </div>
+              )}
+
+              {voiceProfile?.voice_id && (
+                <div className="test-buttons">
+                  <span>Test tone:</span>
+                  <button onClick={() => testVoice('neutral')} disabled={busy !== null}>
+                    Neutral 😐
+                  </button>
+                  <button onClick={() => testVoice('happy')} disabled={busy !== null}>
+                    Happy 😊
+                  </button>
+                  <button onClick={() => testVoice('serious')} disabled={busy !== null}>
+                    Serious 🧐
+                  </button>
+                  <button onClick={() => testVoice('joking')} disabled={busy !== null}>
+                    Joking 😉
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="voice-create-card">
+              <h4>Create Your Own Voice</h4>
+              <p className="voice-create-desc">
+                Upload a recording of the person speaking before vocal loss (minimum 30 seconds).
+                Iris will clone their voice using ElevenLabs and add it to your voice dropdown.
+              </p>
+
+              <div className="voice-form">
+                <label className="field-group">
+                  <span>Voice name:</span>
+                  <input
+                    type="text"
+                    value={voiceName}
+                    onChange={(e) => setVoiceName(e.target.value)}
+                    placeholder="e.g. Nishanth"
+                    disabled={busy !== null}
+                  />
+                </label>
+
+                <label className="field-group">
+                  <span>Speech recording (minimum 30 seconds):</span>
+                  <input
+                    type="file"
+                    accept="audio/*,video/*,.mp3,.wav,.m4a,.mov,.mp4"
+                    onChange={handleFileChange}
+                    disabled={busy !== null}
+                  />
+                </label>
+
+                {audioDuration !== null && (
+                  <div className={`duration-badge ${isDurationValid ? 'valid' : 'invalid'}`}>
+                    {isDurationValid ? (
+                      <span>✓ Duration: {audioDuration.toFixed(1)}s (Ready to clone)</span>
+                    ) : (
+                      <span>
+                        ⚠️ Duration: {audioDuration.toFixed(1)}s (Minimum 30 seconds of clear speech
+                        required)
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <div className="action-row">
+                  <button
+                    onClick={cloneVoice}
+                    disabled={busy !== null || !selectedFile || !isDurationValid}
+                    className="btn-primary"
+                  >
+                    {busy === 'clone-voice'
+                      ? 'Cloning with ElevenLabs…'
+                      : 'Clone Voice with ElevenLabs'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
       </div>

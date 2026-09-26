@@ -33,6 +33,7 @@ export const flags = {
     (import.meta.env.VITE_GAZE_ENGINE as 'webgazer' | 'mediapipe' | 'mouse' | undefined) ??
     'webgazer',
   mockConversation: isMock(import.meta.env.VITE_MOCK_CONVERSATION),
-  /** 'browser' = speechSynthesis (default), 'silent' = no sound (tests / quiet dev). */
-  tts: (import.meta.env.VITE_TTS_PROVIDER as 'browser' | 'silent' | undefined) ?? 'browser',
+  /** 'cloned' = ElevenLabs with BrowserTts fallback (default), 'browser' = speechSynthesis only, 'silent' = no sound. */
+  tts:
+    (import.meta.env.VITE_TTS_PROVIDER as 'browser' | 'silent' | 'cloned' | undefined) ?? 'cloned',
 };

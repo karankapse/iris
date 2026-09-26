@@ -40,11 +40,17 @@ async function request<T>(
 }
 
 export const api = {
-  suggestions: (history: ApiTurn[], mood: Emotion | null, profile?: UserProfile) =>
+  suggestions: (
+    history: ApiTurn[],
+    mood: Emotion | null,
+    profile?: UserProfile,
+    reaction?: Emotion | null,
+  ) =>
     request<Schemas['SuggestionsResponse']>('POST', '/api/suggestions', {
       history,
       mood,
       profile: profile ?? null,
+      reaction: reaction ?? null,
     }),
 
   getProfile: (userId: string) => request<UserProfile>('GET', `/api/profile/${userId}`),

@@ -5,7 +5,7 @@ import type { Phase, State } from '../../../app/machine';
 
 export const STATUS: Record<Phase, string> = {
   listening: 'Listening…',
-  suggesting: 'Thinking of replies…',
+  suggesting: 'Measuring reaction & getting replies…',
   selectReply: 'Choose a reply',
   moreReplies: 'More replies',
   menu: 'Other options',
@@ -46,11 +46,26 @@ export function ErrorBanner({
   );
 }
 
+const TONE_EMOJIS: Record<string, string> = {
+  neutral: '😐',
+  happy: '😊',
+  excited: '🤩',
+  sad: '😔',
+  joking: '😏',
+  serious: '🧐',
+};
+
 /** The big status line, plus the reply and tone while one is being confirmed or spoken. */
 export function PhasePrompt({ machine }: { machine: State }) {
   return (
     <>
       <h1 className="status">{STATUS[machine.phase]}</h1>
+      {machine.phase === 'selectReply' && machine.measuredEmotion && (
+        <p className="tone">
+          Reaction tone: <strong>{machine.measuredEmotion}</strong>{' '}
+          {TONE_EMOJIS[machine.measuredEmotion] ?? ''}
+        </p>
+      )}
       {machine.phase === 'typing' && (
         <p className="reply">
           {machine.typed ? `“${machine.typed}”` : 'Look at a group of letters'}
@@ -59,7 +74,11 @@ export function PhasePrompt({ machine }: { machine: State }) {
       {['confirmTone', 'pickTone', 'speaking'].includes(machine.phase) && machine.reply && (
         <>
           <p className="reply">“{machine.reply.text}”</p>
-          {machine.tone && <p className="tone">Tone: {machine.tone}</p>}
+          {machine.tone && (
+            <p className="tone">
+              Tone: <strong>{machine.tone}</strong> {TONE_EMOJIS[machine.tone] ?? ''}
+            </p>
+          )}
         </>
       )}
     </>

@@ -61,5 +61,9 @@ export interface ConversationService {
   addTurn(turn: ConversationTurn): void;
   history(): ConversationTurn[];
   /** Ask the AI for 3-4 suggested replies (never more than 4). */
-  suggestReplies(mood: Emotion | null, profile?: UserProfile): Promise<Suggestion[]>;
+  suggestReplies(
+    mood: Emotion | null,
+    profile?: UserProfile,
+    reaction?: Emotion | null,
+  ): Promise<Suggestion[]>;
 }
