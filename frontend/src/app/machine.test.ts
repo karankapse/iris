@@ -74,7 +74,7 @@ describe('happy path', () => {
     const start = run([{ type: 'partner_final', text: 'How are you?' }]);
     expect(start.state.phase).toBe('suggesting');
     expect(start.effects).toEqual([
-      { type: 'suggest', requestId: 1, partnerText: 'How are you?', mood: null },
+      { type: 'suggest', requestId: 1, partnerText: 'How are you?', mood: null, reaction: null },
     ]);
 
     let s = atSelectReply();
@@ -94,6 +94,24 @@ describe('happy path', () => {
     expect(done.state.phase).toBe('listening');
     expect(done.effects).toEqual([
       { type: 'user_feedback', spoken: { id: 'utt-1', text: 'reply 1', tone: 'happy' }, ok: true },
+    ]);
+  });
+
+  it('includes live detected facial emotion as reaction when partner speaks', () => {
+    const smilingState = {
+      ...initialState(),
+      detected: { emotion: 'happy' as const, confidence: 0.9 },
+    };
+    const res = run([{ type: 'partner_final', text: 'you got a job' }], smilingState);
+    expect(res.state.phase).toBe('suggesting');
+    expect(res.effects).toEqual([
+      {
+        type: 'suggest',
+        requestId: 1,
+        partnerText: 'you got a job',
+        mood: null,
+        reaction: 'happy',
+      },
     ]);
   });
 });

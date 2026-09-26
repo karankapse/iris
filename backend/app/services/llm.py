@@ -25,8 +25,18 @@ an emotional response), so one of them is likely right.
 - Match the way a real person would talk. No emojis.
 - For each reply choose the emotional tone it is best spoken with: one of neutral, happy, \
 sad, excited, joking, serious.
-- If the person has a current mood setting, lean the replies toward it, but still offer \
-at least one clear yes/no style option."""
+- CONNOTATION AND EMOTIONAL REACTION: Critically analyze the connotation of what the partner \
+just said (e.g., celebration, sharing good/bad news, question, distress, teasing, greeting) \
+in combination with the user's active emotional reaction / facial expression (e.g., happy, \
+sad, joking, serious, excited).
+- For example, if the partner shares good news or says "you got a job" and the user's reaction \
+is happy or excited, provide enthusiastic replies celebrating the news (e.g. "Congrats that's \
+awesome!", "I'm so thrilled!", "Thank you so much!").
+- If the user's reaction is serious, offer grounded, clarifying, or earnest replies.
+- If the user's reaction is sad, offer vulnerable, empathetic, or somber replies.
+- If the user's reaction is joking, offer playful, teasing, or humorous replies.
+- If the person has a current mood setting or reaction, lean the replies toward it, but still \
+offer at least one clear, easy direct option."""
 
 
 class _Draft(BaseModel):
@@ -55,15 +65,28 @@ def _format_profile(profile: UserProfile | None) -> str:
 
 
 def _format_history(
-    history: list[ConversationTurn], mood: Emotion | None, profile: UserProfile | None = None
+    history: list[ConversationTurn],
+    mood: Emotion | None,
+    profile: UserProfile | None = None,
+    reaction: Emotion | None = None,
 ) -> str:
     lines = [f"{'Partner' if t.speaker == 'partner' else 'Me'}: {t.text}" for t in history]
-    mood_line = f"My current mood setting: {mood}." if mood else "I have no mood setting."
+    context = []
+    if reaction:
+        context.append(f"My detected emotional reaction to what was just said: {reaction}.")
+    if mood:
+        context.append(f"My persistent mood setting: {mood}.")
+    if not context:
+        context.append("I have no specific mood or reaction detected (neutral).")
+
+    context_str = " ".join(context)
     return (
         _format_profile(profile)
         + "Conversation so far:\n"
         + "\n".join(lines)
-        + f"\n\n{mood_line}\nSuggest my next replies."
+        + f"\n\n{context_str}\n"
+        + "Use the connotation of what the partner said and my emotional reaction "
+        + "to suggest my next replies."
     )
 
 
@@ -72,9 +95,10 @@ def generate_suggestions(
     history: list[ConversationTurn],
     mood: Emotion | None,
     profile: UserProfile | None = None,
+    reaction: Emotion | None = None,
 ) -> list[Suggestion]:
     if settings.use_mock_llm:
-        return mock_suggestions(history)
+        return mock_suggestions(history, mood=mood, reaction=reaction)
 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     response = client.messages.parse(
@@ -84,7 +108,12 @@ def generate_suggestions(
         # (If you switch ANTHROPIC_MODEL to a model that always thinks, remove this line.)
         thinking={"type": "disabled"},
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": _format_history(history, mood, profile)}],
+        messages=[
+            {
+                "role": "user",
+                "content": _format_history(history, mood, profile, reaction),
+            }
+        ],
         output_format=_Drafts,
     )
     drafts = response.parsed_output.replies[:4]  # the UI never shows more than 4 options

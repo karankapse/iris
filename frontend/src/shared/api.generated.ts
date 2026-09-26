@@ -127,10 +127,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/voice/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clone Voice */
+        post: operations["clone_voice_api_voice_clone_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/voice/profile/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Profile */
+        get: operations["get_profile_api_voice_profile__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/voice/speak": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Speak */
+        post: operations["speak_api_voice_speak_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_clone_voice_api_voice_clone_post */
+        Body_clone_voice_api_voice_clone_post: {
+            /** Duration */
+            duration?: number | null;
+            /** File */
+            file: string;
+            /** Name */
+            name: string;
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+        };
         /** ConversationTurn */
         ConversationTurn: {
             /**
@@ -238,6 +303,24 @@ export interface components {
             /** User Id */
             user_id: string;
         };
+        /** SpeakRequest */
+        SpeakRequest: {
+            /**
+             * Emotion
+             * @default neutral
+             * @enum {string}
+             */
+            emotion: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
+            /** Text */
+            text: string;
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+            /** Voice Id */
+            voice_id?: string | null;
+        };
         /** Suggestion */
         Suggestion: {
             /** Id */
@@ -268,6 +351,11 @@ export interface components {
             mood?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
             /** @description Who the user is, so replies feel personal */
             profile?: components["schemas"]["UserProfile"] | null;
+            /**
+             * Reaction
+             * @description The user's immediate emotional reaction / facial expression to what was said
+             */
+            reaction?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
         };
         /** SuggestionsResponse */
         SuggestionsResponse: {
@@ -319,6 +407,17 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VoiceProfileResponse */
+        VoiceProfileResponse: {
+            /** Configured */
+            configured: boolean;
+            /** Name */
+            name: string | null;
+            /** User Id */
+            user_id: string;
+            /** Voice Id */
+            voice_id: string | null;
         };
     };
     responses: never;
@@ -571,6 +670,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuggestionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clone_voice_api_voice_clone_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_clone_voice_api_voice_clone_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_profile_api_voice_profile__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    speak_api_voice_speak_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeakRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -13,6 +13,7 @@ export type SuggestionFetcher = (
   history: ConversationTurn[],
   mood: Emotion | null,
   profile?: UserProfile,
+  reaction?: Emotion | null,
 ) => Promise<Suggestion[]>;
 
 /**
@@ -32,8 +33,8 @@ export class HistoryConversationService implements ConversationService {
     return [...this.turns];
   }
 
-  async suggestReplies(mood: Emotion | null, profile?: UserProfile) {
-    const suggestions = await this.fetchSuggestions(this.history(), mood, profile);
+  async suggestReplies(mood: Emotion | null, profile?: UserProfile, reaction?: Emotion | null) {
+    const suggestions = await this.fetchSuggestions(this.history(), mood, profile, reaction);
     // Claude gives 3-4. Two are shown straight away; the rest are under "Other…" → "More replies".
     return suggestions.slice(0, MAX_SUGGESTIONS);
   }

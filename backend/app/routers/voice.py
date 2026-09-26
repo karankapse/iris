@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 MIN_AUDIO_DURATION_SECONDS = 30.0
 
-EMOTIONS = Literal["neutral", "happy", "sad", "joking", "serious"]
+EMOTIONS = Literal["neutral", "happy", "sad", "excited", "joking", "serious"]
 
 
 def _get_settings(request: Request):
@@ -31,6 +31,8 @@ EMOTION_SLIDERS: dict[str, dict[str, float]] = {
     "neutral": {"stability": 0.50, "similarity_boost": 0.80, "style": 0.10, "speed": 1.00},
     # Lively, energetic, lower stability for pitch swings, high style for brightness
     "happy": {"stability": 0.30, "similarity_boost": 0.80, "style": 0.65, "speed": 1.10},
+    # Vibrant, enthusiastic, expressive pitch variation and pace
+    "excited": {"stability": 0.25, "similarity_boost": 0.80, "style": 0.75, "speed": 1.15},
     # Subdued, slower tempo, slightly higher stability to sound softer and controlled
     "sad": {"stability": 0.75, "similarity_boost": 0.80, "style": 0.15, "speed": 0.85},
     # Playful, fast inflection, high style exaggeration
@@ -182,7 +184,7 @@ async def speak(req: SpeakRequest, request: Request):
 
     # Punctuation styling for extra expressiveness
     styled_text = req.text.strip()
-    if req.emotion == "happy" and not styled_text.endswith("!"):
+    if req.emotion in ("happy", "excited") and not styled_text.endswith("!"):
         styled_text += "!"
     elif req.emotion == "sad" and not (styled_text.endswith("...") or styled_text.endswith(".")):
         styled_text += "..."

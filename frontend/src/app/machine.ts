@@ -92,7 +92,13 @@ export type Event =
 
 /** Things the machine asks the outside world to do. The Orchestrator carries them out. */
 export type Effect =
-  | { type: 'suggest'; requestId: number; partnerText: string; mood: Emotion | null }
+  | {
+      type: 'suggest';
+      requestId: number;
+      partnerText: string;
+      mood: Emotion | null;
+      reaction: Emotion | null;
+    }
   | { type: 'snapshot_features' }
   | { type: 'save_mood'; mood: Emotion | null }
   | { type: 'speak'; spoken: SpokenReply }
@@ -357,6 +363,10 @@ export function reduce(state: State, event: Event): Result {
       // While the app is speaking, ignore the room (it would also hear its own voice).
       if (!text || state.phase === 'speaking') return same(state);
       const requestId = state.requestId + 1;
+      const reaction =
+        state.detected.confidence >= MIN_DETECTION_CONFIDENCE
+          ? state.detected.emotion
+          : (state.mood ?? null);
       return {
         state: {
           ...state,
@@ -373,7 +383,7 @@ export function reduce(state: State, event: Event): Result {
           kbPath: [],
           returnStack: [],
         },
-        effects: [{ type: 'suggest', requestId, partnerText: text, mood: state.mood }],
+        effects: [{ type: 'suggest', requestId, partnerText: text, mood: state.mood, reaction }],
       };
     }
 

@@ -267,7 +267,7 @@ export class Orchestrator {
       case 'suggest':
         conversation.addTurn({ speaker: 'partner', text: effect.partnerText });
         conversation
-          .suggestReplies(effect.mood, this.view.profile)
+          .suggestReplies(effect.mood, this.view.profile, effect.reaction)
           .then((suggestions) =>
             this.dispatch({ type: 'suggestions_ready', requestId: effect.requestId, suggestions }),
           )

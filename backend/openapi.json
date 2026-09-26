@@ -1,6 +1,41 @@
 {
   "components": {
     "schemas": {
+      "Body_clone_voice_api_voice_clone_post": {
+        "properties": {
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "user_id": {
+            "default": "local-user",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "file"
+        ],
+        "title": "Body_clone_voice_api_voice_clone_post",
+        "type": "object"
+      },
       "ConversationTurn": {
         "properties": {
           "speaker": {
@@ -276,6 +311,48 @@
         "title": "SamplesRequest",
         "type": "object"
       },
+      "SpeakRequest": {
+        "properties": {
+          "emotion": {
+            "default": "neutral",
+            "enum": [
+              "neutral",
+              "happy",
+              "sad",
+              "excited",
+              "joking",
+              "serious"
+            ],
+            "title": "Emotion",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "user_id": {
+            "default": "local-user",
+            "title": "User Id",
+            "type": "string"
+          },
+          "voice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Id"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "SpeakRequest",
+        "type": "object"
+      },
       "Suggestion": {
         "properties": {
           "id": {
@@ -349,6 +426,26 @@
               }
             ],
             "description": "Who the user is, so replies feel personal"
+          },
+          "reaction": {
+            "anyOf": [
+              {
+                "enum": [
+                  "neutral",
+                  "happy",
+                  "sad",
+                  "excited",
+                  "joking",
+                  "serious"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The user's immediate emotional reaction / facial expression to what was said",
+            "title": "Reaction"
           }
         },
         "required": [
@@ -467,6 +564,48 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VoiceProfileResponse": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "voice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Id"
+          }
+        },
+        "required": [
+          "user_id",
+          "voice_id",
+          "name",
+          "configured"
+        ],
+        "title": "VoiceProfileResponse",
         "type": "object"
       }
     }
@@ -797,6 +936,130 @@
         "summary": "Suggestions",
         "tags": [
           "conversation"
+        ]
+      }
+    },
+    "/api/voice/clone": {
+      "post": {
+        "operationId": "clone_voice_api_voice_clone_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_clone_voice_api_voice_clone_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Clone Voice Api Voice Clone Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clone Voice",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/voice/profile/{user_id}": {
+      "get": {
+        "operationId": "get_profile_api_voice_profile__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Profile",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/voice/speak": {
+      "post": {
+        "operationId": "speak_api_voice_speak_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Speak",
+        "tags": [
+          "voice"
         ]
       }
     }

@@ -33,6 +33,37 @@ def test_suggestions_reject_unknown_tone_in_mood(client):
     assert res.status_code == 422
 
 
+def test_suggestions_with_connotation_and_reaction_happy(client):
+    res = client.post(
+        "/api/suggestions",
+        json={
+            "history": [{"speaker": "partner", "text": "you got a job"}],
+            "reaction": "happy",
+        },
+    )
+    assert res.status_code == 200
+    items = res.json()["suggestions"]
+    assert 3 <= len(items) <= 4
+    texts = [s["text"] for s in items]
+    assert any("congrats" in t.lower() or "awesome" in t.lower() for t in texts)
+    # The celebratory replies should be marked with happy tone
+    assert items[0]["tone"] == "happy"
+
+
+def test_suggestions_with_connotation_and_reaction_serious(client):
+    res = client.post(
+        "/api/suggestions",
+        json={
+            "history": [{"speaker": "partner", "text": "you got a job"}],
+            "reaction": "serious",
+        },
+    )
+    assert res.status_code == 200
+    items = res.json()["suggestions"]
+    assert items[0]["tone"] == "serious"
+    assert "serious" in items[0]["text"].lower()
+
+
 def _train(client):
     smiling = [[0.9, 0.0, 0.1], [0.8, 0.1, 0.2], [0.85, 0.05, 0.1]]
     frowning = [[0.0, 0.9, 0.8], [0.1, 0.8, 0.9], [0.05, 0.85, 0.85]]

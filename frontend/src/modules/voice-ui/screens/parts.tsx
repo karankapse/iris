@@ -46,6 +46,15 @@ export function ErrorBanner({
   );
 }
 
+const TONE_EMOJIS: Record<string, string> = {
+  neutral: '😐',
+  happy: '😊',
+  excited: '🤩',
+  sad: '😔',
+  joking: '😏',
+  serious: '🧐',
+};
+
 /** The big status line, plus the reply and tone while one is being confirmed or spoken. */
 export function PhasePrompt({ machine }: { machine: State }) {
   return (
@@ -59,7 +68,11 @@ export function PhasePrompt({ machine }: { machine: State }) {
       {['confirmTone', 'pickTone', 'speaking'].includes(machine.phase) && machine.reply && (
         <>
           <p className="reply">“{machine.reply.text}”</p>
-          {machine.tone && <p className="tone">Tone: {machine.tone}</p>}
+          {machine.tone && (
+            <p className="tone">
+              Tone: <strong>{machine.tone}</strong> {TONE_EMOJIS[machine.tone] ?? ''}
+            </p>
+          )}
         </>
       )}
     </>
