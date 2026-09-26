@@ -298,9 +298,9 @@ export function SetupPanel({
           <section>
             <h3>3. Voice Banking (Personal Cloned Voice)</h3>
             <p>
-              Upload a video or audio recording of the person speaking before vocal loss. Iris clones
-              their voice using ElevenLabs and modulates pitch, stability, and speed according to
-              their emotion.
+              Upload a video or audio recording of the person speaking before vocal loss. Iris
+              clones their voice using ElevenLabs and modulates pitch, stability, and speed
+              according to their emotion.
             </p>
 
             {voiceProfile?.voice_id && (
