@@ -14,11 +14,18 @@ import {
   cannedSuggestions,
   HistoryConversationService,
   MockSpeechToText,
+  MuseSpeechToText,
   WebSpeechToText,
 } from '../modules/conversation';
 import { MockEmotionDetector, RealEmotionDetector } from '../modules/emotion';
 import { MockEyeInput, RealEyeInput } from '../modules/eye-input';
 import { createTts } from '../modules/voice-ui/tts';
+
+function createStt(provider: typeof flags.stt): SpeechToText {
+  if (provider === 'muse') return new MuseSpeechToText();
+  if (provider === 'webspeech') return new WebSpeechToText();
+  return new MockSpeechToText();
+}
 
 export interface Services {
   faceTracker: FaceTracker;
@@ -28,7 +35,7 @@ export interface Services {
   conversation: ConversationService;
   tts: TtsProvider;
   /** Set only when the matching module is a mock, so the Dev Panel can drive it. */
-  mocks: { stt: MockSpeechToText | null; emotion: MockEmotionDetector | null; eye: boolean };
+  mocks: { emotion: MockEmotionDetector | null; eye: boolean };
 }
 
 /**
@@ -40,19 +47,18 @@ export function createServices(): Services {
   const needsCamera = !flags.mockEye || !flags.mockEmotion;
   const faceTracker = needsCamera ? new MediaPipeFaceTracker() : new MockFaceTracker();
 
-  const mockStt = flags.mockStt ? new MockSpeechToText() : null;
   const mockEmotion = flags.mockEmotion ? new MockEmotionDetector() : null;
 
   return {
     faceTracker,
     eyeInput: flags.mockEye ? new MockEyeInput() : new RealEyeInput(faceTracker),
     emotion: mockEmotion ?? new RealEmotionDetector(),
-    stt: mockStt ?? new WebSpeechToText(),
+    stt: createStt(flags.stt),
     conversation: new HistoryConversationService(
       flags.mockConversation ? cannedSuggestions : apiSuggestions,
     ),
     tts: createTts(flags.tts),
-    mocks: { stt: mockStt, emotion: mockEmotion, eye: flags.mockEye },
+    mocks: { emotion: mockEmotion, eye: flags.mockEye },
   };
 }
 

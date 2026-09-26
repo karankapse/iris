@@ -95,7 +95,10 @@ export function MainScreen({ services }: { services: Services }) {
         onMood={(m) => orchestrator.setMood(m)}
         onEyeMode={(m) => orchestrator.setEyeMode(m)}
       />
-      <DevPanel mocks={services.mocks} />
+      <DevPanel
+        mocks={services.mocks}
+        onPartnerText={(text) => orchestrator.dispatch({ type: 'partner_final', text })}
+      />
     </main>
   );
 }

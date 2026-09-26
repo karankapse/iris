@@ -17,10 +17,11 @@ matches what the user feels, and learns each person's own signals over time.
 6. The reply is spoken with that tone.
 7. Feedback (the user's eye yes/no, the partner's tap) trains that person's own emotion model.
 
-**Privacy:** video is processed locally in the browser. Raw video and audio are never stored or
-uploaded; only numeric face features and labels are saved, on your machine.
-(Note: Chrome's built-in speech recognition, used for now, sends audio to Google. See
-[docs/architecture.md](docs/architecture.md#privacy).)
+**Privacy:** video is processed locally in the browser and never leaves it. Raw video and audio
+are never stored; only numeric face features and labels are saved, on your machine.
+**Microphone audio is the exception:** with Muse Voice Transcribe it is streamed (through our
+backend, never stored) to Meta's cloud for transcription. See
+[docs/architecture.md](docs/architecture.md#privacy).
 
 ## The four modules
 
@@ -56,7 +57,7 @@ make dev-frontend
 Open http://localhost:5173. With mocks, **your keyboard plays the user's eyes** and the Dev Panel
 at the bottom plays the partner and the user's face:
 
-1. Type `Are you hungry?` in *Pretend the partner says* and press Enter.
+1. Type `Are you hungry?` in *Type what the partner says* and press Enter (or use the microphone, see below).
 2. Suggestions appear. Use <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Space</kbd> (or <kbd>1</kbd>–<kbd>4</kbd>) to pick one.
 3. A tone is proposed. <kbd>Enter</kbd> = speak it, <kbd>Esc</kbd> = change the tone.
 4. It speaks. Answer "was the tone right?" with <kbd>Enter</kbd> (yes) or <kbd>Esc</kbd> (no).
@@ -85,13 +86,32 @@ ANTHROPIC_API_KEY=sk-ant-...
 Then tell the frontend to use the backend for suggestions by setting `VITE_MOCK_CONVERSATION=0`
 in `.env` and restarting `make dev-frontend`.
 
+## Microphone: speech-to-text with Meta Muse Voice Transcribe
+
+The partner's voice is transcribed by [Muse Voice Transcribe](https://dev.meta.ai/docs/speech-to-text).
+The browser never sees your API key: it streams microphone audio to our backend
+(`/api/stt/stream`), which forwards it to Meta and relays the text back.
+
+1. Create an API key in the [Meta Model API dashboard](https://dev.meta.ai) and put it in `.env`
+   (never commit it): `MODEL_API_KEY=...`
+2. Set `VITE_STT_PROVIDER=muse` in `.env`.
+3. `make dev-backend` and `make dev-frontend`, allow the microphone in Chrome.
+
+**No key?** Run Meta's protocol locally with a fake server instead:
+`cd backend && uv run python -m scripts.fake_muse_server`, then set `MODEL_API_KEY=fake` and
+`MUSE_URL=ws://localhost:9000`. It "hears" canned sentences whenever audio arrives.
+
+Cost is $3.00 per 1,000 audio minutes. The connection is only open while the app is.
+If Meta rejects the handshake, see `MUSE_BEARER_PREFIX` and `STT_DEBUG` in `.env.example`.
+
 ## Switching a module from mock to real
 
 Each module has a flag in `.env` (mock is the default; `0` means real):
 
 | Flag | Real implementation | Status |
 |---|---|---|
-| `VITE_MOCK_STT=0` | Web Speech API microphone (`WebSpeechToText`) | works (Chrome) |
+| `VITE_STT_PROVIDER=muse` | Meta Muse Voice Transcribe via the backend (`MuseSpeechToText`) | works against a fake server; needs a `MODEL_API_KEY` for the real one |
+| `VITE_STT_PROVIDER=webspeech` | Browser Web Speech API (`WebSpeechToText`) | works (Chrome; audio goes to Google) |
 | `VITE_MOCK_CONVERSATION=0` | Backend + Claude | works |
 | `VITE_MOCK_EMOTION=0` | Blendshape features + per-user model (`RealEmotionDetector`) | first version; needs calibration UI |
 | `VITE_MOCK_EYE=0` | Webcam gaze/blink (`RealEyeInput`) | **not implemented yet** (Module 1's job) |

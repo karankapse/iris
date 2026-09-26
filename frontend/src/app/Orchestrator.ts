@@ -97,6 +97,10 @@ export class Orchestrator {
       ),
     );
 
+    if (stt.onError) {
+      unsubs.push(stt.onError((message) => this.dispatch({ type: 'error', message })));
+    }
+
     // Ask the emotion detector for its guess a couple of times a second (not every frame).
     const timer = setInterval(() => {
       const estimate = emotion.current();
