@@ -1,13 +1,16 @@
 # Handy shortcuts. Run `make help` to list them.
-.PHONY: help setup dev-frontend dev-backend lint test format gen-types
+.PHONY: help setup dev dev-frontend dev-backend lint test format gen-types
 
 help:            ## Show this help
 	@grep -E '^[a-z-]+:.*##' Makefile | sed 's/:.*##/ -/'
 
 setup:           ## Install frontend + backend dependencies and create .env
-	cd frontend && npm install
+	cd frontend && npm install && npm run setup:mediapipe
 	cd backend && uv sync
 	@test -f .env || (cp .env.example .env && echo "created .env (fill in ANTHROPIC_API_KEY for real suggestions)")
+
+dev:             ## Start backend AND frontend together (Ctrl+C stops both)
+	$(MAKE) -j2 dev-backend dev-frontend
 
 dev-frontend:    ## Start the web app on http://localhost:5173
 	cd frontend && npm run dev

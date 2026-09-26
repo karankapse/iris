@@ -32,6 +32,8 @@ export interface SpeechToText {
   stop(): void;
   /** Subscribe to transcripts. Returns an unsubscribe function. */
   onTranscript(handler: (transcript: Transcript) => void): () => void;
+  /** Optional: problems that happen after start() (lost connection, no permission...). */
+  onError?(handler: (message: string) => void): () => void;
 }
 
 export interface ConversationService {

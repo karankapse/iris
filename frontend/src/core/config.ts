@@ -13,7 +13,13 @@ const isMock = (value: string | undefined) => value !== '0';
 export const flags = {
   mockEye: isMock(import.meta.env.VITE_MOCK_EYE),
   mockEmotion: isMock(import.meta.env.VITE_MOCK_EMOTION),
-  mockStt: isMock(import.meta.env.VITE_MOCK_STT),
+  /**
+   * Where the partner's speech comes from:
+   *   'mock'      no microphone; type what the partner says in the Dev Panel (default)
+   *   'muse'      Meta Muse Voice Transcribe via the backend (needs MODEL_API_KEY)
+   *   'webspeech' the browser's built-in recognition (Chrome; sends audio to Google)
+   */
+  stt: (import.meta.env.VITE_STT_PROVIDER as 'mock' | 'muse' | 'webspeech' | undefined) ?? 'mock',
   mockConversation: isMock(import.meta.env.VITE_MOCK_CONVERSATION),
   /** 'browser' = speechSynthesis (default), 'silent' = no sound (tests / quiet dev). */
   tts: (import.meta.env.VITE_TTS_PROVIDER as 'browser' | 'silent' | undefined) ?? 'browser',

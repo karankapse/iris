@@ -24,6 +24,18 @@ class Settings(BaseSettings):
     database_path: Path = REPO_ROOT / "backend" / "data" / "iris.db"
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # --- Meta "Muse Voice Transcribe" speech-to-text (used by /api/stt/stream) ---
+    # Key from the Meta Model API dashboard. Same variable name Meta's SDKs use.
+    model_api_key: str = ""
+    muse_url: str = "wss://api.meta.ai/v1/asr/realtime"
+    muse_model: str = "muse-voice-transcribe-1.0"
+    # Meta's docs disagree on whether the token needs a "Bearer " prefix (their cookbook
+    # sends the raw key, the protocol page shows "Bearer ..."). Flip this if the handshake
+    # is rejected with close code 1008.
+    muse_bearer_prefix: bool = False
+    # Log every raw event from Muse (transcripts included). For debugging the protocol only.
+    stt_debug: bool = False
+
     @property
     def use_mock_llm(self) -> bool:
         return self.mock_llm or not self.anthropic_api_key

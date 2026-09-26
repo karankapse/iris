@@ -15,6 +15,8 @@ export class MockFaceTracker implements FaceTracker {
         blendshapes: {},
         gaze: { x: 0, y: 0 },
         headPose: { yaw: 0, pitch: 0, roll: 0 },
+        metrics: {},
+        landmarks: [],
       });
     }, 100);
   }

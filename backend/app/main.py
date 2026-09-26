@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
 from app.db import Database
-from app.routers import conversation, emotion, feedback
+from app.routers import conversation, emotion, feedback, stt
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -23,11 +23,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/health")
     def health() -> dict:
-        return {"ok": True, "mock_llm": settings.use_mock_llm}
+        return {
+            "ok": True,
+            "mock_llm": settings.use_mock_llm,
+            "stt_configured": bool(settings.model_api_key),
+        }
 
     app.include_router(conversation.router)
     app.include_router(emotion.router)
     app.include_router(feedback.router)
+    app.include_router(stt.router)
     return app
 
 

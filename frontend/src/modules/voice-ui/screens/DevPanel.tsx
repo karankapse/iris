@@ -3,34 +3,40 @@ import { EMOTIONS } from '../../../contracts';
 import type { Emotion } from '../../../contracts';
 import type { Services } from '../../../app/services';
 
-/** Only shown while some module is a mock. Lets you play every role without any hardware. */
-export function DevPanel({ mocks }: { mocks: Services['mocks'] }) {
+interface Props {
+  mocks: Services['mocks'];
+  /** Feed text in as if the partner had just said it. */
+  onPartnerText: (text: string) => void;
+}
+
+/**
+ * Always available: a text box to enter what the partner says (a caregiver fallback when the
+ * microphone is off or unreliable). Extra controls appear for whichever modules are mocked.
+ */
+export function DevPanel({ mocks, onPartnerText }: Props) {
   const [text, setText] = useState('');
-  if (!mocks.stt && !mocks.emotion && !mocks.eye) return null;
 
   return (
     <details className="devpanel" open>
-      <summary>Dev panel (mock modules)</summary>
+      <summary>Dev panel</summary>
 
-      {mocks.stt && (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            mocks.stt?.simulate(text);
-            setText('');
-          }}
-        >
-          <label>
-            Pretend the partner says:{' '}
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Are you hungry?"
-            />
-          </label>
-          <button type="submit">Send</button>
-        </form>
-      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onPartnerText(text);
+          setText('');
+        }}
+      >
+        <label>
+          Type what the partner says:{' '}
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Are you hungry?"
+          />
+        </label>
+        <button type="submit">Send</button>
+      </form>
 
       {mocks.emotion && (
         <label>
