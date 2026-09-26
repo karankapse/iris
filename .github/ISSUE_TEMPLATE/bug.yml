@@ -1,0 +1,36 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options: [Eye Input, Emotion Detection & Learning, Conversation AI, Voice Output & UI, Not sure]
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. make dev-frontend\n2. ..."
+    validations: { required: true }
+  - type: input
+    id: env
+    attributes:
+      label: Browser / OS
+      placeholder: Chrome 130 on macOS
+  - type: dropdown
+    id: mocks
+    attributes:
+      label: Were you using mocks?
+      options: ["Yes, all mocks", "Some real modules (say which below)", "All real"]
+  - type: textarea
+    id: extra
+    attributes:
+      label: Console errors, screenshots, notes

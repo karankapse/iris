@@ -1,0 +1,28 @@
+# secrets: NEVER commit these
+.env
+.env.*
+!.env.example
+
+# dependencies / build output
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# local data: may contain a user's face-feature samples, so keep it out of git
+backend/data/*
+!backend/data/.gitkeep
+
+# large files fetched by `npm run setup:mediapipe`
+frontend/public/mediapipe/
+frontend/public/models/
+
+# editor / OS / tooling
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.claude/
