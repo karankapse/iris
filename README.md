@@ -39,52 +39,50 @@ Shared code that affects everyone (change these only through a careful PR):
 `frontend/src/contracts/` (TypeScript interfaces) and `backend/app/schemas/` (Pydantic models).
 Read [docs/architecture.md](docs/architecture.md) for the full picture.
 
+## Status: work in progress
+
+Working: real camera face tracking (MediaPipe) with a live preview, eye control by blinks and
+up/down gaze, calibration, Muse speech-to-text through the backend, emotion detection with a
+per-user model, tone confirmation, emotional TTS, and the partner view.
+
+**Not finished yet** (see the open issues): the on-screen layout for the four gaze regions
+(top/right/bottom/left) and dwell selection in that mode, the eye-controlled keyboard, choosing
+the mood by eye, camera zoom to the face, and automatic retraining. Until the layout lands the
+app defaults to **vertical-only** eye mode (look up/down to move, blink to select).
+
 ## Setup
 
-You need: **Node.js 22+**, **[uv](https://docs.astral.sh/uv/)** (installs Python for you), and **Chrome** (for the Web Speech API and webcam).
+You need: **Node.js 22+**, **[uv](https://docs.astral.sh/uv/)** (installs Python for you), and **Chrome** (camera + microphone).
 
 ```bash
-git clone <repo-url> iris && cd iris
-make setup        # installs frontend + backend dependencies, creates .env
+git clone git@github.com:karankapse/iris.git && cd iris
+make setup        # installs dependencies, downloads the face model, creates .env
+make dev          # starts the backend (8000) and the web app (5173)
 ```
 
-## Run it with mocks (no camera, mic, or API key needed)
+Open http://localhost:5173 in **Chrome** and allow the camera and microphone. Click
+**Set up / calibrate** first (about 15 seconds: look straight, left, right, up, down, close your eyes).
+
+`.env` is created from `.env.example` and is **real mode by default** (camera, microphone).
+To work without hardware, switch a module to its mock in `.env`, for example:
 
 ```bash
-make dev-frontend
+VITE_MOCK_EYE=1          # the keyboard plays the eyes
+VITE_MOCK_EMOTION=1      # pick the "detected" emotion in the Dev Panel
+VITE_STT_PROVIDER=mock   # type what the partner says in the Dev Panel
 ```
 
-Open http://localhost:5173. With mocks, **your keyboard plays the user's eyes** and the Dev Panel
-at the bottom plays the partner and the user's face:
+## How to control it with your eyes (vertical-only mode, the current default)
 
-1. Type `Are you hungry?` in *Type what the partner says* and press Enter (or use the microphone, see below).
-2. Suggestions appear. Use <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Space</kbd> (or <kbd>1</kbd>–<kbd>4</kbd>) to pick one.
-3. A tone is proposed. <kbd>Enter</kbd> = speak it, <kbd>Esc</kbd> = change the tone.
-4. It speaks. Answer "was the tone right?" with <kbd>Enter</kbd> (yes) or <kbd>Esc</kbd> (no).
-5. Click **Open partner view** to see the partner's window and its feedback buttons.
-
-| Key | Eye signal it stands in for |
+| Do this | What happens |
 |---|---|
-| <kbd>↑</kbd> <kbd>↓</kbd> | look up / down |
-| <kbd>Space</kbd>, <kbd>1</kbd>–<kbd>4</kbd> | select (deliberate blink / dwell) |
-| <kbd>Enter</kbd> | confirm ("yes") |
-| <kbd>Esc</kbd> | cancel ("no") |
+| Look **up** or **down** and hold | the highlight moves through the options |
+| **Blink deliberately** (about 0.5 s) | selects the highlighted option |
+| Keep your **eyes closed** (about 1.5 s) | cancel / go back |
 
-## Run with the backend (real Claude suggestions, emotion training, feedback storage)
-
-```bash
-make dev-backend          # API on http://localhost:8000 (docs at /docs)
-```
-
-The backend works **without an API key** too: it returns canned suggestions. For real Claude
-replies, put your key in `.env` (never commit it):
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-...
-```
-
-Then tell the frontend to use the backend for suggestions by setting `VITE_MOCK_CONVERSATION=0`
-in `.env` and restarting `make dev-frontend`.
+Natural blinks are ignored. Iris never speaks until you confirm the tone.
+With the keyboard mock (`VITE_MOCK_EYE=1`): <kbd>↑</kbd>/<kbd>↓</kbd> move, <kbd>Space</kbd> or
+<kbd>1</kbd>–<kbd>4</kbd> select, <kbd>Enter</kbd> confirm, <kbd>Esc</kbd> cancel.
 
 ## Microphone: speech-to-text with Meta Muse Voice Transcribe
 
@@ -104,25 +102,20 @@ The browser never sees your API key: it streams microphone audio to our backend
 Cost is $3.00 per 1,000 audio minutes. The connection is only open while the app is.
 If Meta rejects the handshake, see `MUSE_BEARER_PREFIX` and `STT_DEBUG` in `.env.example`.
 
-## Switching a module from mock to real
+## Mock or real, per module
 
-Each module has a flag in `.env` (mock is the default; `0` means real):
+Each module is chosen in `.env` (`.env.example` defaults to real):
 
-| Flag | Real implementation | Status |
-|---|---|---|
-| `VITE_STT_PROVIDER=muse` | Meta Muse Voice Transcribe via the backend (`MuseSpeechToText`) | works against a fake server; needs a `MODEL_API_KEY` for the real one |
-| `VITE_STT_PROVIDER=webspeech` | Browser Web Speech API (`WebSpeechToText`) | works (Chrome; audio goes to Google) |
-| `VITE_MOCK_CONVERSATION=0` | Backend + Claude | works |
-| `VITE_MOCK_EMOTION=0` | Blendshape features + per-user model (`RealEmotionDetector`) | first version; needs calibration UI |
-| `VITE_MOCK_EYE=0` | Webcam gaze/blink (`RealEyeInput`) | **not implemented yet** (Module 1's job) |
-| `VITE_TTS_PROVIDER` | `browser` (default) or `silent` | works |
+| Setting | Real | Mock | Status of the real one |
+|---|---|---|---|
+| `VITE_MOCK_EYE` | `0`: webcam gaze + blinks (`RealEyeInput`) | `1`: keyboard | works in vertical mode; four-region layout not drawn yet; never tested on many faces |
+| `VITE_MOCK_EMOTION` | `0`: face features + per-user model | `1`: Dev Panel | works after calibration; no auto-retraining yet |
+| `VITE_STT_PROVIDER` | `muse` (needs `MODEL_API_KEY`) or `webspeech` (Chrome; audio goes to Google) | `mock` | Muse verified only against a fake server, not the real API |
+| `VITE_MOCK_CONVERSATION` | `0`: backend + Claude (canned replies without an Anthropic key) | `1` | Claude call never tested with a real key |
+| `VITE_TTS_PROVIDER` | `browser` | `silent` | works |
 
-Real eye/emotion modules need the MediaPipe files. Fetch them once (downloads a ~4 MB Google
-model file into `frontend/public/`, which is git-ignored):
-
-```bash
-cd frontend && npm run setup:mediapipe
-```
+The face model and wasm files are fetched by `make setup` (or `cd frontend && npm run setup:mediapipe`)
+into `frontend/public/`, which is git-ignored (~4 MB from Google's model storage).
 
 ## Checks
 
