@@ -23,6 +23,7 @@ Write 3 or 4 possible replies the person might want to say next, in the first pe
 - Make the replies meaningfully different from each other (e.g. yes / no / a question / \
 an emotional response), so one of them is likely right.
 - Match the way a real person would talk. No emojis.
+- Pay attention to my previous replies in the conversation history. Let my past choices influence the phrasing and style of your new suggestions.
 - For each reply choose the emotional tone it is best spoken with: one of neutral, happy, \
 sad, joking, serious.
 - If the person has a current mood setting, lean the replies toward it, but still offer \
