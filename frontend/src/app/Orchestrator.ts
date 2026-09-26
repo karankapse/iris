@@ -1,5 +1,5 @@
 import { EMOTIONS } from '../contracts';
-import type { Emotion, EyeMode } from '../contracts';
+import type { Emotion, EyeMode, SttStatus } from '../contracts';
 import { createEmitter } from '../core/emitter';
 import { getOptions, initialState, reduce, type Effect, type Event, type State } from './machine';
 import type { Services } from './services';
@@ -11,6 +11,8 @@ export interface View {
   highlight: number | null;
   dwell: number;
   eyeMode: EyeMode;
+  /** What the microphone / speech engine is doing (for the on-screen indicator). */
+  stt: SttStatus;
 }
 
 const STORAGE = { mood: 'iris.mood', eyeMode: 'iris.eyeMode' };
@@ -55,6 +57,7 @@ export class Orchestrator {
       machine: initialState(load(STORAGE.mood, EMOTIONS), idPrefix),
       highlight: null,
       dwell: 0,
+      stt: { state: 'off', engine: '' },
       // TODO: default to 'full' once the screen draws options at the up/right/down/left gaze
       // positions (optionRegions). Until then the stacked list only matches 'vertical'.
       eyeMode: load(STORAGE.eyeMode, ['full', 'vertical'] as const) ?? 'vertical',
@@ -103,6 +106,9 @@ export class Orchestrator {
       ),
     );
 
+    if (stt.onStatus) {
+      unsubs.push(stt.onStatus((status) => this.setView({ ...this.view, stt: status })));
+    }
     if (stt.onError) {
       unsubs.push(stt.onError((message) => this.dispatch({ type: 'error', message })));
     }

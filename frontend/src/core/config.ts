@@ -16,10 +16,13 @@ export const flags = {
   /**
    * Where the partner's speech comes from:
    *   'mock'      no microphone; type what the partner says in the Dev Panel (default)
-   *   'muse'      Meta Muse Voice Transcribe via the backend (needs MODEL_API_KEY)
+   *   'auto'      Meta Muse if the backend has MODEL_API_KEY, else Chrome's recognition
+   *   'muse'      Meta Muse Voice Transcribe via the backend only (needs MODEL_API_KEY)
    *   'webspeech' the browser's built-in recognition (Chrome; sends audio to Google)
    */
-  stt: (import.meta.env.VITE_STT_PROVIDER as 'mock' | 'muse' | 'webspeech' | undefined) ?? 'mock',
+  stt:
+    (import.meta.env.VITE_STT_PROVIDER as 'mock' | 'auto' | 'muse' | 'webspeech' | undefined) ??
+    'mock',
   mockConversation: isMock(import.meta.env.VITE_MOCK_CONVERSATION),
   /** 'browser' = speechSynthesis (default), 'silent' = no sound (tests / quiet dev). */
   tts: (import.meta.env.VITE_TTS_PROVIDER as 'browser' | 'silent' | undefined) ?? 'browser',

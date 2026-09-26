@@ -5,6 +5,7 @@ import type { Services } from '../../../app/services';
 import { useOrchestrator } from '../../../app/useOrchestrator';
 import { DevPanel } from './DevPanel';
 import { CameraPreview } from './CameraPreview';
+import { MicPanel } from './MicPanel';
 import { MoodBar } from './MoodBar';
 import { OptionList } from './OptionList';
 import { SetupPanel } from './SetupPanel';
@@ -23,7 +24,7 @@ const STATUS: Record<Phase, string> = {
 /** The main user screen. Everything the user sees is large and high-contrast on purpose. */
 export function MainScreen({ services }: { services: Services }) {
   const { orchestrator, view } = useOrchestrator(services);
-  const { machine, highlight, dwell, eyeMode } = view;
+  const { machine, highlight, dwell, eyeMode, stt } = view;
   const [draft, setDraft] = useState('');
   const [showSetup, setShowSetup] = useState(false);
   const options = getOptions(machine);
@@ -98,6 +99,7 @@ export function MainScreen({ services }: { services: Services }) {
       </section>
 
       {services.usesCamera && <CameraPreview services={services} />}
+      {services.usesMic && <MicPanel status={stt} />}
 
       <MoodBar
         mood={machine.mood}

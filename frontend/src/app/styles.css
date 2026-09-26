@@ -373,3 +373,56 @@ kbd {
   color: var(--accent);
   margin: 8px 0;
 }
+
+/* --- microphone indicator ---------------------------------------------------- */
+.mic {
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mic-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.mic-engine {
+  color: var(--muted);
+}
+.chip-state {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  background: #30363d;
+}
+.chip-state.listening {
+  background: #12321c;
+  color: var(--good);
+}
+.chip-state.error {
+  background: #3d1f1f;
+  color: #ff7b72;
+}
+.mic-level {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+.mic-level meter {
+  width: 160px;
+}
+.mic-level .bad {
+  color: var(--bad);
+}
+.mic-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.mic-note.warn {
+  color: var(--bad);
+}

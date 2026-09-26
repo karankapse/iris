@@ -13,6 +13,7 @@ import {
   apiSuggestions,
   cannedSuggestions,
   HistoryConversationService,
+  AutoSpeechToText,
   MockSpeechToText,
   MuseSpeechToText,
   WebSpeechToText,
@@ -22,6 +23,7 @@ import { MockEyeInput, RealEyeInput } from '../modules/eye-input';
 import { createTts } from '../modules/voice-ui/tts';
 
 function createStt(provider: typeof flags.stt): SpeechToText {
+  if (provider === 'auto') return new AutoSpeechToText();
   if (provider === 'muse') return new MuseSpeechToText();
   if (provider === 'webspeech') return new WebSpeechToText();
   return new MockSpeechToText();
@@ -37,6 +39,8 @@ export interface Services {
   /** Set only when the matching module is a mock, so the Dev Panel can drive it. */
   /** True when a real module reads the camera (so the preview/calibration UI makes sense). */
   usesCamera: boolean;
+  /** True when a real microphone engine is in use (so the mic indicator makes sense). */
+  usesMic: boolean;
   mocks: { emotion: MockEmotionDetector | null; eye: boolean };
 }
 
@@ -61,6 +65,7 @@ export function createServices(): Services {
     ),
     tts: createTts(flags.tts),
     usesCamera: needsCamera,
+    usesMic: flags.stt !== 'mock',
     mocks: { emotion: mockEmotion, eye: flags.mockEye },
   };
 }
