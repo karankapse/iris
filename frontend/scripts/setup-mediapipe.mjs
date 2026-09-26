@@ -12,6 +12,14 @@ await mkdir('public/mediapipe', { recursive: true });
 await cp('node_modules/@mediapipe/tasks-vision/wasm', 'public/mediapipe/wasm', { recursive: true });
 console.log('copied MediaPipe wasm -> public/mediapipe/wasm');
 
+// WebGazer (screen-coordinate gaze tracking) runs its own copy of MediaPipe FaceMesh. Serving
+// its files ourselves means it never downloads a model from a CDN at runtime.
+await mkdir('public/webgazer', { recursive: true });
+await cp('node_modules/webgazer/dist/mediapipe/face_mesh', 'public/webgazer/face_mesh', {
+  recursive: true,
+});
+console.log('copied WebGazer face model -> public/webgazer/face_mesh');
+
 await mkdir('public/models', { recursive: true });
 const modelPath = 'public/models/face_landmarker.task';
 if (existsSync(modelPath)) {

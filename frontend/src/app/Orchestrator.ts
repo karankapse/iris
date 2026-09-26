@@ -82,7 +82,7 @@ export class Orchestrator {
   // ---- lifecycle -------------------------------------------------------------
   /** Start the camera, mic and eye input. Returns a function that stops everything. */
   start(): () => void {
-    const { faceTracker, eyeInput, emotion, stt } = this.services;
+    const { faceTracker, eyeInput, emotion, stt, gaze } = this.services;
     const unsubs: (() => void)[] = [];
 
     unsubs.push(faceTracker.onFrame((f) => emotion.onFrame(f)));
@@ -134,6 +134,7 @@ export class Orchestrator {
     };
     void (async () => {
       await attempt(() => faceTracker.start());
+      if (gaze) await attempt(() => gaze.start());
       await attempt(() => this.startEye());
       await attempt(() => stt.start());
     })();
@@ -142,6 +143,7 @@ export class Orchestrator {
       clearInterval(timer);
       unsubs.forEach((u) => u());
       eyeInput.stop();
+      gaze?.stop();
       stt.stop();
       faceTracker.stop();
       this.services.tts.cancel();

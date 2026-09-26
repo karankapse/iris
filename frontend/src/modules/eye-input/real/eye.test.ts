@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { optionRegions } from '../../../contracts';
-import type { EyeEvent, FaceFrame, FaceTracker } from '../../../contracts';
+import type { EyeEvent, FaceFrame, FaceTracker, GazePoint, ScreenGaze } from '../../../contracts';
 import { createEmitter } from '../../../core/emitter';
 import { BlinkDetector } from './blink';
 import { GazeStepper } from './gaze';
@@ -432,6 +432,117 @@ describe('RealEyeInput (full mode: corners + dwell + blink)', () => {
   it('reports which corner it currently sees, for the camera panel', () => {
     const h = ready(4);
     h.play(500, LOOK.br);
+    expect(h.eye.status?.().region).toBe('down-right');
+  });
+});
+
+// ---- screen gaze (WebGazer / mouse): zones come from real screen coordinates ------------------
+
+class FakeGaze implements ScreenGaze {
+  private emitter = createEmitter<GazePoint | null>();
+  trained: [number, number][] = [];
+  async start() {}
+  stop() {}
+  onGaze(h: (p: GazePoint | null) => void) {
+    return this.emitter.on(h);
+  }
+  train(x: number, y: number) {
+    this.trained.push([x, y]);
+  }
+  async clearTraining() {}
+  emit(p: GazePoint | null) {
+    this.emitter.emit(p);
+  }
+}
+
+describe('RealEyeInput (screen gaze: which box on the screen is the gaze in?)', () => {
+  const W = window.innerWidth; // jsdom: 1024 x 768
+  const H = window.innerHeight;
+  const spots = {
+    tl: { x: W * 0.15, y: H * 0.2 },
+    tr: { x: W * 0.85, y: H * 0.2 },
+    bl: { x: W * 0.15, y: H * 0.8 },
+    br: { x: W * 0.85, y: H * 0.8 },
+    mid: { x: W * 0.5, y: H * 0.5 },
+  };
+
+  function setupGaze(n = 4) {
+    localStorage.clear();
+    const tracker = new FakeTracker();
+    const gaze = new FakeGaze();
+    const eye = new RealEyeInput(tracker, gaze);
+    const events: EyeEvent[] = [];
+    eye.on((e) => events.push(e));
+    eye.start({ mode: 'full', optionCount: n });
+    let t = 1000;
+    /** Camera frames (blinks) and gaze estimates arrive together, ~30 per second. */
+    const play = (ms: number, at: { x: number; y: number }, blink = 0) => {
+      for (const end = t + ms; t < end; t += 33) {
+        tracker.emit(face(t, { blink }));
+        gaze.emit({ x: at.x, y: at.y, t });
+      }
+    };
+    const selects = () => events.filter((e) => e.type !== 'highlight');
+    const lit = () =>
+      events.filter((e): e is Extract<EyeEvent, { type: 'highlight' }> => e.type === 'highlight');
+    return { eye, gaze, play, selects, lit };
+  }
+
+  it('lights up the option whose box the gaze is in', () => {
+    const h = setupGaze();
+    h.play(600, spots.mid);
+    h.play(500, spots.tl);
+    expect(h.lit().at(-1)?.optionIndex).toBe(0);
+    h.play(500, spots.br);
+    expect(h.lit().at(-1)?.optionIndex).toBe(3);
+    h.play(500, spots.mid);
+    expect(h.lit().at(-1)?.optionIndex).toBeNull();
+  });
+
+  it('selects by dwell (look and keep looking), and only once', () => {
+    const h = setupGaze();
+    h.play(600, spots.mid);
+    h.play(2500, spots.tr);
+    expect(h.selects()).toEqual([{ type: 'select', optionIndex: 1 }]);
+  });
+
+  it('selects by a deliberate blink while looking at a box', () => {
+    const h = setupGaze();
+    h.play(600, spots.mid);
+    h.play(600, spots.bl);
+    h.play(700, spots.bl, 0.9);
+    h.play(300, spots.bl);
+    expect(h.selects()).toEqual([{ type: 'select', optionIndex: 2 }]);
+  });
+
+  it('a gaze that wanders off while the eyes are closed does not change the selection', () => {
+    const h = setupGaze();
+    h.play(600, spots.mid);
+    h.play(600, spots.tl);
+    h.play(700, spots.br, 0.9); // gaze estimates jump while the eyes are closed
+    h.play(300, spots.mid);
+    expect(h.selects()).toEqual([{ type: 'select', optionIndex: 0 }]);
+  });
+
+  it('a new screen needs a look at the middle before dwell can select (no accidental pick)', () => {
+    const h = setupGaze();
+    h.play(600, spots.mid);
+    h.play(500, spots.tl);
+    h.eye.setOptionCount(3);
+    h.play(3000, spots.tl);
+    expect(h.selects()).toEqual([]);
+  });
+
+  it('does nothing while looking at the middle (rest)', () => {
+    const h = setupGaze();
+    h.play(4000, spots.mid);
+    expect(h.selects()).toEqual([]);
+  });
+
+  it('reports the current zone for the camera panel', () => {
+    const h = setupGaze();
+    h.play(600, spots.mid);
+    h.play(600, spots.br);
     expect(h.eye.status?.().region).toBe('down-right');
   });
 });

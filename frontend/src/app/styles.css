@@ -693,3 +693,27 @@ kbd {
   font-size: 1rem;
   margin: 0;
 }
+
+/* --- red gaze dot: follows where the eyes are looking ------------------------------------------- */
+.gaze-dot {
+  position: fixed;
+  left: -14px;
+  top: -14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 40, 40, 0.85);
+  border: 3px solid #fff;
+  box-shadow: 0 0 14px rgba(255, 40, 40, 0.8);
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.2s;
+  will-change: transform;
+}
+.dot-toggle {
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}

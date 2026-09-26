@@ -22,6 +22,12 @@ export function optionRegions(optionCount: number, mode: 'full' | 'vertical'): R
 }
 
 /**
+ * The screen is split into three columns (options | face + "partner said" | options) and two rows.
+ * Fractions of the viewport; the CSS grid in styles.css (.corner-grid) uses the same numbers.
+ */
+export const LAYOUT = { leftColumn: 0.36, rightColumn: 0.64, middleRow: 0.5 } as const;
+
+/**
  * Where on the screen (percent of width, height) each calibration target and option sits.
  * Shared so the calibration dots appear exactly where the option cards are drawn.
  */
@@ -52,7 +58,9 @@ export type EyeEvent =
 /** One instruction shown to the user (or caregiver) during calibration. */
 export interface CalibrationStep {
   /** Where to look: a dot is shown at that spot ('closed' = eyes shut, no dot). */
-  target: 'center' | Region | 'up' | 'down' | 'closed';
+  target: 'center' | Region | 'up' | 'down' | 'closed' | 'point';
+  /** For target 'point': where to draw the dot, in percent of the screen. */
+  position?: { x: number; y: number };
   /** e.g. "Look straight at the screen" */
   prompt: string;
   /** How long this step lasts. */
@@ -79,5 +87,10 @@ export interface EyeInput {
   /** Subscribe to events. Returns an unsubscribe function. */
   on(handler: (event: EyeEvent) => void): () => void;
   /** Optional live diagnostics for the camera panel (which corner is detected, is it calibrated). */
-  status?(): { region: 'center' | Region | null; calibrated: boolean };
+  status?(): {
+    region: 'center' | Region | null;
+    calibrated: boolean;
+    /** Measured at the end of calibration: share of gaze readings that landed in the right box (0..1). */
+    accuracy?: number;
+  };
 }

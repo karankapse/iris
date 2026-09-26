@@ -73,12 +73,16 @@ export function SetupPanel({
     run('eyes', async () => {
       const warnings = await eyeInput.calibrate((s) => {
         setStep(s);
-        setSecondsLeft(s.seconds);
+        setSecondsLeft(Math.ceil(s.seconds));
       });
-      if (warnings.length === 0)
-        return 'Eye calibration saved. It has learned where this person looks.';
+      const accuracy = eyeInput.status?.().accuracy;
+      const measured =
+        accuracy === undefined
+          ? ''
+          : ` Measured accuracy: ${Math.round(accuracy * 100)}% of gaze readings landed in the right box.`;
+      if (warnings.length === 0) return `Eye calibration saved.${measured}`;
       throw new Error(
-        `Calibrated, but the signal was weak: ${warnings.join(' ')} Try again with a brighter room and look right at each dot.`,
+        `Calibrated, but: ${warnings.join(' ')}${measured} Try again: sit still, good light, look right at each dot.`,
       );
     });
 
@@ -117,8 +121,8 @@ export function SetupPanel({
             <div
               className="calib-dot"
               style={{
-                left: `${DOT_POSITION[step.target].x}%`,
-                top: `${DOT_POSITION[step.target].y}%`,
+                left: `${(step.target === 'point' ? step.position! : DOT_POSITION[step.target]).x}%`,
+                top: `${(step.target === 'point' ? step.position! : DOT_POSITION[step.target]).y}%`,
               }}
             />
           )}

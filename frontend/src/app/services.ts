@@ -1,5 +1,6 @@
 import type {
   ConversationService,
+  ScreenGaze,
   EmotionDetector,
   EyeInput,
   FaceTracker,
@@ -7,6 +8,8 @@ import type {
   TtsProvider,
 } from '../contracts';
 import { flags } from '../core/config';
+import { MouseGaze } from '../core/gaze/MouseGaze';
+import { WebGazerGaze } from '../core/gaze/WebGazerGaze';
 import { MediaPipeFaceTracker } from '../core/face/MediaPipeFaceTracker';
 import { MockFaceTracker } from '../core/face/MockFaceTracker';
 import {
@@ -31,6 +34,8 @@ function createStt(provider: typeof flags.stt): SpeechToText {
 
 export interface Services {
   faceTracker: FaceTracker;
+  /** Where on the screen the person looks (WebGazer or mouse). null = not used. */
+  gaze: ScreenGaze | null;
   eyeInput: EyeInput;
   emotion: EmotionDetector;
   stt: SpeechToText;
@@ -55,9 +60,18 @@ export function createServices(): Services {
 
   const mockEmotion = flags.mockEmotion ? new MockEmotionDetector() : null;
 
+  const gaze: ScreenGaze | null = flags.mockEye
+    ? null
+    : flags.gazeEngine === 'webgazer'
+      ? new WebGazerGaze()
+      : flags.gazeEngine === 'mouse'
+        ? new MouseGaze()
+        : null;
+
   return {
     faceTracker,
-    eyeInput: flags.mockEye ? new MockEyeInput() : new RealEyeInput(faceTracker),
+    gaze,
+    eyeInput: flags.mockEye ? new MockEyeInput() : new RealEyeInput(faceTracker, gaze),
     emotion: mockEmotion ?? new RealEmotionDetector(),
     stt: createStt(flags.stt),
     conversation: new HistoryConversationService(

@@ -1,4 +1,4 @@
-import { optionRegions } from '../../../contracts';
+import { LAYOUT, TARGET_POSITION, optionRegions } from '../../../contracts';
 import type {
   CalibrationStep,
   EyeEvent,
@@ -6,9 +6,11 @@ import type {
   EyeMode,
   FaceFrame,
   FaceTracker,
+  GazePoint,
+  ScreenGaze,
 } from '../../../contracts';
 import { createEmitter } from '../../../core/emitter';
-import { BlinkDetector } from './blink';
+import { BlinkDetector, type BlinkOutcome } from './blink';
 import {
   CornerTracker,
   defaultCornerModel,
@@ -20,6 +22,7 @@ import {
   type Zone,
 } from './corners';
 import { GazeStepper } from './gaze';
+import { ScreenZoneTracker, zoneAt } from './screenZones';
 import {
   loadTuning,
   median,
@@ -57,6 +60,41 @@ const BLINK_KEYS = ['eyeBlinkLeft', 'eyeBlinkRight'] as const;
 const CALIBRATION_REACTION_MS = 900;
 const MIN_CALIBRATION_FRAMES = 10;
 const PROGRESS_STEP = 0.05;
+
+// Screen-gaze calibration (WebGazer). Positions are percent of the screen.
+const SCREEN_CALIBRATED_KEY = 'iris.gazeCalibrated';
+const SETTLE_MS = 900; // time to find the dot
+const TRAIN_MS = 1500;
+const TRAIN_EVERY_MS = 75;
+const CHECK_MS = 1200;
+const TRAIN_POINTS: { key: string; pos: { x: number; y: number } }[] = [
+  { key: 'center', pos: TARGET_POSITION.center },
+  { key: 'up-left', pos: TARGET_POSITION['up-left'] },
+  { key: 'up-right', pos: TARGET_POSITION['up-right'] },
+  { key: 'down-left', pos: TARGET_POSITION['down-left'] },
+  { key: 'down-right', pos: TARGET_POSITION['down-right'] },
+  // extra points spread over the middle column and the box edges, so the mapping is learned everywhere
+  { key: 'top-middle', pos: { x: 50, y: 25 } },
+  { key: 'bottom-middle', pos: { x: 50, y: 75 } },
+  { key: 'left-middle', pos: { x: LAYOUT.leftColumn * 50, y: 50 } },
+  { key: 'right-middle', pos: { x: 100 - LAYOUT.leftColumn * 50, y: 50 } },
+];
+const CHECK_ZONES: Zone[] = ['center', 'up-left', 'up-right', 'down-left', 'down-right'];
+const ZONE_LABEL: Record<Zone, string> = {
+  center: 'Middle',
+  'up-left': 'Top-left',
+  'up-right': 'Top-right',
+  'down-left': 'Bottom-left',
+  'down-right': 'Bottom-right',
+};
+
+function screenCalibrated(): boolean {
+  try {
+    return localStorage.getItem(SCREEN_CALIBRATED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 type StepKey = Zone | 'up' | 'down' | 'closed';
 interface StepDef {
@@ -125,6 +163,15 @@ export class RealEyeInput implements EyeInput {
   private lastProgress = 0;
   private blinkEndedAt = -Infinity;
   private lastFrameAt = -Infinity;
+  private lastGazeAt = -Infinity;
+  private blinkProgress = 0;
+  private settling = false;
+  private currentZone: Zone = 'center';
+  private calibrating = false;
+  private accuracy: number | undefined;
+  /** Screen-coordinate gaze (WebGazer / mouse). null = use the MediaPipe corner classifier. */
+  private zones = new ScreenZoneTracker(this.tuning.regionHoldMs);
+  private unsubscribeGaze: (() => void) | null = null;
 
   // dwell (full mode)
   private dwellZone: Zone | null = null;
@@ -135,14 +182,20 @@ export class RealEyeInput implements EyeInput {
   /** While calibrating, frames go here instead of controlling the app. */
   private collector: ((frame: FaceFrame) => void) | null = null;
 
-  constructor(private tracker: FaceTracker) {}
+  constructor(
+    private tracker: FaceTracker,
+    private gaze: ScreenGaze | null = null,
+  ) {}
 
   start(options: { mode: EyeMode; optionCount: number }) {
     this.unsubscribe?.();
     this.mode = options.mode;
     this.corners.reset();
+    this.zones.reset();
     this.stepper.reset();
     this.unsubscribe = this.tracker.onFrame((frame) => this.onFrame(frame));
+    this.unsubscribeGaze?.();
+    this.unsubscribeGaze = this.gaze?.onGaze((p) => this.onGaze(p)) ?? null;
     this.setOptionCount(options.optionCount);
   }
 
@@ -153,13 +206,15 @@ export class RealEyeInput implements EyeInput {
     this.armed = false; // no dwell-select on a fresh screen until the gaze has rested at the centre
     this.dwellZone = null;
     const index =
-      this.mode === 'full' ? this.optionAt(this.corners.current) : optionCount > 0 ? 0 : null;
+      this.mode === 'full' ? this.optionAt(this.currentZone) : optionCount > 0 ? 0 : null;
     this.setHighlight(index, 0);
   }
 
   stop() {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.unsubscribeGaze?.();
+    this.unsubscribeGaze = null;
   }
 
   on(handler: (event: EyeEvent) => void) {
@@ -168,8 +223,10 @@ export class RealEyeInput implements EyeInput {
 
   status() {
     return {
-      region: this.mode === 'full' ? this.corners.current : null,
-      calibrated: this.mode === 'full' ? this.savedModel !== null : true,
+      region: this.mode === 'full' ? this.currentZone : null,
+      calibrated:
+        this.mode !== 'full' ? true : this.gaze ? screenCalibrated() : this.savedModel !== null,
+      accuracy: this.accuracy,
     };
   }
 
@@ -183,6 +240,7 @@ export class RealEyeInput implements EyeInput {
   // ---- per-frame control ------------------------------------------------------------
   private onFrame(frame: FaceFrame) {
     if (this.collector) return this.collector(frame);
+    if (this.calibrating) return;
 
     // Face lost for a moment: whatever gaze we were tracking is stale. Start fresh and wait
     // for the person to look at the centre again before any dwell can complete.
@@ -193,25 +251,40 @@ export class RealEyeInput implements EyeInput {
     }
     this.lastFrameAt = frame.t;
 
-    const { outcome, progress: blinkProgress } = this.blink.update(frame.t, blinkScore(frame));
+    const { outcome, progress } = this.blink.update(frame.t, blinkScore(frame));
+    this.blinkProgress = progress;
     if (this.blink.closed) this.blinkEndedAt = frame.t;
     // Eyes roll while closing and opening, so freeze gaze around blinks.
-    const settling = this.blink.closed || frame.t - this.blinkEndedAt < this.tuning.settleMs;
+    this.settling = this.blink.closed || frame.t - this.blinkEndedAt < this.tuning.settleMs;
 
-    if (this.mode === 'full') this.onFrameFull(frame, outcome, blinkProgress, settling);
-    else this.onFrameVertical(frame, outcome, blinkProgress, settling);
+    if (this.mode === 'full') {
+      // With screen gaze, zones come from onGaze(); here only the blink can act on the current zone.
+      const zone = this.gaze
+        ? this.currentZone
+        : this.corners.update(frame.t, gazeFeatures(frame), this.settling);
+      this.applyZone(frame.t, zone, outcome);
+    } else this.onFrameVertical(frame, outcome, progress, this.settling);
 
     if (outcome === 'cancel') this.emitter.emit({ type: 'cancel' });
   }
 
-  private onFrameFull(
-    frame: FaceFrame,
-    outcome: 'select' | 'cancel' | null,
-    blinkProgress: number,
-    settling: boolean,
-  ) {
-    const t = frame.t;
-    const zone = this.corners.update(t, gazeFeatures(frame), settling);
+  /** A screen-gaze estimate (WebGazer or the mouse): decide which box it is in. */
+  private onGaze(p: GazePoint | null) {
+    if (!p || this.collector || this.calibrating || this.mode !== 'full') return;
+    if (p.t - this.lastGazeAt > this.tuning.frameGapMs * 3) {
+      // gaze estimates stopped for a while: start fresh
+      this.zones.reset();
+      this.dwellZone = null;
+      this.armed = false;
+    }
+    this.lastGazeAt = p.t;
+    const zone = this.zones.update(p.t, p, this.settling);
+    this.applyZone(p.t, zone, null);
+  }
+
+  /** Dwell + blink selection for the zone currently looked at (full mode). */
+  private applyZone(t: number, zone: Zone, outcome: BlinkOutcome) {
+    this.currentZone = zone;
     const index = this.optionAt(zone);
 
     // Dwell restarts whenever the zone changes; looking at the centre re-arms it.
@@ -222,7 +295,7 @@ export class RealEyeInput implements EyeInput {
     if (zone === 'center') this.armed = true;
 
     let dwellProgress = 0;
-    if (index !== null && this.armed && !settling) {
+    if (index !== null && this.armed && !this.settling) {
       dwellProgress = Math.min(1, (t - this.dwellStart) / this.tuning.dwellMs);
     }
 
@@ -232,7 +305,7 @@ export class RealEyeInput implements EyeInput {
       dwellProgress = 0;
     }
 
-    this.setHighlight(index, Math.max(blinkProgress, dwellProgress));
+    this.setHighlight(index, Math.max(this.blinkProgress, dwellProgress));
   }
 
   private onFrameVertical(
@@ -271,7 +344,8 @@ export class RealEyeInput implements EyeInput {
 
   // ---- calibration ---------------------------------------------------------------------
   async calibrate(onStep?: (step: CalibrationStep) => void): Promise<string[]> {
-    if (this.collector) throw new Error('Calibration is already running.');
+    if (this.collector || this.calibrating) throw new Error('Calibration is already running.');
+    if (this.gaze && this.mode === 'full') return this.calibrateScreen(onStep);
 
     const steps = this.mode === 'full' ? FULL_STEPS : VERTICAL_STEPS;
     const frames: Partial<Record<StepKey, FaceFrame[]>> = {};
@@ -350,6 +424,145 @@ export class RealEyeInput implements EyeInput {
     this.stepper.setTuning(result.tuning);
     this.corners.setHoldMs(result.tuning.regionHoldMs);
     saveTuning(result.tuning);
+    return warnings;
+  }
+
+  // ---- calibration with screen gaze (WebGazer) -----------------------------------------------
+  /**
+   * Hands-free: a dot appears, the person looks at it, and we teach WebGazer "the eyes look like
+   * THIS when looking at THAT spot" (no clicking). Then a check: dots again, and we measure how
+   * often the gaze lands in the right box, which is the number that actually matters here.
+   */
+  private async calibrateScreen(onStep?: (step: CalibrationStep) => void): Promise<string[]> {
+    const gaze = this.gaze!;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const px = (pos: { x: number; y: number }) => ({
+      x: (pos.x / 100) * window.innerWidth,
+      y: (pos.y / 100) * window.innerHeight,
+    });
+    const total = TRAIN_POINTS.length + CHECK_ZONES.length + 1;
+    let n = 0;
+    const step = (
+      target: CalibrationStep['target'],
+      prompt: string,
+      seconds: number,
+      position?: { x: number; y: number },
+    ) => onStep?.({ target, position, prompt, seconds, index: ++n, total });
+
+    this.calibrating = true;
+    localStorage.removeItem(SCREEN_CALIBRATED_KEY);
+    const bucket: { key: string; frames: FaceFrame[] }[] = [];
+    let current: FaceFrame[] | null = null;
+    this.collector = (f) => current?.push(f);
+    const warnings: string[] = [];
+    try {
+      await gaze.clearTraining();
+
+      // 1) TRAIN: look at each dot
+      for (const point of TRAIN_POINTS) {
+        step('point', 'Look at the dot', (SETTLE_MS + TRAIN_MS) / 1000, point.pos);
+        current = [];
+        await sleep(SETTLE_MS);
+        const at = px(point.pos);
+        for (let waited = 0; waited < TRAIN_MS; waited += TRAIN_EVERY_MS) {
+          gaze.train(at.x, at.y);
+          await sleep(TRAIN_EVERY_MS);
+        }
+        bucket.push({ key: point.key, frames: current });
+        current = null;
+      }
+
+      // 2) BLINK: eyes closed
+      step('closed', 'Close your eyes gently and keep them closed', 2.5);
+      current = [];
+      await sleep(2500);
+      bucket.push({ key: 'closed', frames: current });
+      current = null;
+
+      // 3) CHECK: how often does the gaze land in the right box?
+      const results: { zone: Zone; hit: number; n: number; err: number }[] = [];
+      for (const zone of CHECK_ZONES) {
+        const pos = TARGET_POSITION[zone];
+        step(
+          zone === 'center' ? 'center' : zone,
+          'Look at the dot (checking accuracy)',
+          (SETTLE_MS + CHECK_MS) / 1000,
+        );
+        await sleep(SETTLE_MS);
+        const at = px(pos);
+        const readings: GazePoint[] = [];
+        const off = gaze.onGaze((p) => p && readings.push(p));
+        await sleep(CHECK_MS);
+        off();
+        const vp = { w: window.innerWidth, h: window.innerHeight };
+        const hit = readings.filter((r) => zoneAt(r.x, r.y, vp) === zone).length;
+        const err = readings.length
+          ? readings.reduce((sum, r) => sum + Math.hypot(r.x - at.x, r.y - at.y), 0) /
+            readings.length
+          : NaN;
+        results.push({ zone, hit, n: readings.length, err });
+      }
+      const usable = results.filter((r) => r.n >= 5);
+      if (usable.length < results.length) {
+        throw new Error(
+          "I couldn't get gaze readings while checking. Make sure the camera can see your face, then try again.",
+        );
+      }
+      const overall = usable.reduce((s, r) => s + r.hit, 0) / usable.reduce((s, r) => s + r.n, 0);
+      this.accuracy = overall;
+      console.info(
+        '[gaze calibration] accuracy',
+        JSON.stringify(
+          results.map((r) => ({ ...r, err: Math.round(r.err) })),
+          null,
+          0,
+        ),
+        'overall',
+        overall.toFixed(2),
+      );
+      for (const r of results) {
+        if (r.hit / r.n < 0.6) {
+          warnings.push(
+            `${ZONE_LABEL[r.zone]}: only ${Math.round((100 * r.hit) / r.n)}% of readings landed in the right box.`,
+          );
+        }
+      }
+
+      // blink + up/down thresholds, from the frames we saw along the way
+      const framesOf = (keys: string[]) =>
+        bucket.filter((b) => keys.includes(b.key)).flatMap((b) => b.frames);
+      const open = framesOf(TRAIN_POINTS.map((p) => p.key));
+      const closed = framesOf(['closed']);
+      const medianY = (fs: FaceFrame[]) => median(fs.map((f) => f.gaze.y));
+      if (open.length >= 10 && closed.length >= 10) {
+        const result = tuningFromSamples(
+          {
+            centerY: medianY(framesOf(['center'])),
+            upY: medianY(framesOf(['up-left', 'up-right'])),
+            downY: medianY(framesOf(['down-left', 'down-right'])),
+            openBlink: median(open.map(blinkScore)),
+            closedBlink: median(closed.map(blinkScore)),
+          },
+          this.tuning,
+        );
+        // gaze up/down thresholds only matter in vertical mode; the blink ones matter here
+        warnings.push(...result.warnings.filter((w) => w.startsWith('Closed')));
+        this.tuning = result.tuning;
+        this.blink.setTuning(result.tuning);
+        this.stepper.setTuning(result.tuning);
+        saveTuning(result.tuning);
+      } else {
+        warnings.push("I couldn't see the face well enough to learn your blink.");
+      }
+      localStorage.setItem(SCREEN_CALIBRATED_KEY, '1');
+    } finally {
+      this.collector = null;
+      this.calibrating = false;
+      this.zones.reset();
+      this.dwellZone = null;
+      this.armed = false;
+    }
+    for (const w of warnings) console.warn('[eye calibration]', w);
     return warnings;
   }
 }

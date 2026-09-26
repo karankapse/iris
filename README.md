@@ -73,9 +73,13 @@ VITE_STT_PROVIDER=mock   # type what the partner says in the Dev Panel
 
 ## How to control it with your eyes
 
-**Calibrate first** (click **Calibrate**, about 20 seconds): a dot appears in the middle and in each
-corner of the screen, and you look at it. Iris learns what *your* eyes look like at each corner.
-Then close your eyes for a moment so it learns your blink.
+Gaze tracking uses **[WebGazer](https://github.com/brownhci/WebGazer)**: it learns, from *your* calibration,
+where on the screen you are looking, and a **red dot** shows what it thinks (toggle it in the Menu).
+
+**Calibrate first** (click **Calibrate**, about 40 seconds): dots appear around the screen and you look at
+each one. No clicking is needed (the app trains it for you), so it works for people who can't use a mouse.
+Then close your eyes for a moment (learns your blink), then a short **accuracy check** tells you what
+percentage of readings landed in the right box. Keep your head still and the room well lit.
 
 Up to four options are shown in the **four corners** of the screen (a 2×2 grid, reading order):
 
@@ -84,7 +88,7 @@ Up to four options are shown in the **four corners** of the screen (a 2×2 grid,
 | Look at a corner | that option lights up |
 | Keep looking (about 1.5 s) | a bar fills, then the option is selected (**dwell**) |
 | **Blink deliberately** (about 0.5 s) while looking at it | selects it right away |
-| Look at the middle | rest: nothing is selected |
+| Look at the middle (face / "Partner said") | rest: nothing is selected |
 | Keep your **eyes closed** (about 1.5 s) | cancel / go back |
 
 Natural blinks are ignored, and after a selection you must look back at the middle before the next
@@ -114,13 +118,20 @@ The browser never sees your API key: it streams microphone audio to our backend
 Cost is $3.00 per 1,000 audio minutes. The connection is only open while the app is.
 If Meta rejects the handshake, see `MUSE_BEARER_PREFIX` and `STT_DEBUG` in `.env.example`.
 
+## Licensing note: WebGazer is GPL-3.0
+
+WebGazer is licensed **GPL-3.0-or-later** and is no longer maintained (it still works). If Iris is
+distributed with it, Iris should itself be released under a GPL-compatible license. This repository
+does not have a `LICENSE` file yet: the team should decide on one. To avoid the dependency, set
+`VITE_GAZE_ENGINE=mediapipe` (the older classifier over MediaPipe face signals).
+
 ## Mock or real, per module
 
 Each module is chosen in `.env` (`.env.example` defaults to real):
 
 | Setting | Real | Mock | Status of the real one |
 |---|---|---|---|
-| `VITE_MOCK_EYE` | `0`: webcam gaze + blinks (`RealEyeInput`) | `1`: keyboard | works in vertical mode; four-region layout not drawn yet; never tested on many faces |
+| `VITE_MOCK_EYE` | `0`: webcam gaze + blinks (`RealEyeInput`) | `1`: keyboard | gaze via WebGazer (`VITE_GAZE_ENGINE=webgazer`, default), `mediapipe`, or `mouse` (the pointer stands in for the eyes, for testing without a camera); tried on one face |
 | `VITE_MOCK_EMOTION` | `0`: face features + per-user model | `1`: Dev Panel | works after calibration; no auto-retraining yet |
 | `VITE_STT_PROVIDER` | `muse` (needs `MODEL_API_KEY`) or `webspeech` (Chrome; audio goes to Google) | `mock` | Muse verified only against a fake server, not the real API |
 | `VITE_MOCK_CONVERSATION` | `0`: backend + Claude (canned replies without an Anthropic key) | `1` | Claude call never tested with a real key |

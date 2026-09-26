@@ -4,6 +4,7 @@ import { useOrchestrator } from '../../../app/useOrchestrator';
 import { CameraPreview } from './CameraPreview';
 import { CornerLayout } from './CornerLayout';
 import { DevPanel } from './DevPanel';
+import { GazeDot } from './GazeDot';
 import { MicPanel } from './MicPanel';
 import { MoodBar } from './MoodBar';
 import { SetupPanel } from './SetupPanel';
@@ -16,6 +17,21 @@ export function MainScreen({ services }: { services: Services }) {
   const [draft, setDraft] = useState('');
   const [showSetup, setShowSetup] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showDot, setShowDot] = useState(() => {
+    try {
+      return localStorage.getItem('iris.showGazeDot') !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const toggleDot = (on: boolean) => {
+    setShowDot(on);
+    try {
+      localStorage.setItem('iris.showGazeDot', on ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  };
 
   const pick = (optionIndex: number) =>
     orchestrator.dispatch({ type: 'eye', event: { type: 'select', optionIndex } });
@@ -45,6 +61,12 @@ export function MainScreen({ services }: { services: Services }) {
     <>
       {services.usesCamera && <CameraPreview services={services} />}
       {services.usesMic && <MicPanel status={stt} />}
+      {services.gaze && (
+        <label className="dot-toggle">
+          <input type="checkbox" checked={showDot} onChange={(e) => toggleDot(e.target.checked)} />{' '}
+          show the red gaze dot
+        </label>
+      )}
       <MoodBar
         mood={machine.mood}
         eyeMode={eyeMode}
@@ -60,6 +82,7 @@ export function MainScreen({ services }: { services: Services }) {
 
   return (
     <>
+      {showDot && services.gaze && <GazeDot services={services} />}
       {eyeMode === 'full' ? (
         <CornerLayout
           orchestrator={orchestrator}
