@@ -189,10 +189,15 @@ export class Orchestrator {
   private run(effect: Effect) {
     const { conversation, tts, emotion } = this.services;
     switch (effect.type) {
-      case 'suggest':
+      case 'suggest': {
+        const profile = {
+          name: 'Arya',
+          common_needs: ['water', 'adjust pillow'],
+          relationships: { 'Sarah': 'wife', 'Dr. Smith': 'doctor' }
+        };
         conversation.addTurn({ speaker: 'partner', text: effect.partnerText });
         conversation
-          .suggestReplies(effect.mood)
+          .suggestReplies(effect.mood, profile)
           .then((suggestions) =>
             this.dispatch({ type: 'suggestions_ready', requestId: effect.requestId, suggestions }),
           )
@@ -204,6 +209,7 @@ export class Orchestrator {
             }),
           );
         break;
+      }
 
       case 'snapshot_features':
         // Remember the face features from the moment the tone was proposed; they become a

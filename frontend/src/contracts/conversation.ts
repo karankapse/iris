@@ -1,6 +1,7 @@
 // ============================================================================
 // Conversation AI contracts  (Module 3)
 // ============================================================================
+import type { ApiUserProfile } from '../core/api';
 import type { Emotion } from './emotion';
 
 export type Speaker = 'partner' | 'user';
@@ -40,5 +41,5 @@ export interface ConversationService {
   addTurn(turn: ConversationTurn): void;
   history(): ConversationTurn[];
   /** Ask the AI for 3-4 suggested replies (never more than 4). */
-  suggestReplies(mood: Emotion | null): Promise<Suggestion[]>;
+  suggestReplies(mood: Emotion | null, profile?: ApiUserProfile): Promise<Suggestion[]>;
 }

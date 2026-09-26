@@ -5,7 +5,7 @@ Do not edit the generated file by hand.
 """
 
 from .common import Emotion, Speaker
-from .conversation import ConversationTurn, Suggestion, SuggestionsRequest, SuggestionsResponse
+from .conversation import ConversationTurn, Suggestion, SuggestionsRequest, SuggestionsResponse, UserProfile
 from .emotion import EmotionModel, EmotionSample, SamplesRequest, TrainRequest
 from .feedback import FeedbackRequest
 

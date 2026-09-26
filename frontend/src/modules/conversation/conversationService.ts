@@ -1,9 +1,12 @@
 import type { ConversationService, ConversationTurn, Emotion, Suggestion } from '../../contracts';
 import { MAX_OPTIONS } from '../../core/config';
 
+import type { ApiUserProfile } from '../../core/api';
+
 export type SuggestionFetcher = (
   history: ConversationTurn[],
   mood: Emotion | null,
+  profile?: ApiUserProfile
 ) => Promise<Suggestion[]>;
 
 /**
@@ -23,8 +26,8 @@ export class HistoryConversationService implements ConversationService {
     return [...this.turns];
   }
 
-  async suggestReplies(mood: Emotion | null) {
-    const suggestions = await this.fetchSuggestions(this.history(), mood);
+  async suggestReplies(mood: Emotion | null, profile?: ApiUserProfile) {
+    const suggestions = await this.fetchSuggestions(this.history(), mood, profile);
     return suggestions.slice(0, MAX_OPTIONS);
   }
 }

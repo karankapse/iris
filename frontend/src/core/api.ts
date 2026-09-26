@@ -35,9 +35,11 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown):
   return res.json() as Promise<T>;
 }
 
+export type ApiUserProfile = Schemas['UserProfile'];
+
 export const api = {
-  suggestions: (history: ApiTurn[], mood: Emotion | null) =>
-    request<Schemas['SuggestionsResponse']>('POST', '/api/suggestions', { history, mood }),
+  suggestions: (history: ApiTurn[], mood: Emotion | null, profile?: ApiUserProfile) =>
+    request<Schemas['SuggestionsResponse']>('POST', '/api/suggestions', { history, mood, profile }),
 
   addSamples: (body: Schemas['SamplesRequest']) =>
     request<{ stored: number }>('POST', '/api/emotion/samples', body),

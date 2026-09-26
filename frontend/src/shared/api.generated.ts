@@ -245,6 +245,8 @@ export interface components {
              * @description The user's persistent mood setting, if any
              */
             mood?: ("neutral" | "happy" | "sad" | "joking" | "serious") | null;
+            /** @description The user's profile context (name, relationships, common needs) */
+            profile?: components["schemas"]["UserProfile"] | null;
         };
         /** SuggestionsResponse */
         SuggestionsResponse: {
@@ -255,6 +257,26 @@ export interface components {
         TrainRequest: {
             /** User Id */
             user_id: string;
+        };
+        /** UserProfile */
+        UserProfile: {
+            /**
+             * Common Needs
+             * @description Things the user often needs (e.g. 'water', 'adjust pillow')
+             */
+            common_needs?: string[] | null;
+            /**
+             * Name
+             * @description The user's name
+             */
+            name?: string | null;
+            /**
+             * Relationships
+             * @description Key-value mapping of names to relationships (e.g. 'Sarah': 'wife')
+             */
+            relationships?: {
+                [key: string]: string;
+            } | null;
         };
         /** ValidationError */
         ValidationError: {

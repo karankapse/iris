@@ -10,7 +10,7 @@ import anthropic
 from pydantic import BaseModel
 
 from app.config import Settings
-from app.schemas import ConversationTurn, Emotion, Suggestion
+from app.schemas import ConversationTurn, Emotion, Suggestion, UserProfile
 from app.services.llm_mock import mock_suggestions
 
 SYSTEM_PROMPT = """\
@@ -38,19 +38,44 @@ class _Drafts(BaseModel):
     replies: list[_Draft]
 
 
-def _format_history(history: list[ConversationTurn], mood: Emotion | None) -> str:
-    lines = [f"{'Partner' if t.speaker == 'partner' else 'Me'}: {t.text}" for t in history]
-    mood_line = f"My current mood setting: {mood}." if mood else "I have no mood setting."
+def _format_history(
+    history: list[ConversationTurn], mood: Emotion | None, profile: UserProfile | None
+) -> str:
+    # Trim history to the last 10 messages so long conversations don't exceed context window
+    trimmed = history[-10:] if len(history) > 10 else history
+
+    lines = [f"{'Partner' if t.speaker == 'partner' else 'Me'}: {t.text}" for t in trimmed]
+    
+    parts = ["Context about me:"]
+    if profile:
+        if profile.name:
+            parts.append(f"- My name: {profile.name}")
+        if profile.relationships:
+            rels = ", ".join(f"{name} ({rel})" for name, rel in profile.relationships.items())
+            parts.append(f"- People I know: {rels}")
+        if profile.common_needs:
+            parts.append(f"- Common things I might need: {', '.join(profile.common_needs)}")
+    else:
+        parts.append("- (No user profile provided)")
+        
+    parts.append(f"- My current mood setting: {mood if mood else 'none'}.")
+    
     return (
-        "Conversation so far:\n" + "\n".join(lines) + f"\n\n{mood_line}\nSuggest my next replies."
+        "\n".join(parts)
+        + "\n\nConversation so far:\n"
+        + "\n".join(lines)
+        + "\n\nSuggest my next replies."
     )
 
 
 def generate_suggestions(
-    settings: Settings, history: list[ConversationTurn], mood: Emotion | None
+    settings: Settings,
+    history: list[ConversationTurn],
+    mood: Emotion | None,
+    profile: UserProfile | None = None,
 ) -> list[Suggestion]:
     if settings.use_mock_llm:
-        return mock_suggestions(history)
+        return mock_suggestions(history, profile)
 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     response = client.messages.parse(
@@ -60,7 +85,7 @@ def generate_suggestions(
         # (If you switch ANTHROPIC_MODEL to a model that always thinks, remove this line.)
         thinking={"type": "disabled"},
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": _format_history(history, mood)}],
+        messages=[{"role": "user", "content": _format_history(history, mood, profile)}],
         output_format=_Drafts,
     )
     drafts = response.parsed_output.replies[:4]  # the UI never shows more than 4 options
