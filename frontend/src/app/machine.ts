@@ -60,6 +60,8 @@ export interface State {
   /** Persistent mood setting: saves the user from choosing a tone every time. */
   mood: Emotion | null;
   detected: EmotionEstimate;
+  /** The emotion measured right after the partner spoke. */
+  measuredEmotion: Emotion | null;
   lastSpoken: SpokenReply | null;
   utteranceCount: number;
   idPrefix: string;
@@ -78,7 +80,12 @@ export interface State {
 export type Event =
   | { type: 'partner_partial'; text: string }
   | { type: 'partner_final'; text: string }
-  | { type: 'suggestions_ready'; requestId: number; suggestions: Suggestion[] }
+  | {
+      type: 'suggestions_ready';
+      requestId: number;
+      suggestions: Suggestion[];
+      reaction?: Emotion | null;
+    }
   | { type: 'suggestions_failed'; requestId: number; message: string }
   | { type: 'set_mood'; mood: Emotion | null }
   | { type: 'set_phrases'; phrases: string[] }
@@ -126,6 +133,7 @@ export function initialState(
     tone: null,
     mood,
     detected: { emotion: 'neutral', confidence: 0 },
+    measuredEmotion: null,
     lastSpoken: null,
     utteranceCount: 0,
     idPrefix,
@@ -242,8 +250,14 @@ export function getEntries(s: State): Entry[] {
     case 'selectReply': {
       // The two best AI suggestions. If there are fewer than two, quick phrases fill the gap.
       const pool: Entry[] = [
-        ...s.suggestions.map((x) => replyEntry(x.text, x.tone, x.tone)),
-        ...s.phrases.map((p) => replyEntry(p, 'neutral', 'quick phrase')),
+        ...s.suggestions.map((x) => {
+          const tone = s.measuredEmotion ?? x.tone;
+          return replyEntry(x.text, tone, tone);
+        }),
+        ...s.phrases.map((p) => {
+          const tone = s.measuredEmotion ?? s.mood ?? 'neutral';
+          return replyEntry(p, tone, s.measuredEmotion ? `${s.measuredEmotion}` : 'quick phrase');
+        }),
       ];
       const two = pool.slice(0, MAX_OPTIONS - 1);
       while (two.length < MAX_OPTIONS - 1) two.push(info('No suggestions yet'));
@@ -270,7 +284,10 @@ export function getEntries(s: State): Entry[] {
     case 'moreReplies':
       return threeOf(
         [
-          ...s.suggestions.slice(MAX_OPTIONS - 1).map((x) => replyEntry(x.text, x.tone, x.tone)),
+          ...s.suggestions.slice(MAX_OPTIONS - 1).map((x) => {
+            const tone = s.measuredEmotion ?? x.tone;
+            return replyEntry(x.text, tone, tone);
+          }),
           backEntry,
         ],
         s.page,
@@ -376,6 +393,7 @@ export function reduce(state: State, event: Event): Result {
           suggestions: [],
           reply: null,
           tone: null,
+          measuredEmotion: reaction,
           requestId,
           error: null,
           page: 0,
@@ -392,7 +410,12 @@ export function reduce(state: State, event: Event): Result {
       if (event.suggestions.length === 0) {
         return same({ ...state, phase: 'listening', error: 'The AI returned no suggestions.' });
       }
-      return same({ ...state, phase: 'selectReply', suggestions: event.suggestions });
+      return same({
+        ...state,
+        phase: 'selectReply',
+        suggestions: event.suggestions,
+        measuredEmotion: event.reaction !== undefined ? event.reaction : state.measuredEmotion,
+      });
 
     case 'suggestions_failed':
       if (event.requestId !== state.requestId || state.phase !== 'suggesting') return same(state);
@@ -455,6 +478,26 @@ function proposeTone(state: State, reply: Reply): Result {
       kbPath: [],
     },
     effects: [{ type: 'snapshot_features' }],
+  };
+}
+
+function speakReply(state: State, text: string, tone: Emotion): Result {
+  const id = `${state.idPrefix}-${state.utteranceCount + 1}`;
+  const spoken: SpokenReply = { id, text, tone };
+  return {
+    state: {
+      ...state,
+      phase: 'speaking',
+      reply: { text, suggestedTone: tone },
+      tone,
+      lastSpoken: spoken,
+      utteranceCount: state.utteranceCount + 1,
+      page: 0,
+      typed: '',
+      kbPath: [],
+      returnStack: [],
+    },
+    effects: [{ type: 'snapshot_features' }, { type: 'speak', spoken }],
   };
 }
 
@@ -525,6 +568,10 @@ function applyAction(state: State, action: Action): Result {
       return same(state);
 
     case 'reply':
+      if (state.phase === 'selectReply' || state.phase === 'moreReplies') {
+        const tone = state.measuredEmotion ?? chooseTone(state.mood, state.detected, action.tone);
+        return speakReply(state, action.text, tone);
+      }
       return proposeTone(state, { text: action.text, suggestedTone: action.tone });
 
     case 'goto':

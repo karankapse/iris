@@ -5,7 +5,7 @@ import type { Phase, State } from '../../../app/machine';
 
 export const STATUS: Record<Phase, string> = {
   listening: 'Listening…',
-  suggesting: 'Thinking of replies…',
+  suggesting: 'Measuring reaction & getting replies…',
   selectReply: 'Choose a reply',
   moreReplies: 'More replies',
   menu: 'Other options',
@@ -60,6 +60,12 @@ export function PhasePrompt({ machine }: { machine: State }) {
   return (
     <>
       <h1 className="status">{STATUS[machine.phase]}</h1>
+      {machine.phase === 'selectReply' && machine.measuredEmotion && (
+        <p className="tone">
+          Reaction tone: <strong>{machine.measuredEmotion}</strong>{' '}
+          {TONE_EMOJIS[machine.measuredEmotion] ?? ''}
+        </p>
+      )}
       {machine.phase === 'typing' && (
         <p className="reply">
           {machine.typed ? `“${machine.typed}”` : 'Look at a group of letters'}
