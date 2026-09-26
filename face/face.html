@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<body style="margin:0;background:#111">
+<video id="v" style="display:none" autoplay playsinline></video>
+<canvas id="c" width="640" height="480"></canvas>
+<script type="module">
+import { FaceLandmarker, FilesetResolver } from
+ "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+const vision = await FilesetResolver.forVisionTasks(
+ "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+
+const lm = await FaceLandmarker.createFromOptions(vision, {
+  baseOptions:{ modelAssetPath:
+   "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
+  runningMode:"VIDEO", numFaces:1
+});
+
+const v=document.getElementById("v"), c=document.getElementById("c"), x=c.getContext("2d");
+v.srcObject = await navigator.mediaDevices.getUserMedia({video:true});
+await new Promise(r => { v.onloadeddata = r; });
+await v.play();
+
+let last = -1;
+function loop(){
+  try {
+    x.drawImage(v,0,0,640,480);
+    const t = performance.now();
+    if (t > last) {
+      last = t;
+      const r = lm.detectForVideo(v, t);
+      const L = r.faceLandmarks && r.faceLandmarks[0];
+      if (L) {
+        x.fillStyle="#0f0";
+        for(const p of L) x.fillRect(p.x*640, p.y*480, 2, 2);
+
+        const mouthL = L[61], mouthR = L[291];
+        const eyeMid = (L[33].y + L[263].y) / 2;
+        const faceH = Math.abs(L[10].y - L[152].y);
+        const asym = ((mouthL.y - eyeMid) - (mouthR.y - eyeMid)) / faceH;
+
+        x.fillStyle = "#fff";
+        x.font = "24px monospace";
+        x.fillText("asym: " + asym.toFixed(3), 20, 40);
+      }
+    }
+  } catch(e){ console.log("loop error:", e); }
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
