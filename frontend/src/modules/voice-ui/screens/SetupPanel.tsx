@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { EMOTIONS } from '../../../contracts';
+import { EMOTIONS, TARGET_POSITION } from '../../../contracts';
 import type { CalibrationStep, Emotion, FaceFrame } from '../../../contracts';
 import type { Orchestrator } from '../../../app/Orchestrator';
 import type { Services } from '../../../app/services';
+
+/** Where each calibration dot is drawn (the corners match the option cards exactly). */
+const DOT_POSITION = { ...TARGET_POSITION, up: { x: 50, y: 14 }, down: { x: 50, y: 86 } } as const;
 
 const GET_READY_S = 2;
 const RECORD_S = 3;
@@ -29,6 +32,7 @@ export function SetupPanel({
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [step, setStep] = useState<CalibrationStep | null>(null);
   const [countdown, setCountdown] = useState<string | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState(0);
   const [recorded, setRecorded] = useState<Partial<Record<Emotion, number>>>({});
   const mounted = useRef(true);
 
@@ -40,6 +44,12 @@ export function SetupPanel({
       orchestrator.setSuspended(false);
     };
   }, [orchestrator]);
+
+  useEffect(() => {
+    if (!step) return;
+    const timer = setInterval(() => setSecondsLeft((n) => Math.max(0, n - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [step]);
 
   async function run(name: string, job: () => Promise<string | void>) {
     setBusy(name);
@@ -61,8 +71,19 @@ export function SetupPanel({
 
   const calibrateEyes = () =>
     run('eyes', async () => {
-      await eyeInput.calibrate((s) => setStep(s));
-      return 'Eye calibration saved. The thresholds now fit this face.';
+      const warnings = await eyeInput.calibrate((s) => {
+        setStep(s);
+        setSecondsLeft(Math.ceil(s.seconds));
+      });
+      const accuracy = eyeInput.status?.().accuracy;
+      const measured =
+        accuracy === undefined
+          ? ''
+          : ` Measured accuracy: ${Math.round(accuracy * 100)}% of gaze readings landed in the right box.`;
+      if (warnings.length === 0) return `Eye calibration saved.${measured}`;
+      throw new Error(
+        `Calibrated, but: ${warnings.join(' ')}${measured} Try again: sit still, good light, look right at each dot.`,
+      );
     });
 
   const recordEmotion = (label: Emotion) =>
@@ -93,66 +114,88 @@ export function SetupPanel({
     });
 
   return (
-    <div className="modal" role="dialog" aria-label="Set up">
-      <div className="modal-card">
-        <header>
-          <h2>Set up</h2>
-          <button onClick={onClose} disabled={busy !== null}>
-            Done
-          </button>
-        </header>
+    <>
+      {step && (
+        <div className="calib-overlay" role="dialog" aria-label="Eye calibration">
+          {step.target !== 'closed' && (
+            <div
+              className="calib-dot"
+              style={{
+                left: `${(step.target === 'point' ? step.position! : DOT_POSITION[step.target]).x}%`,
+                top: `${(step.target === 'point' ? step.position! : DOT_POSITION[step.target]).y}%`,
+              }}
+            />
+          )}
+          <div className="calib-text">
+            <p className="calib-step">
+              Step {step.index} of {step.total}
+            </p>
+            <p className="calib-prompt">{step.prompt}</p>
+            <p className="calib-seconds">{secondsLeft}</p>
+          </div>
+        </div>
+      )}
+      <div className="modal" role="dialog" aria-label="Set up">
+        <div className="modal-card">
+          <header>
+            <h2>Set up</h2>
+            <button onClick={onClose} disabled={busy !== null}>
+              Done
+            </button>
+          </header>
 
-        {message && <p className={message.error ? 'msg error' : 'msg'}>{message.text}</p>}
+          {message && <p className={message.error ? 'msg error' : 'msg'}>{message.text}</p>}
 
-        <section>
-          <h3>1. Eyes</h3>
-          {mocks.eye ? (
-            <p>Eye input is the keyboard mock (VITE_MOCK_EYE=1): nothing to calibrate.</p>
-          ) : (
-            <>
-              <p>
-                The person looks straight, up, down, then closes their eyes. Takes about 12 seconds.
-              </p>
-              <button onClick={calibrateEyes} disabled={busy !== null}>
-                Calibrate eyes
-              </button>
-              {step && (
-                <p className="prompt">
-                  Step {step.index}/{step.total}: {step.prompt} ({step.seconds}s)
+          <section>
+            <h3>1. Eyes</h3>
+            {mocks.eye ? (
+              <p>Eye input is the keyboard mock (VITE_MOCK_EYE=1): nothing to calibrate.</p>
+            ) : (
+              <>
+                <p>
+                  The person looks straight, up, down, then closes their eyes. Takes about 12
+                  seconds.
                 </p>
-              )}
-            </>
-          )}
-        </section>
+                <button onClick={calibrateEyes} disabled={busy !== null}>
+                  Calibrate eyes
+                </button>
+              </>
+            )}
+          </section>
 
-        <section>
-          <h3>2. Emotions</h3>
-          {mocks.emotion ? (
-            <p>Emotion detection is a mock (VITE_MOCK_EMOTION=1): use the Dev Panel to fake it.</p>
-          ) : (
-            <>
+          <section>
+            <h3>2. Emotions</h3>
+            {mocks.emotion ? (
               <p>
-                For each emotion, record the person showing it their own way (subtle is fine).
-                Record at least two different emotions, a few times each is better, then train.
+                Emotion detection is a mock (VITE_MOCK_EMOTION=1): use the Dev Panel to fake it.
               </p>
-              <ul className="emotions">
-                {EMOTIONS.map((label) => (
-                  <li key={label}>
-                    <button onClick={() => recordEmotion(label)} disabled={busy !== null}>
-                      Record “{label}”
-                    </button>
-                    <span>{recorded[label] ? `${recorded[label]} samples this session` : ''}</span>
-                  </li>
-                ))}
-              </ul>
-              {countdown && <p className="prompt">{countdown}</p>}
-              <button onClick={train} disabled={busy !== null}>
-                Train my emotion model
-              </button>
-            </>
-          )}
-        </section>
+            ) : (
+              <>
+                <p>
+                  For each emotion, record the person showing it their own way (subtle is fine).
+                  Record at least two different emotions, a few times each is better, then train.
+                </p>
+                <ul className="emotions">
+                  {EMOTIONS.map((label) => (
+                    <li key={label}>
+                      <button onClick={() => recordEmotion(label)} disabled={busy !== null}>
+                        Record “{label}”
+                      </button>
+                      <span>
+                        {recorded[label] ? `${recorded[label]} samples this session` : ''}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {countdown && <p className="prompt">{countdown}</p>}
+                <button onClick={train} disabled={busy !== null}>
+                  Train my emotion model
+                </button>
+              </>
+            )}
+          </section>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

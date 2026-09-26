@@ -1,9 +1,18 @@
-import type { ConversationService, ConversationTurn, Emotion, Suggestion } from '../../contracts';
-import { MAX_OPTIONS } from '../../core/config';
+import type {
+  ConversationService,
+  ConversationTurn,
+  Emotion,
+  Suggestion,
+  UserProfile,
+} from '../../contracts';
+
+/** The most AI suggestions we keep for one partner utterance. */
+export const MAX_SUGGESTIONS = 4;
 
 export type SuggestionFetcher = (
   history: ConversationTurn[],
   mood: Emotion | null,
+  profile?: UserProfile,
 ) => Promise<Suggestion[]>;
 
 /**
@@ -23,8 +32,9 @@ export class HistoryConversationService implements ConversationService {
     return [...this.turns];
   }
 
-  async suggestReplies(mood: Emotion | null) {
-    const suggestions = await this.fetchSuggestions(this.history(), mood);
-    return suggestions.slice(0, MAX_OPTIONS);
+  async suggestReplies(mood: Emotion | null, profile?: UserProfile) {
+    const suggestions = await this.fetchSuggestions(this.history(), mood, profile);
+    // Claude gives 3-4. Two are shown straight away; the rest are under "Other…" → "More replies".
+    return suggestions.slice(0, MAX_SUGGESTIONS);
   }
 }

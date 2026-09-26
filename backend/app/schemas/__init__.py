@@ -8,6 +8,7 @@ from .common import Emotion, Speaker
 from .conversation import ConversationTurn, Suggestion, SuggestionsRequest, SuggestionsResponse
 from .emotion import EmotionModel, EmotionSample, SamplesRequest, TrainRequest
 from .feedback import FeedbackRequest
+from .profile import UserProfile, default_phrases
 
 __all__ = [
     "ConversationTurn",
@@ -21,4 +22,6 @@ __all__ = [
     "SuggestionsRequest",
     "SuggestionsResponse",
     "TrainRequest",
+    "UserProfile",
+    "default_phrases",
 ]

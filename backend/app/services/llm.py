@@ -12,7 +12,7 @@ schema, so the output is constrained to valid replies and tones, then validate i
 
 import logging
 import uuid
-from typing import Literal
+from typing import Literal, get_args
 
 import anthropic
 import httpx
@@ -20,7 +20,7 @@ from pydantic import BaseModel, ValidationError
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.config import REPO_ROOT, Settings
-from app.schemas import ConversationTurn, Emotion, Suggestion
+from app.schemas import ConversationTurn, Emotion, Suggestion, UserProfile
 from app.services.llm_mock import mock_suggestions
 
 SYSTEM_PROMPT = """\
@@ -34,7 +34,7 @@ Write 3 or 4 possible replies the person might want to say next, in the first pe
 an emotional response), so one of them is likely right.
 - Match the way a real person would talk. No emojis.
 - For each reply choose the emotional tone it is best spoken with: one of neutral, happy, \
-sad, joking, serious.
+sad, excited, joking, serious.
 - If the person has a current mood setting, lean the replies toward it, but still offer \
 at least one clear yes/no style option."""
 
@@ -44,10 +44,11 @@ logger = logging.getLogger(__name__)
 OLLAMA_URL = "http://localhost:11434/api/chat"
 
 # Small local models need the JSON shape spelled out; Claude gets it from the schema instead.
-OLLAMA_JSON_INSTRUCTIONS = """
+_TONES = "|".join(get_args(Emotion))
+OLLAMA_JSON_INSTRUCTIONS = f"""
 
 Respond with ONLY a JSON object of this exact shape, nothing else:
-{"replies": [{"text": "<reply>", "tone": "<neutral|happy|sad|joking|serious>"}]}"""
+{{"replies": [{{"text": "<reply>", "tone": "<{_TONES}>"}}]}}"""
 
 
 class _ProviderSettings(BaseSettings):
@@ -70,16 +71,40 @@ class _Drafts(BaseModel):
     replies: list[_Draft]
 
 
-def _format_history(history: list[ConversationTurn], mood: Emotion | None) -> str:
+def _format_profile(profile: UserProfile | None) -> str:
+    """A few lines about the user, so replies sound like them (empty if nothing is filled in)."""
+    if profile is None:
+        return ""
+    parts = []
+    if profile.name:
+        parts.append(f"My name is {profile.name}.")
+    if profile.relationships:
+        parts.append("People in my life: " + "; ".join(profile.relationships) + ".")
+    if profile.interests:
+        parts.append("My interests: " + ", ".join(profile.interests) + ".")
+    if profile.common_needs:
+        parts.append("Things I often need: " + ", ".join(profile.common_needs) + ".")
+    return ("About me: " + " ".join(parts) + "\n\n") if parts else ""
+
+
+def _format_history(
+    history: list[ConversationTurn], mood: Emotion | None, profile: UserProfile | None = None
+) -> str:
     lines = [f"{'Partner' if t.speaker == 'partner' else 'Me'}: {t.text}" for t in history]
     mood_line = f"My current mood setting: {mood}." if mood else "I have no mood setting."
     return (
-        "Conversation so far:\n" + "\n".join(lines) + f"\n\n{mood_line}\nSuggest my next replies."
+        _format_profile(profile)
+        + "Conversation so far:\n"
+        + "\n".join(lines)
+        + f"\n\n{mood_line}\nSuggest my next replies."
     )
 
 
 def _ollama_suggestions(
-    model: str, history: list[ConversationTurn], mood: Emotion | None
+    model: str,
+    history: list[ConversationTurn],
+    mood: Emotion | None,
+    profile: UserProfile | None = None,
 ) -> list[Suggestion]:
     try:
         response = httpx.post(
@@ -88,7 +113,7 @@ def _ollama_suggestions(
                 "model": model,
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT + OLLAMA_JSON_INSTRUCTIONS},
-                    {"role": "user", "content": _format_history(history, mood)},
+                    {"role": "user", "content": _format_history(history, mood, profile)},
                 ],
                 # Constrains generation to this schema, so small models can't invent tones.
                 "format": _Drafts.model_json_schema(),
@@ -108,13 +133,16 @@ def _ollama_suggestions(
 
 
 def generate_suggestions(
-    settings: Settings, history: list[ConversationTurn], mood: Emotion | None
+    settings: Settings,
+    history: list[ConversationTurn],
+    mood: Emotion | None,
+    profile: UserProfile | None = None,
 ) -> list[Suggestion]:
     provider = _ProviderSettings()
     if provider.llm_provider == "mock":
         return mock_suggestions(history)
     if provider.llm_provider == "ollama" and not settings.mock_llm:
-        return _ollama_suggestions(provider.ollama_model, history, mood)
+        return _ollama_suggestions(provider.ollama_model, history, mood, profile)
 
     if settings.use_mock_llm:
         return mock_suggestions(history)
@@ -127,7 +155,7 @@ def generate_suggestions(
         # (If you switch ANTHROPIC_MODEL to a model that always thinks, remove this line.)
         thinking={"type": "disabled"},
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": _format_history(history, mood)}],
+        messages=[{"role": "user", "content": _format_history(history, mood, profile)}],
         output_format=_Drafts,
     )
     drafts = response.parsed_output.replies[:4]  # the UI never shows more than 4 options

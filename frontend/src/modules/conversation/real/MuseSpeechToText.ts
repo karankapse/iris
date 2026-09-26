@@ -1,4 +1,4 @@
-import type { SpeechToText, Transcript } from '../../../contracts';
+import type { SpeechToText, SttStatus, Transcript } from '../../../contracts';
 import { createEmitter } from '../../../core/emitter';
 import { PcmChunker, WORKLET_SOURCE } from './audio';
 
@@ -25,6 +25,7 @@ const MAX_BUFFERED_BYTES = 512 * 1024;
 export class MuseSpeechToText implements SpeechToText {
   private transcripts = createEmitter<Transcript>();
   private errors = createEmitter<string>();
+  private statuses = createEmitter<SttStatus>();
 
   private wanted = false;
   private stream: MediaStream | null = null;
@@ -42,13 +43,24 @@ export class MuseSpeechToText implements SpeechToText {
     return this.errors.on(handler);
   }
 
+  onStatus(handler: (status: SttStatus) => void) {
+    return this.statuses.on(handler);
+  }
+
+  private setStatus(state: SttStatus['state'], detail?: string) {
+    this.statuses.emit({ state, engine: 'Meta Muse', detail });
+  }
+
   start() {
     if (this.wanted) return;
     this.wanted = true;
+    this.setStatus('connecting');
     this.begin().catch((e) => {
       this.wanted = false;
       this.teardown();
-      this.errors.emit(this.describe(e));
+      const message = this.describe(e);
+      this.setStatus('error', message);
+      this.errors.emit(message);
     });
   }
 
@@ -58,6 +70,7 @@ export class MuseSpeechToText implements SpeechToText {
       this.socket.send(JSON.stringify({ type: 'endStream' }));
     }
     this.teardown();
+    this.setStatus('off');
   }
 
   // ---- microphone -> chunks --------------------------------------------------
@@ -106,10 +119,15 @@ export class MuseSpeechToText implements SpeechToText {
 
     ws.onmessage = (e) => {
       const message = JSON.parse(e.data as string) as RelayMessage;
-      if (message.type === 'ready') this.failedAttempts = 0;
-      else if (message.type === 'transcript') {
+      if (message.type === 'ready') {
+        this.failedAttempts = 0;
+        this.setStatus('listening');
+      } else if (message.type === 'transcript') {
         this.transcripts.emit({ text: message.text, isFinal: message.final });
-      } else if (message.type === 'error') this.errors.emit(message.message);
+      } else if (message.type === 'error') {
+        this.setStatus('error', message.message);
+        this.errors.emit(message.message);
+      }
     };
 
     ws.onclose = () => {
@@ -117,9 +135,12 @@ export class MuseSpeechToText implements SpeechToText {
       if (++this.failedAttempts > MAX_FAILED_ATTEMPTS) {
         this.wanted = false;
         this.teardown();
-        this.errors.emit('Speech recognition stopped: could not stay connected to the backend.');
+        const message = 'Speech recognition stopped: could not stay connected to the backend.';
+        this.setStatus('error', message);
+        this.errors.emit(message);
         return;
       }
+      this.setStatus('connecting');
       // Back off: 1 s, 2 s, 4 s ... up to 10 s.
       const delay = Math.min(10_000, 1000 * 2 ** (this.failedAttempts - 1));
       this.reconnectTimer = setTimeout(() => this.wanted && this.connect(), delay);

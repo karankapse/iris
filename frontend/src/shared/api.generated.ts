@@ -89,6 +89,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/profile/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Profile
+         * @description The saved profile, or an empty one with the default quick phrases.
+         */
+        get: operations["get_profile_api_profile__user_id__get"];
+        /** Put Profile */
+        put: operations["put_profile_api_profile__user_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/suggestions": {
         parameters: {
             query?: never;
@@ -131,7 +152,7 @@ export interface components {
          */
         EmotionModel: {
             /** Classes */
-            classes: ("neutral" | "happy" | "sad" | "joking" | "serious")[];
+            classes: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious")[];
             /**
              * Coef
              * @description shape: [len(classes)][len(feature_names)]
@@ -161,7 +182,7 @@ export interface components {
              * Label
              * @enum {string}
              */
-            label: "neutral" | "happy" | "sad" | "joking" | "serious";
+            label: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
             /**
              * Source
              * @default calibration
@@ -192,7 +213,7 @@ export interface components {
              * Spoken Tone
              * @enum {string}
              */
-            spoken_tone: "neutral" | "happy" | "sad" | "joking" | "serious";
+            spoken_tone: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
             /** User Id */
             user_id: string;
             /**
@@ -231,7 +252,7 @@ export interface components {
              * @description The emotional tone this reply is best spoken with
              * @enum {string}
              */
-            tone: "neutral" | "happy" | "sad" | "joking" | "serious";
+            tone: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
         };
         /** SuggestionsRequest */
         SuggestionsRequest: {
@@ -244,7 +265,9 @@ export interface components {
              * Mood
              * @description The user's persistent mood setting, if any
              */
-            mood?: ("neutral" | "happy" | "sad" | "joking" | "serious") | null;
+            mood?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /** @description Who the user is, so replies feel personal */
+            profile?: components["schemas"]["UserProfile"] | null;
         };
         /** SuggestionsResponse */
         SuggestionsResponse: {
@@ -255,6 +278,34 @@ export interface components {
         TrainRequest: {
             /** User Id */
             user_id: string;
+        };
+        /**
+         * UserProfile
+         * @description Optional info that makes suggestions feel personal, plus the quick-access phrases.
+         */
+        UserProfile: {
+            /**
+             * Common Needs
+             * @description e.g. "water", "pillow"
+             */
+            common_needs?: string[];
+            /** Interests */
+            interests?: string[];
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Phrases
+             * @description Quick-access phrases
+             */
+            phrases?: string[];
+            /**
+             * Relationships
+             * @description e.g. "daughter Maya"
+             */
+            relationships?: string[];
         };
         /** ValidationError */
         ValidationError: {
@@ -430,6 +481,72 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    get_profile_api_profile__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_profile_api_profile__user_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserProfile"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

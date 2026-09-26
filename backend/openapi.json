@@ -32,6 +32,7 @@
                 "neutral",
                 "happy",
                 "sad",
+                "excited",
                 "joking",
                 "serious"
               ],
@@ -116,6 +117,7 @@
               "neutral",
               "happy",
               "sad",
+              "excited",
               "joking",
               "serious"
             ],
@@ -195,6 +197,7 @@
               "neutral",
               "happy",
               "sad",
+              "excited",
               "joking",
               "serious"
             ],
@@ -290,6 +293,7 @@
               "neutral",
               "happy",
               "sad",
+              "excited",
               "joking",
               "serious"
             ],
@@ -322,6 +326,7 @@
                   "neutral",
                   "happy",
                   "sad",
+                  "excited",
                   "joking",
                   "serious"
                 ],
@@ -333,6 +338,17 @@
             ],
             "description": "The user's persistent mood setting, if any",
             "title": "Mood"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserProfile"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who the user is, so replies feel personal"
           }
         },
         "required": [
@@ -368,6 +384,49 @@
           "user_id"
         ],
         "title": "TrainRequest",
+        "type": "object"
+      },
+      "UserProfile": {
+        "description": "Optional info that makes suggestions feel personal, plus the quick-access phrases.",
+        "properties": {
+          "common_needs": {
+            "description": "e.g. \"water\", \"pillow\"",
+            "items": {
+              "type": "string"
+            },
+            "title": "Common Needs",
+            "type": "array"
+          },
+          "interests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Interests",
+            "type": "array"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "phrases": {
+            "description": "Quick-access phrases",
+            "items": {
+              "type": "string"
+            },
+            "title": "Phrases",
+            "type": "array"
+          },
+          "relationships": {
+            "description": "e.g. \"daughter Maya\"",
+            "items": {
+              "type": "string"
+            },
+            "title": "Relationships",
+            "type": "array"
+          }
+        },
+        "title": "UserProfile",
         "type": "object"
       },
       "ValidationError": {
@@ -605,6 +664,99 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/api/profile/{user_id}": {
+      "get": {
+        "description": "The saved profile, or an empty one with the default quick phrases.",
+        "operationId": "get_profile_api_profile__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Profile",
+        "tags": [
+          "profile"
+        ]
+      },
+      "put": {
+        "operationId": "put_profile_api_profile__user_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Profile",
+        "tags": [
+          "profile"
+        ]
       }
     },
     "/api/suggestions": {

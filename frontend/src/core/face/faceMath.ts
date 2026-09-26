@@ -42,3 +42,30 @@ export function headPoseFromMatrix(m?: ArrayLike<number>) {
     roll: Math.atan2(m[1], m[5]) * deg,
   };
 }
+
+/**
+ * Where the iris sits inside each eye, from the iris landmarks (468-477) and the eye corners.
+ * This is a second, geometric estimate of gaze, independent from MediaPipe's blendshape one.
+ * Both are measured in eye-widths, averaged over both eyes:
+ *   irisX: + means the iris is toward the RIGHT of the camera image (the user's left)
+ *   irisY: + means the iris is toward the BOTTOM of the eye
+ * (The signs don't matter: calibration learns what each corner looks like for this person.)
+ */
+const EYES = [
+  { outer: 33, inner: 133, top: 159, bottom: 145, iris: 468 }, // user's right eye (image left)
+  { outer: 263, inner: 362, top: 386, bottom: 374, iris: 473 }, // user's left eye (image right)
+] as const;
+
+export function irisMetrics(L: Point[]): { irisX: number; irisY: number } {
+  if (L.length < 478) return { irisX: 0, irisY: 0 }; // no iris landmarks in this result
+  let dx = 0;
+  let dy = 0;
+  for (const e of EYES) {
+    const width = Math.abs(L[e.inner].x - L[e.outer].x) || 1e-6;
+    const centerX = (L[e.outer].x + L[e.inner].x) / 2;
+    const centerY = (L[e.top].y + L[e.bottom].y) / 2;
+    dx += (L[e.iris].x - centerX) / width;
+    dy += (L[e.iris].y - centerY) / width;
+  }
+  return { irisX: dx / EYES.length, irisY: dy / EYES.length };
+}

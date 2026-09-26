@@ -1,8 +1,12 @@
 import { EMOTIONS } from '../contracts';
-import type { Emotion, EyeMode } from '../contracts';
+import type { Emotion, EyeMode, SttStatus, UserProfile } from '../contracts';
+import { api } from '../core/api';
+import { USER_ID } from '../core/config';
 import { createEmitter } from '../core/emitter';
 import { getOptions, initialState, reduce, type Effect, type Event, type State } from './machine';
+import { DEFAULT_PHRASES } from './phrases';
 import type { Services } from './services';
+import { loadSettings, normalizeSettings, saveSettings, type Settings } from './settings';
 
 /** Everything the UI needs to draw one frame. A new object is created on every change. */
 export interface View {
@@ -11,9 +15,34 @@ export interface View {
   highlight: number | null;
   dwell: number;
   eyeMode: EyeMode;
+  /** What the microphone / speech engine is doing (for the on-screen indicator). */
+  stt: SttStatus;
+  /** The user's adjustable settings (dwell time, blink length, speech speed...). */
+  settings: Settings;
+  /** Who the user is (name, relationships, quick phrases...). */
+  profile: UserProfile;
 }
 
-const STORAGE = { mood: 'iris.mood', eyeMode: 'iris.eyeMode' };
+const STORAGE = { mood: 'iris.mood', eyeMode: 'iris.eyeMode', profile: 'iris.profile' };
+
+const EMPTY_PROFILE: UserProfile = {
+  name: '',
+  relationships: [],
+  interests: [],
+  common_needs: [],
+  phrases: DEFAULT_PHRASES,
+};
+
+/** The last known profile, kept in the browser so the app still has it when the backend is off. */
+function loadCachedProfile(): UserProfile {
+  try {
+    const p = JSON.parse(localStorage.getItem(STORAGE.profile) ?? 'null');
+    if (p && typeof p === 'object' && Array.isArray(p.phrases)) return { ...EMPTY_PROFILE, ...p };
+  } catch {
+    /* corrupt or blocked */
+  }
+  return EMPTY_PROFILE;
+}
 
 function load<T extends string>(key: string, allowed: readonly T[]): T | null {
   try {
@@ -51,13 +80,15 @@ export class Orchestrator {
     private services: Services,
     idPrefix: string = crypto.randomUUID(),
   ) {
+    const profile = loadCachedProfile();
     this.view = {
-      machine: initialState(load(STORAGE.mood, EMOTIONS), idPrefix),
+      settings: loadSettings(),
+      profile,
+      machine: initialState(load(STORAGE.mood, EMOTIONS), idPrefix, profile.phrases),
       highlight: null,
       dwell: 0,
-      // TODO: default to 'full' once the screen draws options at the up/right/down/left gaze
-      // positions (optionRegions). Until then the stacked list only matches 'vertical'.
-      eyeMode: load(STORAGE.eyeMode, ['full', 'vertical'] as const) ?? 'vertical',
+      stt: { state: 'off', engine: '' },
+      eyeMode: load(STORAGE.eyeMode, ['full', 'vertical'] as const) ?? 'full',
     };
   }
 
@@ -81,7 +112,7 @@ export class Orchestrator {
   // ---- lifecycle -------------------------------------------------------------
   /** Start the camera, mic and eye input. Returns a function that stops everything. */
   start(): () => void {
-    const { faceTracker, eyeInput, emotion, stt } = this.services;
+    const { faceTracker, eyeInput, emotion, stt, gaze } = this.services;
     const unsubs: (() => void)[] = [];
 
     unsubs.push(faceTracker.onFrame((f) => emotion.onFrame(f)));
@@ -103,6 +134,9 @@ export class Orchestrator {
       ),
     );
 
+    if (stt.onStatus) {
+      unsubs.push(stt.onStatus((status) => this.setView({ ...this.view, stt: status })));
+    }
     if (stt.onError) {
       unsubs.push(stt.onError((message) => this.dispatch({ type: 'error', message })));
     }
@@ -128,8 +162,12 @@ export class Orchestrator {
         this.dispatch({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       }
     };
+    // Bring in the saved profile (quick phrases, name...) from the backend; keep the cached one if it is off.
+    void this.loadProfile();
+
     void (async () => {
       await attempt(() => faceTracker.start());
+      if (gaze) await attempt(() => gaze.start());
       await attempt(() => this.startEye());
       await attempt(() => stt.start());
     })();
@@ -138,6 +176,7 @@ export class Orchestrator {
       clearInterval(timer);
       unsubs.forEach((u) => u());
       eyeInput.stop();
+      gaze?.stop();
       stt.stop();
       faceTracker.stop();
       this.services.tts.cancel();
@@ -147,6 +186,7 @@ export class Orchestrator {
   private startEye() {
     const optionCount = getOptions(this.view.machine).length;
     this.services.eyeInput.start({ mode: this.view.eyeMode, optionCount });
+    this.services.eyeInput.configure?.(this.view.settings);
   }
 
   /** Pause/resume acting on eye gestures (e.g. while the setup screen is open). */
@@ -155,6 +195,41 @@ export class Orchestrator {
   }
 
   // ---- user settings -----------------------------------------------------------
+  /** Change adjustable settings (dwell time, blink length, speech speed...). Applies immediately. */
+  setSettings(partial: Partial<Settings>) {
+    const settings = normalizeSettings({ ...this.view.settings, ...partial });
+    saveSettings(settings);
+    this.setView({ ...this.view, settings });
+    this.services.eyeInput.configure?.(settings);
+  }
+
+  private async loadProfile() {
+    try {
+      this.applyProfile(await api.getProfile(USER_ID));
+    } catch {
+      /* backend off: keep the cached profile */
+    }
+  }
+
+  private applyProfile(profile: UserProfile) {
+    save(STORAGE.profile, JSON.stringify(profile));
+    this.setView({ ...this.view, profile });
+    this.dispatch({ type: 'set_phrases', phrases: profile.phrases });
+  }
+
+  /** Save the profile locally right away, and to the backend (which trims and stores it). */
+  async saveProfile(profile: UserProfile) {
+    this.applyProfile(profile);
+    try {
+      this.applyProfile(await api.putProfile(USER_ID, profile));
+    } catch {
+      this.dispatch({
+        type: 'error',
+        message: 'Saved on this device only: the backend is not reachable.',
+      });
+    }
+  }
+
   setMood(mood: Emotion | null) {
     save(STORAGE.mood, mood);
     this.dispatch({ type: 'set_mood', mood });
@@ -192,7 +267,7 @@ export class Orchestrator {
       case 'suggest':
         conversation.addTurn({ speaker: 'partner', text: effect.partnerText });
         conversation
-          .suggestReplies(effect.mood)
+          .suggestReplies(effect.mood, this.view.profile)
           .then((suggestions) =>
             this.dispatch({ type: 'suggestions_ready', requestId: effect.requestId, suggestions }),
           )
@@ -213,12 +288,18 @@ export class Orchestrator {
 
       case 'speak':
         tts
-          .speak(effect.spoken.text, effect.spoken.tone)
+          .speak(effect.spoken.text, effect.spoken.tone, {
+            speed: this.view.settings.speechSpeed,
+          })
           .catch((e) => console.error('[tts]', e))
           .finally(() => {
             conversation.addTurn({ speaker: 'user', text: effect.spoken.text });
             this.dispatch({ type: 'speak_done' });
           });
+        break;
+
+      case 'save_mood':
+        save(STORAGE.mood, effect.mood);
         break;
 
       case 'stop_speaking':

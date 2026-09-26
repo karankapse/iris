@@ -4,7 +4,7 @@
 import type { FaceFrame } from './face';
 
 /** Keep in sync with `Emotion` in backend/app/schemas/common.py (CI checks this). */
-export const EMOTIONS = ['neutral', 'happy', 'sad', 'joking', 'serious'] as const;
+export const EMOTIONS = ['neutral', 'happy', 'sad', 'excited', 'joking', 'serious'] as const;
 export type Emotion = (typeof EMOTIONS)[number];
 
 export interface EmotionEstimate {

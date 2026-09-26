@@ -6,7 +6,7 @@ import httpx
 import pytest
 
 from app.config import Settings
-from app.schemas import ConversationTurn
+from app.schemas import ConversationTurn, UserProfile
 from app.services import llm
 from app.services.llm import generate_suggestions
 
@@ -61,6 +61,16 @@ def test_uses_native_endpoint_with_schema(settings, monkeypatch):
     assert seen["body"]["model"] == "test-model"
     assert seen["body"]["format"] == llm._Drafts.model_json_schema()
     assert "Are you hungry?" in seen["body"]["messages"][1]["content"]
+
+
+def test_profile_and_all_tones_reach_ollama(settings, monkeypatch):
+    seen = _fake_ollama(monkeypatch, replies=[{"text": "So excited!", "tone": "excited"}])
+    profile = UserProfile(name="Sam", interests=["chess"])
+    items = generate_suggestions(settings, HISTORY, None, profile)
+
+    assert items[0].tone == "excited"
+    assert "My name is Sam." in seen["body"]["messages"][1]["content"]
+    assert "excited" in seen["body"]["messages"][0]["content"]
 
 
 def test_keeps_at_most_four(settings, monkeypatch):
