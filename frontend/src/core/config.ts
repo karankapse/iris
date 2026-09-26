@@ -1,0 +1,20 @@
+/** Single local user for now. Later this could come from a profile picker. */
+export const USER_ID = 'local-user';
+
+/** The eye UI never shows more than this many options at once. */
+export const MAX_OPTIONS = 4;
+
+/**
+ * Each module can run as a mock (fake, works with no camera/mic/API key) or for real.
+ * Mocks are ON by default. To use the real one, set e.g. `VITE_MOCK_EYE=0` in `.env`.
+ */
+const isMock = (value: string | undefined) => value !== '0';
+
+export const flags = {
+  mockEye: isMock(import.meta.env.VITE_MOCK_EYE),
+  mockEmotion: isMock(import.meta.env.VITE_MOCK_EMOTION),
+  mockStt: isMock(import.meta.env.VITE_MOCK_STT),
+  mockConversation: isMock(import.meta.env.VITE_MOCK_CONVERSATION),
+  /** 'browser' = speechSynthesis (default), 'silent' = no sound (tests / quiet dev). */
+  tts: (import.meta.env.VITE_TTS_PROVIDER as 'browser' | 'silent' | undefined) ?? 'browser',
+};

@@ -1,0 +1,26 @@
+name: Feature / task
+description: A new feature or a piece of work
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options: [Eye Input, Emotion Detection & Learning, Conversation AI, Voice Output & UI, Shared / infra]
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What should be built?
+    validations: { required: true }
+  - type: textarea
+    id: done
+    attributes:
+      label: "Done when…"
+      description: A short checklist of what "finished" looks like.
+      placeholder: "- [ ] ...\n- [ ] works with the mock\n- [ ] unit tests"
+  - type: textarea
+    id: contracts
+    attributes:
+      label: Does this need a change to a shared interface?
+      description: If yes, describe it. Changes to `contracts/` or `schemas/` affect every module.

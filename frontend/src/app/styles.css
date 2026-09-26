@@ -1,0 +1,255 @@
+/* High contrast, large targets. Eye control is imprecise and tiring: never make things small. */
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --text: #f0f6fc;
+  --muted: #9da7b3;
+  --accent: #58a6ff;
+  --good: #3fb950;
+  --bad: #f0883e;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+
+.screen {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px 24px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100vh;
+}
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.partner-said p {
+  margin: 4px 0 0;
+  font-size: 1.5rem;
+  color: var(--muted);
+}
+.label {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.linkbtn {
+  background: none;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.status {
+  font-size: 2.2rem;
+  margin: 8px 0;
+}
+.reply {
+  font-size: 2.4rem;
+  margin: 0;
+}
+.tone {
+  font-size: 1.6rem;
+  margin: 0;
+  color: var(--accent);
+}
+
+.options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.option {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  min-height: 110px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  text-align: left;
+  padding: 16px 24px;
+  font-size: 2rem;
+  color: var(--text);
+  background: var(--panel);
+  border: 4px solid #30363d;
+  border-radius: 16px;
+  cursor: pointer;
+}
+.option.highlighted {
+  border-color: var(--accent);
+  background: #1c2a3f;
+}
+.option-number {
+  font-size: 1.4rem;
+  color: var(--muted);
+}
+.option-label {
+  flex: 1;
+}
+.option-hint {
+  font-size: 1.2rem;
+  color: var(--accent);
+}
+.dwell {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 8px;
+  background: var(--accent);
+}
+
+.typing {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.typing input {
+  flex: 1;
+  min-width: 240px;
+  font-size: 1.6rem;
+  padding: 12px;
+  border-radius: 10px;
+  border: 2px solid #30363d;
+  background: var(--panel);
+  color: var(--text);
+}
+.typing button {
+  font-size: 1.3rem;
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: 0;
+  cursor: pointer;
+}
+
+.moodbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #30363d;
+}
+.moodbar-label {
+  color: var(--muted);
+}
+.chip {
+  background: var(--panel);
+  color: var(--text);
+  border: 2px solid #30363d;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.chip.active {
+  border-color: var(--accent);
+  background: #1c2a3f;
+}
+.eyemode {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.error {
+  background: #3d1f1f;
+  border: 2px solid #f85149;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.devpanel {
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.devpanel summary {
+  cursor: pointer;
+}
+.devpanel form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+.devpanel input {
+  min-width: 260px;
+  padding: 4px 8px;
+}
+kbd {
+  background: #30363d;
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--text);
+}
+
+.partner .status {
+  font-size: 1.4rem;
+  color: var(--muted);
+  margin: 0;
+}
+.partner .big {
+  font-size: 3.2rem;
+  line-height: 1.2;
+  margin: 8px 0 24px;
+}
+.partner .reply {
+  color: var(--accent);
+}
+.reactions {
+  display: flex;
+  gap: 16px;
+}
+.reaction {
+  flex: 1;
+  font-size: 2rem;
+  padding: 28px;
+  border-radius: 16px;
+  border: 4px solid #30363d;
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+.reaction.good.picked {
+  border-color: var(--good);
+  background: #12321c;
+}
+.reaction.bad.picked {
+  border-color: var(--bad);
+  background: #3a2410;
+}

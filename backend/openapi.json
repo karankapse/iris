@@ -1,0 +1,652 @@
+{
+  "components": {
+    "schemas": {
+      "ConversationTurn": {
+        "properties": {
+          "speaker": {
+            "enum": [
+              "partner",
+              "user"
+            ],
+            "title": "Speaker",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "speaker",
+          "text"
+        ],
+        "title": "ConversationTurn",
+        "type": "object"
+      },
+      "EmotionModel": {
+        "description": "A trained logistic-regression model, exported so the browser can run it locally.\n\nPrediction in the browser:\n    x_scaled = (x - means) / scales\n    logits[c] = sum_j(coef[c][j] * x_scaled[j]) + intercept[c]\n    probabilities = softmax(logits)",
+        "properties": {
+          "classes": {
+            "items": {
+              "enum": [
+                "neutral",
+                "happy",
+                "sad",
+                "joking",
+                "serious"
+              ],
+              "type": "string"
+            },
+            "title": "Classes",
+            "type": "array"
+          },
+          "coef": {
+            "description": "shape: [len(classes)][len(feature_names)]",
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Coef",
+            "type": "array"
+          },
+          "feature_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Feature Names",
+            "type": "array"
+          },
+          "intercept": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Intercept",
+            "type": "array"
+          },
+          "means": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Means",
+            "type": "array"
+          },
+          "n_samples": {
+            "title": "N Samples",
+            "type": "integer"
+          },
+          "scales": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Scales",
+            "type": "array"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "feature_names",
+          "classes",
+          "means",
+          "scales",
+          "coef",
+          "intercept",
+          "n_samples"
+        ],
+        "title": "EmotionModel",
+        "type": "object"
+      },
+      "EmotionSample": {
+        "properties": {
+          "features": {
+            "description": "Same order as `feature_names` in the request",
+            "items": {
+              "type": "number"
+            },
+            "title": "Features",
+            "type": "array"
+          },
+          "label": {
+            "enum": [
+              "neutral",
+              "happy",
+              "sad",
+              "joking",
+              "serious"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "source": {
+            "default": "calibration",
+            "enum": [
+              "calibration",
+              "feedback"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "features"
+        ],
+        "title": "EmotionSample",
+        "type": "object"
+      },
+      "FeedbackRequest": {
+        "description": "One piece of feedback about a spoken reply.\n\nThe user's eye yes/no and the partner's tap arrive at different moments, so both\nfields are optional; send whichever one you have. `utterance_id` ties them together.",
+        "properties": {
+          "feature_names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feature Names"
+          },
+          "features": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Face-feature snapshot taken when the tone was suggested",
+            "title": "Features"
+          },
+          "partner_reaction": {
+            "anyOf": [
+              {
+                "enum": [
+                  "understood",
+                  "seemed_off"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partner Reaction"
+          },
+          "reply_text": {
+            "title": "Reply Text",
+            "type": "string"
+          },
+          "spoken_tone": {
+            "enum": [
+              "neutral",
+              "happy",
+              "sad",
+              "joking",
+              "serious"
+            ],
+            "title": "Spoken Tone",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "user_tone_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "User's eye yes/no",
+            "title": "User Tone Ok"
+          },
+          "utterance_id": {
+            "title": "Utterance Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "utterance_id",
+          "reply_text",
+          "spoken_tone"
+        ],
+        "title": "FeedbackRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "SamplesRequest": {
+        "properties": {
+          "feature_names": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Feature Names",
+            "type": "array"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/EmotionSample"
+            },
+            "title": "Samples",
+            "type": "array"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "feature_names",
+          "samples"
+        ],
+        "title": "SamplesRequest",
+        "type": "object"
+      },
+      "Suggestion": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "text": {
+            "description": "A short reply the user could say, in first person",
+            "title": "Text",
+            "type": "string"
+          },
+          "tone": {
+            "description": "The emotional tone this reply is best spoken with",
+            "enum": [
+              "neutral",
+              "happy",
+              "sad",
+              "joking",
+              "serious"
+            ],
+            "title": "Tone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "tone"
+        ],
+        "title": "Suggestion",
+        "type": "object"
+      },
+      "SuggestionsRequest": {
+        "properties": {
+          "history": {
+            "description": "Oldest first; last turn is usually the partner",
+            "items": {
+              "$ref": "#/components/schemas/ConversationTurn"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "mood": {
+            "anyOf": [
+              {
+                "enum": [
+                  "neutral",
+                  "happy",
+                  "sad",
+                  "joking",
+                  "serious"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The user's persistent mood setting, if any",
+            "title": "Mood"
+          }
+        },
+        "required": [
+          "history"
+        ],
+        "title": "SuggestionsRequest",
+        "type": "object"
+      },
+      "SuggestionsResponse": {
+        "properties": {
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/Suggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "suggestions"
+        ],
+        "title": "SuggestionsResponse",
+        "type": "object"
+      },
+      "TrainRequest": {
+        "properties": {
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "TrainRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Iris API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/emotion/model/{user_id}": {
+      "get": {
+        "operationId": "get_model_api_emotion_model__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmotionModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Model",
+        "tags": [
+          "emotion"
+        ]
+      }
+    },
+    "/api/emotion/samples": {
+      "post": {
+        "operationId": "add_samples_api_emotion_samples_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SamplesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Samples Api Emotion Samples Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Samples",
+        "tags": [
+          "emotion"
+        ]
+      }
+    },
+    "/api/emotion/train": {
+      "post": {
+        "operationId": "train_api_emotion_train_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmotionModel"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Train",
+        "tags": [
+          "emotion"
+        ]
+      }
+    },
+    "/api/feedback": {
+      "post": {
+        "operationId": "add_feedback_api_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Feedback Api Feedback Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Feedback",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Api Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/suggestions": {
+      "post": {
+        "operationId": "suggestions_api_suggestions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Suggestions",
+        "tags": [
+          "conversation"
+        ]
+      }
+    }
+  }
+}

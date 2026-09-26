@@ -1,0 +1,62 @@
+name: CI
+
+# Runs on every pull request and on pushes to main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest
+
+  # The frontend's API types are generated from the backend's Pydantic models.
+  # If you changed a model in backend/app/schemas, run `make gen-types` and commit the result.
+  api-types:
+    name: api-types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci
+      - run: cd backend && uv sync --frozen
+      - run: make gen-types
+      - name: Fail if generated files are stale
+        run: |
+          git diff --exit-code -- backend/openapi.json frontend/src/shared/api.generated.ts \
+            || (echo "::error::Generated API types are out of date. Run 'make gen-types' and commit." && exit 1)
