@@ -374,6 +374,47 @@ kbd {
   margin: 8px 0;
 }
 
+.voice-selector-box {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 14px;
+  margin: 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.voice-select {
+  background: #0d1117;
+  border: 1px solid #30363d;
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  width: 100%;
+}
+.voice-select:focus {
+  outline: 2px solid var(--accent);
+}
+.voice-create-card {
+  background: #0d1117;
+  border: 1px dashed #30363d;
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 14px;
+}
+.voice-create-card h4 {
+  margin: 0 0 4px 0;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.voice-create-desc {
+  margin: 0 0 10px 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
 .voice-status-box {
   display: flex;
   align-items: center;
@@ -382,7 +423,7 @@ kbd {
   border: 1px solid var(--good);
   padding: 8px 14px;
   border-radius: 8px;
-  margin: 8px 0;
+  margin: 4px 0;
 }
 .badge-active {
   color: var(--good);

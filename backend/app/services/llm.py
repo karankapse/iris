@@ -13,6 +13,8 @@ from app.config import Settings
 from app.schemas import ConversationTurn, Emotion, Suggestion, UserProfile
 from app.services.llm_mock import mock_suggestions
 
+logger = logging.getLogger(__name__)
+
 SYSTEM_PROMPT = """\
 You help a person who cannot speak or move (for example, someone with ALS or locked-in \
 syndrome) reply to the people around them. They choose a reply using only their eyes, so \
@@ -116,5 +118,10 @@ def generate_suggestions(
         ],
         output_format=_Drafts,
     )
+    # No parsed output means Claude stopped early (e.g. stop_reason "refusal" or "max_tokens").
+    # Show the canned replies rather than failing the whole request.
+    if response.parsed_output is None or not response.parsed_output.replies:
+        logger.warning("Claude returned no usable replies (stop_reason=%s)", response.stop_reason)
+        return mock_suggestions(history, mood=mood, reaction=reaction)
     drafts = response.parsed_output.replies[:4]  # the UI never shows more than 4 options
     return [Suggestion(id=str(uuid.uuid4()), text=d.text, tone=d.tone) for d in drafts]

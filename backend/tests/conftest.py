@@ -6,8 +6,12 @@ from app.main import create_app
 
 
 @pytest.fixture
-def client(tmp_path):
-    # Fresh temp DB per test; no API key -> canned mock suggestions and mock voice used.
+def client(tmp_path, monkeypatch):
+    # Fresh temp DB per test; isolate from developer's local .env keys
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    monkeypatch.setenv("MODEL_API_KEY", "")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID", "")
     settings = Settings(
         database_path=tmp_path / "test.db",
         anthropic_api_key="",

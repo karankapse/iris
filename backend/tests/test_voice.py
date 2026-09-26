@@ -98,3 +98,55 @@ def test_voice_speak_applies_emotion_sliders(tmp_path):
             assert res.status_code == 200
             assert res.headers["content-type"] == "audio/mpeg"
             assert res.content == b"fake-mp3-audio-chunk"
+
+
+def test_voice_list_with_roger_default(tmp_path):
+    settings = Settings(
+        database_path=tmp_path / "test_voice.db",
+        elevenlabs_api_key="mock-key-12345",
+        elevenlabs_voice_id="CwhRBWXzGAHq8TQ4Fs17",
+    )
+    with TestClient(create_app(settings)) as c:
+        res = c.get("/api/voice/profile/local-user")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["voice_id"] == "CwhRBWXzGAHq8TQ4Fs17"
+        assert "Roger" in data["name"]
+        assert len(data["voices"]) == 1
+        assert data["voices"][0]["voice_id"] == "CwhRBWXzGAHq8TQ4Fs17"
+        assert data["voices"][0]["is_default"] is True
+
+
+def test_select_voice_switch_between_voices(tmp_path):
+    settings = Settings(
+        database_path=tmp_path / "test_voice.db",
+        elevenlabs_api_key="mock-key-12345",
+        elevenlabs_voice_id="CwhRBWXzGAHq8TQ4Fs17",
+    )
+    app = create_app(settings)
+    app.state.db.set_voice_profile("u1", "cloned_v1", "My Cloned Voice")
+
+    with TestClient(app) as c:
+        # Check cloned is active and Roger is also in the list
+        res = c.get("/api/voice/profile/u1")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["voice_id"] == "cloned_v1"
+        assert len(data["voices"]) == 2
+
+        # Switch to Roger
+        sel_res = c.post(
+            "/api/voice/select",
+            json={"user_id": "u1", "voice_id": "CwhRBWXzGAHq8TQ4Fs17"},
+        )
+        assert sel_res.status_code == 200
+        sel_data = sel_res.json()
+        assert sel_data["voice_id"] == "CwhRBWXzGAHq8TQ4Fs17"
+
+        # Switch back to cloned
+        sel_res2 = c.post(
+            "/api/voice/select",
+            json={"user_id": "u1", "voice_id": "cloned_v1"},
+        )
+        assert sel_res2.status_code == 200
+        assert sel_res2.json()["voice_id"] == "cloned_v1"

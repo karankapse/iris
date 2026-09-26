@@ -27,19 +27,23 @@ def _get_settings(request: Request):
 
 # Emotion-to-slider mapping for ElevenLabs Multilingual v2
 EMOTION_SLIDERS: dict[str, dict[str, float]] = {
-    # Balanced, natural everyday speech
-    "neutral": {"stability": 0.50, "similarity_boost": 0.80, "style": 0.10, "speed": 1.00},
-    # Lively, energetic, lower stability for pitch swings, high style for brightness
-    "happy": {"stability": 0.30, "similarity_boost": 0.80, "style": 0.65, "speed": 1.10},
+    # Truly neutral: high stability for even, calm pitch, 0 style exaggeration, steady pace
+    "neutral": {"stability": 0.82, "similarity_boost": 0.80, "style": 0.00, "speed": 0.98},
+    # Lively, cheerful, lower stability for melodic pitch swings, high style for brightness
+    "happy": {"stability": 0.18, "similarity_boost": 0.75, "style": 0.88, "speed": 1.15},
     # Vibrant, enthusiastic, expressive pitch variation and pace
-    "excited": {"stability": 0.25, "similarity_boost": 0.80, "style": 0.75, "speed": 1.15},
+    "excited": {"stability": 0.15, "similarity_boost": 0.75, "style": 0.92, "speed": 1.18},
     # Subdued, slower tempo, slightly higher stability to sound softer and controlled
-    "sad": {"stability": 0.75, "similarity_boost": 0.80, "style": 0.15, "speed": 0.85},
+    "sad": {"stability": 0.80, "similarity_boost": 0.80, "style": 0.15, "speed": 0.82},
     # Playful, fast inflection, high style exaggeration
-    "joking": {"stability": 0.25, "similarity_boost": 0.80, "style": 0.70, "speed": 1.15},
+    "joking": {"stability": 0.22, "similarity_boost": 0.75, "style": 0.78, "speed": 1.15},
     # Authoritative, grounded, steady tempo
-    "serious": {"stability": 0.80, "similarity_boost": 0.85, "style": 0.05, "speed": 0.95},
+    "serious": {"stability": 0.88, "similarity_boost": 0.85, "style": 0.02, "speed": 0.92},
 }
+
+
+DEFAULT_ROGER_VOICE_ID = "CwhRBWXzGAHq8TQ4Fs17"
+DEFAULT_ROGER_NAME = "Roger (Default ElevenLabs Voice)"
 
 
 class SpeakRequest(BaseModel):
@@ -49,30 +53,83 @@ class SpeakRequest(BaseModel):
     user_id: str = "local-user"
 
 
+class VoiceItem(BaseModel):
+    voice_id: str
+    name: str
+    is_default: bool = False
+
+
 class VoiceProfileResponse(BaseModel):
     user_id: str
     voice_id: str | None
     name: str | None
     configured: bool
+    voices: list[VoiceItem] = []
+
+
+class SelectVoiceRequest(BaseModel):
+    user_id: str = "local-user"
+    voice_id: str
+    name: str | None = None
+
+
+def _build_voice_list(user_id: str, settings, db) -> tuple[str | None, str | None, list[VoiceItem]]:
+    default_id = settings.elevenlabs_voice_id or None
+    default_name = DEFAULT_ROGER_NAME if default_id else None
+
+    saved_voices = db.list_voices(user_id)
+    voice_list: list[VoiceItem] = []
+
+    if default_id:
+        voice_list.append(
+            VoiceItem(voice_id=default_id, name=default_name or "Default Voice", is_default=True)
+        )
+    for v in saved_voices:
+        if v["voice_id"] != default_id:
+            voice_list.append(VoiceItem(voice_id=v["voice_id"], name=v["name"], is_default=False))
+
+    profile = db.get_voice_profile(user_id)
+    if profile:
+        active_id = profile["voice_id"]
+        active_name = profile["name"]
+    else:
+        active_id = default_id
+        active_name = default_name
+
+    return active_id, active_name, voice_list
 
 
 @router.get("/profile/{user_id}", response_model=VoiceProfileResponse)
 async def get_profile(user_id: str, request: Request) -> VoiceProfileResponse:
     settings = _get_settings(request)
-    profile = request.app.state.db.get_voice_profile(user_id)
-    if profile:
-        return VoiceProfileResponse(
-            user_id=user_id,
-            voice_id=profile["voice_id"],
-            name=profile["name"],
-            configured=bool(settings.elevenlabs_api_key),
-        )
+    db = request.app.state.db
+    active_id, active_name, voice_list = _build_voice_list(user_id, settings, db)
     return VoiceProfileResponse(
         user_id=user_id,
-        voice_id=settings.elevenlabs_voice_id or None,
-        name="Default Cloned Voice" if settings.elevenlabs_voice_id else None,
+        voice_id=active_id,
+        name=active_name,
         configured=bool(settings.elevenlabs_api_key),
+        voices=voice_list,
     )
+
+
+@router.post("/select", response_model=VoiceProfileResponse)
+async def select_voice(req: SelectVoiceRequest, request: Request) -> VoiceProfileResponse:
+    settings = _get_settings(request)
+    db = request.app.state.db
+
+    default_id = settings.elevenlabs_voice_id or DEFAULT_ROGER_VOICE_ID
+    if req.voice_id == default_id or req.voice_id == DEFAULT_ROGER_VOICE_ID:
+        name = req.name or DEFAULT_ROGER_NAME
+    else:
+        saved = [v for v in db.list_voices(req.user_id) if v["voice_id"] == req.voice_id]
+        if saved:
+            name = req.name or saved[0]["name"]
+        else:
+            name = req.name or "Custom Voice"
+
+    db.set_voice_profile(req.user_id, req.voice_id, name)
+    return await get_profile(req.user_id, request)
 
 
 @router.post("/clone")
@@ -147,11 +204,15 @@ async def clone_voice(
             )
 
         request.app.state.db.set_voice_profile(user_id, voice_id, name)
+        active_id, active_name, voice_list = _build_voice_list(
+            user_id, settings, request.app.state.db
+        )
         return {
             "user_id": user_id,
             "voice_id": voice_id,
             "name": name,
             "status": "ok",
+            "voices": [v.model_dump() for v in voice_list],
         }
 
 
@@ -166,7 +227,7 @@ async def speak(req: SpeakRequest, request: Request):
         if profile:
             voice_id = profile["voice_id"]
         else:
-            voice_id = settings.elevenlabs_voice_id or None
+            voice_id = settings.elevenlabs_voice_id or DEFAULT_ROGER_VOICE_ID
 
     if not voice_id:
         raise HTTPException(
@@ -184,10 +245,15 @@ async def speak(req: SpeakRequest, request: Request):
 
     # Punctuation styling for extra expressiveness
     styled_text = req.text.strip()
-    if req.emotion in ("happy", "excited") and not styled_text.endswith("!"):
-        styled_text += "!"
-    elif req.emotion == "sad" and not (styled_text.endswith("...") or styled_text.endswith(".")):
-        styled_text += "..."
+    if req.emotion in ("happy", "excited"):
+        styled_text = styled_text.rstrip(".!?,") + "!"
+    elif req.emotion == "neutral":
+        styled_text = styled_text.rstrip(".!?,") + "."
+    elif req.emotion == "sad":
+        if not (styled_text.endswith("...") or styled_text.endswith(".")):
+            styled_text = styled_text.rstrip(".!?,") + "..."
+    elif req.emotion == "serious":
+        styled_text = styled_text.rstrip(".!?,") + "."
 
     client = httpx.AsyncClient(timeout=30.0)
     try:

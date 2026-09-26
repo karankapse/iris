@@ -262,10 +262,14 @@ export class Orchestrator {
   };
 
   /**
-   * Measures what emotion the user is feeling for an appropriate window (1200ms)
-   * right after the statement was said. Tracks the peak / dominant emotion expressed.
+   * Measures what emotion the user is feeling after a slight reaction buffer (500ms)
+   * so the user has realistic time to digest what was said and naturally react.
+   * Then tracks the peak / dominant emotion expressed across the reaction window (1200ms).
    */
-  private async measureReaction(durationMs = 1200): Promise<Emotion | null> {
+  private async measureReaction(durationMs = 1200, delayBufferMs = 500): Promise<Emotion | null> {
+    if (delayBufferMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delayBufferMs));
+    }
     const start = Date.now();
     let peakEmotion: Emotion | null = null;
     let peakConfidence = 0;
@@ -320,8 +324,8 @@ export class Orchestrator {
         conversation.addTurn({ speaker: 'partner', text: effect.partnerText });
         void (async () => {
           try {
-            // Measure what emotion the user is feeling for an appropriate window right after the statement was said
-            const measured = await this.measureReaction(1200);
+            // Wait a slight reaction buffer (500ms) then measure the user's emotion across 1200ms
+            const measured = await this.measureReaction(1200, 500);
             const reaction = measured ?? effect.reaction ?? effect.mood ?? null;
             const suggestions = await conversation.suggestReplies(
               effect.mood,

@@ -161,6 +161,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/voice/select": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Select Voice */
+        post: operations["select_voice_api_voice_select_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/voice/speak": {
         parameters: {
             query?: never;
@@ -308,6 +325,18 @@ export interface components {
             /** User Id */
             user_id: string;
         };
+        /** SelectVoiceRequest */
+        SelectVoiceRequest: {
+            /** Name */
+            name?: string | null;
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+            /** Voice Id */
+            voice_id: string;
+        };
         /** SpeakRequest */
         SpeakRequest: {
             /**
@@ -413,6 +442,18 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /** VoiceItem */
+        VoiceItem: {
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+            /** Name */
+            name: string;
+            /** Voice Id */
+            voice_id: string;
+        };
         /** VoiceProfileResponse */
         VoiceProfileResponse: {
             /** Configured */
@@ -423,6 +464,11 @@ export interface components {
             user_id: string;
             /** Voice Id */
             voice_id: string | null;
+            /**
+             * Voices
+             * @default []
+             */
+            voices: components["schemas"]["VoiceItem"][];
         };
     };
     responses: never;
@@ -733,6 +779,39 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    select_voice_api_voice_select_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SelectVoiceRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
