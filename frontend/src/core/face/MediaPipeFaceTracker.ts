@@ -1,6 +1,7 @@
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import type { FaceFrame, FaceTracker } from '../../contracts';
 import { createEmitter } from '../emitter';
+import { withoutGlobalModule } from './isolateModule';
 import { estimateGaze, headPoseFromMatrix, irisMetrics, mouthAsymmetry } from './faceMath';
 
 // Files are served from /public. Run `npm run setup:mediapipe` once to put them there.
@@ -83,6 +84,14 @@ export class MediaPipeFaceTracker implements FaceTracker {
 
   private async createLandmarker(delegate: 'GPU' | 'CPU') {
     const fileset = await FilesetResolver.forVisionTasks(WASM_PATH);
+    // See isolateModule.ts: don't let WebGazer's copy of MediaPipe get mixed up with ours.
+    return withoutGlobalModule(() => this.createLandmarkerUnsafe(fileset, delegate));
+  }
+
+  private createLandmarkerUnsafe(
+    fileset: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>,
+    delegate: 'GPU' | 'CPU',
+  ) {
     return FaceLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: MODEL_PATH, delegate },
       runningMode: 'VIDEO',
