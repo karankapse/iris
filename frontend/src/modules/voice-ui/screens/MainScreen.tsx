@@ -4,8 +4,10 @@ import type { Phase } from '../../../app/machine';
 import type { Services } from '../../../app/services';
 import { useOrchestrator } from '../../../app/useOrchestrator';
 import { DevPanel } from './DevPanel';
+import { CameraPreview } from './CameraPreview';
 import { MoodBar } from './MoodBar';
 import { OptionList } from './OptionList';
+import { SetupPanel } from './SetupPanel';
 
 const STATUS: Record<Phase, string> = {
   listening: 'Listening…',
@@ -23,6 +25,7 @@ export function MainScreen({ services }: { services: Services }) {
   const { orchestrator, view } = useOrchestrator(services);
   const { machine, highlight, dwell, eyeMode } = view;
   const [draft, setDraft] = useState('');
+  const [showSetup, setShowSetup] = useState(false);
   const options = getOptions(machine);
 
   const pick = (optionIndex: number) =>
@@ -35,12 +38,17 @@ export function MainScreen({ services }: { services: Services }) {
           <span className="label">Partner said</span>
           <p>{machine.interim || machine.partnerText || '—'}</p>
         </div>
-        <button
-          className="linkbtn"
-          onClick={() => window.open('/partner', 'iris-partner', 'width=900,height=700')}
-        >
-          Open partner view ↗
-        </button>
+        <div className="topbtns">
+          <button className="linkbtn" onClick={() => setShowSetup(true)}>
+            Set up / calibrate
+          </button>
+          <button
+            className="linkbtn"
+            onClick={() => window.open('/partner', 'iris-partner', 'width=900,height=700')}
+          >
+            Open partner view ↗
+          </button>
+        </div>
       </header>
 
       {machine.error && (
@@ -89,6 +97,8 @@ export function MainScreen({ services }: { services: Services }) {
         )}
       </section>
 
+      {services.usesCamera && <CameraPreview services={services} />}
+
       <MoodBar
         mood={machine.mood}
         eyeMode={eyeMode}
@@ -99,6 +109,13 @@ export function MainScreen({ services }: { services: Services }) {
         mocks={services.mocks}
         onPartnerText={(text) => orchestrator.dispatch({ type: 'partner_final', text })}
       />
+      {showSetup && (
+        <SetupPanel
+          services={services}
+          orchestrator={orchestrator}
+          onClose={() => setShowSetup(false)}
+        />
+      )}
     </main>
   );
 }

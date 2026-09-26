@@ -35,6 +35,8 @@ export interface Services {
   conversation: ConversationService;
   tts: TtsProvider;
   /** Set only when the matching module is a mock, so the Dev Panel can drive it. */
+  /** True when a real module reads the camera (so the preview/calibration UI makes sense). */
+  usesCamera: boolean;
   mocks: { emotion: MockEmotionDetector | null; eye: boolean };
 }
 
@@ -58,6 +60,7 @@ export function createServices(): Services {
       flags.mockConversation ? cannedSuggestions : apiSuggestions,
     ),
     tts: createTts(flags.tts),
+    usesCamera: needsCamera,
     mocks: { emotion: mockEmotion, eye: flags.mockEye },
   };
 }

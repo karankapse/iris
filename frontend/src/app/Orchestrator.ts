@@ -44,6 +44,8 @@ export class Orchestrator {
   private listeners = new Set<() => void>();
   private viewEmitter = createEmitter<View>();
   private featureSnapshot: number[] | null = null;
+  /** While true, eye gestures are ignored (calibration screens use blinks and gazes too). */
+  private suspended = false;
 
   constructor(
     private services: Services,
@@ -86,6 +88,8 @@ export class Orchestrator {
       eyeInput.on((event) => {
         if (event.type === 'highlight') {
           this.setView({ ...this.view, highlight: event.optionIndex, dwell: event.dwellProgress });
+        } else if (this.suspended) {
+          return;
         }
         this.dispatch({ type: 'eye', event });
       }),
@@ -113,16 +117,20 @@ export class Orchestrator {
       }
     }, EMOTION_POLL_MS);
 
-    const startAll = async () => {
+    // Start the camera, the eyes and the microphone independently: if one is unavailable
+    // (no camera permission, no mic key...), the others must still work.
+    const attempt = async (job: () => void | Promise<void>) => {
       try {
-        await faceTracker.start();
-        this.startEye();
-        stt.start();
+        await job();
       } catch (e) {
         this.dispatch({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       }
     };
-    void startAll();
+    void (async () => {
+      await attempt(() => faceTracker.start());
+      await attempt(() => this.startEye());
+      await attempt(() => stt.start());
+    })();
 
     return () => {
       clearInterval(timer);
@@ -137,6 +145,11 @@ export class Orchestrator {
   private startEye() {
     const optionCount = getOptions(this.view.machine).length;
     this.services.eyeInput.start({ mode: this.view.eyeMode, optionCount });
+  }
+
+  /** Pause/resume acting on eye gestures (e.g. while the setup screen is open). */
+  setSuspended(suspended: boolean) {
+    this.suspended = suspended;
   }
 
   // ---- user settings -----------------------------------------------------------
