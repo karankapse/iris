@@ -69,8 +69,10 @@ export class RealEmotionDetector implements EmotionDetector {
     this.smoothed = {};
   }
 
+  private newFeedbackCount = 0;
+
   async addFeedback(fb: ToneFeedback) {
-    await api.feedback({
+    const res = await api.feedback({
       user_id: USER_ID,
       utterance_id: fb.utteranceId,
       reply_text: fb.replyText,
@@ -80,5 +82,21 @@ export class RealEmotionDetector implements EmotionDetector {
       feature_names: fb.features ? [...FEATURE_NAMES] : null,
       features: fb.features ?? null,
     });
+
+    // Option 3: Continuous Emotion Retraining
+    // Silently re-train the model after we accumulate a batch of positive feedback
+    // so the user's emotion model improves naturally as they use the app.
+    if (res.added_training_sample) {
+      this.newFeedbackCount++;
+      if (this.newFeedbackCount >= 3) {
+        this.newFeedbackCount = 0;
+        try {
+          await this.train();
+          console.log('[emotion] Model automatically retrained from feedback.');
+        } catch (e) {
+          console.warn('[emotion] Auto-retraining failed:', e);
+        }
+      }
+    }
   }
 }
