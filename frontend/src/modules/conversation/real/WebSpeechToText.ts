@@ -1,5 +1,6 @@
 import type { SpeechToText, SttStatus, Transcript } from '../../../contracts';
 import { createEmitter } from '../../../core/emitter';
+import { TurnDetector } from './turnDetector';
 
 // The Web Speech API isn't in TypeScript's built-in DOM types yet, so describe the bits we use.
 interface RecognitionResult {
@@ -20,6 +21,7 @@ interface Recognition {
   onerror: ((e: { error: string }) => void) | null;
   start(): void;
   stop(): void;
+  abort(): void;
 }
 type RecognitionCtor = new () => Recognition;
 
@@ -38,6 +40,16 @@ export class WebSpeechToText implements SpeechToText {
   private statuses = createEmitter<SttStatus>();
   private recognition: Recognition | null = null;
   private wanted = false;
+  // Chrome's pieces are grouped into whole turns before they reach the app (see turnDetector).
+  private turns = new TurnDetector(
+    (text) => this.transcripts.emit({ text, isFinal: false }),
+    (text, pending) => {
+      this.transcripts.emit({ text, isFinal: true });
+      // Chrome still holds its own version of this turn; drop it so it isn't sent twice.
+      // (The recognizer restarts itself in onend.)
+      if (pending) this.recognition?.abort();
+    },
+  );
 
   start() {
     const w = window as unknown as {
@@ -56,11 +68,15 @@ export class WebSpeechToText implements SpeechToText {
 
     rec.onstart = () => this.setStatus('listening');
     rec.onresult = (e) => {
+      if (this.recognition !== rec) return;
+      let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const r = e.results[i];
         const text = r[0].transcript.trim();
-        if (text) this.transcripts.emit({ text, isFinal: r.isFinal });
+        if (r.isFinal) this.turns.addFinal(text);
+        else if (text) interim = interim ? `${interim} ${text}` : text;
       }
+      this.turns.setInterim(interim);
     };
     rec.onerror = (e) => this.handleError(e.error);
     // The browser ends recognition after silence or a hiccup; keep going while we still want it.
@@ -81,6 +97,7 @@ export class WebSpeechToText implements SpeechToText {
 
   stop() {
     this.wanted = false;
+    this.turns.reset();
     this.recognition?.stop();
     this.recognition = null;
     this.setStatus('off');
