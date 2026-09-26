@@ -241,14 +241,17 @@ export interface components {
             /** Classes */
             classes: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious")[];
             /**
-             * Coef
-             * @description shape: [len(classes)][len(feature_names)]
+             * Coefs
+             * @description Weight matrices for each layer
              */
-            coef: number[][];
+            coefs: number[][][];
             /** Feature Names */
             feature_names: string[];
-            /** Intercept */
-            intercept: number[];
+            /**
+             * Intercepts
+             * @description Bias vectors for each layer
+             */
+            intercepts: number[][];
             /** Means */
             means: number[];
             /** N Samples */

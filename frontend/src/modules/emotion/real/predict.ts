@@ -15,9 +15,25 @@ export function predictProbabilities(
   const scaled = model.feature_names.map(
     (name, j) => ((values[name] ?? 0) - model.means[j]) / (model.scales[j] || 1),
   );
-  const logits = model.coef.map((row, c) =>
-    row.reduce((sum, w, j) => sum + w * scaled[j], model.intercept[c]),
-  );
+  
+  let activation = scaled;
+  for (let i = 0; i < model.coefs.length; i++) {
+    const W = model.coefs[i];
+    const b = model.intercepts[i];
+    const next = new Array(b.length).fill(0);
+    
+    for (let out = 0; out < b.length; out++) {
+      let sum = b[out];
+      for (let in_idx = 0; in_idx < activation.length; in_idx++) {
+        sum += activation[in_idx] * W[in_idx][out];
+      }
+      // ReLU for hidden layers, linear for final layer (softmax applied below)
+      next[out] = i === model.coefs.length - 1 ? sum : Math.max(0, sum);
+    }
+    activation = next;
+  }
+  
+  const logits = activation;
   const max = Math.max(...logits);
   const exps = logits.map((z) => Math.exp(z - max)); // subtract max for numerical stability
   const total = exps.reduce((a, b) => a + b, 0);

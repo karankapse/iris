@@ -88,15 +88,18 @@
             "title": "Classes",
             "type": "array"
           },
-          "coef": {
-            "description": "shape: [len(classes)][len(feature_names)]",
+          "coefs": {
+            "description": "Weight matrices for each layer",
             "items": {
               "items": {
-                "type": "number"
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
               },
               "type": "array"
             },
-            "title": "Coef",
+            "title": "Coefs",
             "type": "array"
           },
           "feature_names": {
@@ -106,11 +109,15 @@
             "title": "Feature Names",
             "type": "array"
           },
-          "intercept": {
+          "intercepts": {
+            "description": "Bias vectors for each layer",
             "items": {
-              "type": "number"
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
             },
-            "title": "Intercept",
+            "title": "Intercepts",
             "type": "array"
           },
           "means": {
@@ -142,8 +149,8 @@
           "classes",
           "means",
           "scales",
-          "coef",
-          "intercept",
+          "coefs",
+          "intercepts",
           "n_samples"
         ],
         "title": "EmotionModel",

@@ -51,11 +51,13 @@ const model: ApiEmotionModel = {
   classes: ['happy', 'serious'],
   means: [0.5, 0.5],
   scales: [0.5, 0.5],
-  coef: [
-    [2, -2],
-    [-2, 2],
+  coefs: [
+    [
+      [2, -2],
+      [-2, 2],
+    ],
   ],
-  intercept: [0, 0],
+  intercepts: [[0, 0]],
   n_samples: 10,
 };
 
