@@ -5,6 +5,7 @@ import type {
   EyeInput,
   EyeMode,
   FaceFrame,
+  EyeSettings,
   FaceTracker,
   GazePoint,
   ScreenGaze,
@@ -221,6 +222,25 @@ export class RealEyeInput implements EyeInput {
     return this.emitter.on(handler);
   }
 
+  /**
+   * Apply the user's adjustable settings. They override the calibrated values for dwell time,
+   * blink length and gaze steadiness (calibration still decides where the eyes are).
+   */
+  configure(settings: EyeSettings) {
+    this.tuning = {
+      ...this.tuning,
+      dwellMs: settings.dwellMs,
+      selectMs: settings.blinkMs,
+      cancelMs: settings.blinkMs + 1000, // keep "hold the eyes closed" clearly longer than a select blink
+      regionHoldMs: settings.steadinessMs,
+    };
+    this.blink.setTuning(this.tuning);
+    this.blink.setDoubleBlink(settings.doubleBlinkBack);
+    this.stepper.setTuning(this.tuning);
+    this.zones.setHoldMs(this.tuning.regionHoldMs);
+    this.corners.setHoldMs(this.tuning.regionHoldMs);
+  }
+
   status() {
     return {
       region: this.mode === 'full' ? this.currentZone : null,
@@ -265,7 +285,8 @@ export class RealEyeInput implements EyeInput {
       this.applyZone(frame.t, zone, outcome);
     } else this.onFrameVertical(frame, outcome, progress, this.settling);
 
-    if (outcome === 'cancel') this.emitter.emit({ type: 'cancel' });
+    // holding the eyes closed cancels; so does a double blink, if the user turned that on
+    if (outcome === 'cancel' || outcome === 'double') this.emitter.emit({ type: 'cancel' });
   }
 
   /** A screen-gaze estimate (WebGazer or the mouse): decide which box it is in. */
@@ -310,7 +331,7 @@ export class RealEyeInput implements EyeInput {
 
   private onFrameVertical(
     frame: FaceFrame,
-    outcome: 'select' | 'cancel' | null,
+    outcome: BlinkOutcome,
     blinkProgress: number,
     settling: boolean,
   ) {

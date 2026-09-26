@@ -70,6 +70,18 @@ export interface CalibrationStep {
   total: number;
 }
 
+/** Adjustable by the user (abilities vary and change over time). See app/settings.ts. */
+export interface EyeSettings {
+  /** How long to keep looking at an option to select it (ms). */
+  dwellMs: number;
+  /** How long a blink must last to count as a deliberate "select" (ms). */
+  blinkMs: number;
+  /** How long a gaze must hold on a box before it counts (ms): higher = steadier, slower. */
+  steadinessMs: number;
+  /** Two quick blinks = go back (off by default: natural blinks can double up). */
+  doubleBlinkBack: boolean;
+}
+
 export interface EyeInput {
   /** Begin emitting events for `optionCount` on-screen options (max 4). */
   start(options: { mode: EyeMode; optionCount: number }): void;
@@ -86,6 +98,8 @@ export interface EyeInput {
   calibrate(onStep?: (step: CalibrationStep) => void): Promise<string[]>;
   /** Subscribe to events. Returns an unsubscribe function. */
   on(handler: (event: EyeEvent) => void): () => void;
+  /** Apply the user's adjustable settings (safe to call any time). */
+  configure?(settings: EyeSettings): void;
   /** Optional live diagnostics for the camera panel (which corner is detected, is it calibrated). */
   status?(): {
     region: 'center' | Region | null;

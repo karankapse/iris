@@ -41,13 +41,18 @@ Read [docs/architecture.md](docs/architecture.md) for the full picture.
 
 ## Status: work in progress
 
-Working: real camera face tracking (MediaPipe) with a zoomed live preview, eye control (options in
-the four screen corners, chosen by looking + dwell or a blink), calibration, speech-to-text (Meta
-Muse, or Chrome's as a fallback), emotion detection with a per-user model, tone confirmation,
-emotional TTS, and the partner view.
+Working: real camera face tracking with a zoomed live preview, eye control (options in the four
+screen corners, chosen by looking + dwell or a blink, or up/down + blink in vertical-only mode),
+calibration with an accuracy check, speech-to-text (Meta Muse, or Chrome's as a fallback), Claude
+suggestions that use a profile of the user, **quick-access phrases**, an **eye-controlled
+keyboard**, **mood chosen by eye**, emotion detection with a per-user model that **retrains itself**
+from feedback, tone confirmation, emotional TTS in six tones (incl. excited), the partner view with a
+"typing…" indicator, a **tone tester** page (`/tone-tester`), and **adjustable settings** (dwell time,
+blink length, gaze steadiness, speech speed, double-blink).
 
-**Not finished yet** (see the open issues): the eye-controlled keyboard (custom replies are typed
-by a caregiver for now), choosing the mood by eye, and automatic retraining from feedback.
+**Not built / not verified yet:** LiveKit + Cartesia voice and LiveKit speech-to-text (see
+[docs/architecture.md](docs/architecture.md)); the real Muse and Claude calls have never run with real keys;
+eye control has been tried on one face. Word prediction on the eye keyboard is a possible next step.
 
 ## Setup
 
@@ -166,6 +171,15 @@ backend/app/
   services/       Claude client, canned mock, emotion trainer
 docs/             architecture notes
 ```
+
+## Optional: pre-commit checks
+
+```bash
+uv tool install pre-commit && pre-commit install
+```
+
+Runs Ruff, Prettier and ESLint before each commit (CI runs them on every PR regardless).
+A demo script for presenting the app is in [docs/demo-script.md](docs/demo-script.md).
 
 ## Contributing
 

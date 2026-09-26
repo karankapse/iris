@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 
 from .common import Emotion, Speaker
+from .profile import UserProfile
 
 
 class ConversationTurn(BaseModel):
@@ -14,6 +15,9 @@ class SuggestionsRequest(BaseModel):
     )
     mood: Emotion | None = Field(
         default=None, description="The user's persistent mood setting, if any"
+    )
+    profile: UserProfile | None = Field(
+        default=None, description="Who the user is, so replies feel personal"
     )
 
 

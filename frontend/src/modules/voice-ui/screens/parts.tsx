@@ -7,7 +7,10 @@ export const STATUS: Record<Phase, string> = {
   listening: 'Listening…',
   suggesting: 'Thinking of replies…',
   selectReply: 'Choose a reply',
+  menu: 'More options',
+  phrases: 'Quick phrases',
   typing: 'Type a reply',
+  pickMood: 'Choose a mood',
   confirmTone: 'Speak it in this tone?',
   pickTone: 'Choose a different tone',
   speaking: 'Speaking…',
@@ -47,6 +50,11 @@ export function PhasePrompt({ machine }: { machine: State }) {
   return (
     <>
       <h1 className="status">{STATUS[machine.phase]}</h1>
+      {machine.phase === 'typing' && (
+        <p className="reply">
+          {machine.typed ? `“${machine.typed}”` : 'Look at a group of letters'}
+        </p>
+      )}
       {['confirmTone', 'pickTone', 'speaking'].includes(machine.phase) && machine.reply && (
         <>
           <p className="reply">“{machine.reply.text}”</p>
@@ -77,7 +85,6 @@ export function TypingForm({
       }}
     >
       <input
-        autoFocus
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder="Caregiver can type here for now"

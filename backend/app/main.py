@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
 from app.db import Database
-from app.routers import conversation, emotion, feedback, stt
+from app.routers import conversation, emotion, feedback, profile, stt
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -32,6 +32,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(conversation.router)
     app.include_router(emotion.router)
     app.include_router(feedback.router)
+    app.include_router(profile.router)
     app.include_router(stt.router)
     return app
 

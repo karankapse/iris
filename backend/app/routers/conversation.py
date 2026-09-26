@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api", tags=["conversation"])
 @router.post("/suggestions", response_model=SuggestionsResponse)
 def suggestions(req: SuggestionsRequest) -> SuggestionsResponse:
     try:
-        items = generate_suggestions(get_settings(), req.history, req.mood)
+        items = generate_suggestions(get_settings(), req.history, req.mood, req.profile)
     except anthropic.APIError as e:
         # Don't leak details to the client; the message is enough to show a retry prompt.
         raise HTTPException(status_code=502, detail=f"Claude API error: {type(e).__name__}") from e

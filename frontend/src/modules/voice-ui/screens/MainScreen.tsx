@@ -7,6 +7,8 @@ import { DevPanel } from './DevPanel';
 import { GazeDot } from './GazeDot';
 import { MicPanel } from './MicPanel';
 import { MoodBar } from './MoodBar';
+import { ProfilePanel } from './ProfilePanel';
+import { SettingsPanel } from './SettingsPanel';
 import { SetupPanel } from './SetupPanel';
 import { StackLayout } from './StackLayout';
 
@@ -53,6 +55,9 @@ export function MainScreen({ services }: { services: Services }) {
       >
         Open partner view ↗
       </button>
+      <a className="linkbtn" href="/tone-tester" target="_blank" rel="noreferrer">
+        Tone tester ↗
+      </a>
     </>
   );
 
@@ -72,6 +77,12 @@ export function MainScreen({ services }: { services: Services }) {
         eyeMode={eyeMode}
         onMood={(m) => orchestrator.setMood(m)}
         onEyeMode={(m) => orchestrator.setEyeMode(m)}
+      />
+      <SettingsPanel orchestrator={orchestrator} settings={view.settings} />
+      <ProfilePanel
+        key={JSON.stringify(view.profile)}
+        orchestrator={orchestrator}
+        profile={view.profile}
       />
       <DevPanel
         mocks={services.mocks}

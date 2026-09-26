@@ -47,9 +47,19 @@ export interface SpeechToText {
   onStatus?(handler: (status: SttStatus) => void): () => void;
 }
 
+/** Who the user is, so suggestions feel personal. Matches the backend's UserProfile. */
+export interface UserProfile {
+  name: string;
+  relationships: string[];
+  interests: string[];
+  common_needs: string[];
+  /** Quick-access phrases. */
+  phrases: string[];
+}
+
 export interface ConversationService {
   addTurn(turn: ConversationTurn): void;
   history(): ConversationTurn[];
   /** Ask the AI for 3-4 suggested replies (never more than 4). */
-  suggestReplies(mood: Emotion | null): Promise<Suggestion[]>;
+  suggestReplies(mood: Emotion | null, profile?: UserProfile): Promise<Suggestion[]>;
 }

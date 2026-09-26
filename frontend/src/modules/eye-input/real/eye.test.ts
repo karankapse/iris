@@ -75,6 +75,37 @@ describe('BlinkDetector', () => {
   });
 });
 
+describe('BlinkDetector: double blink (optional "back" gesture)', () => {
+  const quickBlink = (det: BlinkDetector, t0: number) => runBlink(det, [...frames(5, 0.9), 0], t0); // ~165 ms closed: a natural-length blink
+
+  it('is off by default: two quick blinks do nothing', () => {
+    const det = new BlinkDetector(T);
+    const o = [...quickBlink(det, 1000), ...quickBlink(det, 1400)];
+    expect(outcomes(o)).toEqual([]);
+  });
+
+  it('when on, two quick natural blinks in a row give "double"', () => {
+    const det = new BlinkDetector(T);
+    det.setDoubleBlink(true);
+    const o = [...quickBlink(det, 1000), ...quickBlink(det, 1400)];
+    expect(outcomes(o)).toEqual(['double']);
+  });
+
+  it('two blinks far apart are just two blinks', () => {
+    const det = new BlinkDetector(T);
+    det.setDoubleBlink(true);
+    const o = [...quickBlink(det, 1000), ...quickBlink(det, 5000)];
+    expect(outcomes(o)).toEqual([]);
+  });
+
+  it('a deliberate long blink is still a "select", not part of a double blink', () => {
+    const det = new BlinkDetector(T);
+    det.setDoubleBlink(true);
+    const o = [...quickBlink(det, 1000), ...runBlink(det, [...frames(21, 0.9), 0], 1300)];
+    expect(outcomes(o)).toEqual(['select']);
+  });
+});
+
 describe('GazeStepper', () => {
   const step = (g: GazeStepper, ys: number[], t0 = 1000, dt = 33, suppress = false) =>
     ys.map((y, i) => g.update(t0 + i * dt, y, suppress));
@@ -544,5 +575,55 @@ describe('RealEyeInput (screen gaze: which box on the screen is the gaze in?)', 
     h.play(600, spots.mid);
     h.play(600, spots.br);
     expect(h.eye.status?.().region).toBe('down-right');
+  });
+});
+
+describe('RealEyeInput.configure (user settings)', () => {
+  it('a longer dwell setting makes selection slower, a shorter one faster', () => {
+    const at = { x: window.innerWidth * 0.85, y: window.innerHeight * 0.2 };
+    const run = (dwellMs: number, lookMs: number) => {
+      localStorage.clear();
+      const tracker = new FakeTracker();
+      const gaze = new FakeGaze();
+      const eye = new RealEyeInput(tracker, gaze);
+      eye.configure({ dwellMs, blinkMs: 500, steadinessMs: 150, doubleBlinkBack: false });
+      const events: EyeEvent[] = [];
+      eye.on((e) => events.push(e));
+      eye.start({ mode: 'full', optionCount: 4 });
+      let t = 1000;
+      const play = (ms: number, p: { x: number; y: number }) => {
+        for (const end = t + ms; t < end; t += 33) {
+          tracker.emit(face(t));
+          gaze.emit({ ...p, t });
+        }
+      };
+      play(600, { x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      play(lookMs, at);
+      return events.filter((e) => e.type === 'select').length;
+    };
+    expect(run(800, 1400)).toBe(1); // short dwell: selected after 1.4 s
+    expect(run(3000, 1400)).toBe(0); // long dwell: not yet
+    expect(run(3000, 3600)).toBe(1); // ...but selected if you keep looking
+  });
+
+  it('a longer blink setting means a 600 ms blink is no longer deliberate', () => {
+    localStorage.clear();
+    const tracker = new FakeTracker();
+    const eye = new RealEyeInput(tracker, null);
+    eye.configure({ dwellMs: 1500, blinkMs: 900, steadinessMs: 150, doubleBlinkBack: false });
+    const events: EyeEvent[] = [];
+    eye.on((e) => events.push(e));
+    eye.start({ mode: 'vertical', optionCount: 3 });
+    let t = 1000;
+    const play = (ms: number, blink: number) => {
+      for (const end = t + ms; t < end; t += 33) tracker.emit(face(t, { blink }));
+    };
+    play(300, 0);
+    play(600, 0.9);
+    play(300, 0);
+    expect(events.filter((e) => e.type === 'select')).toEqual([]);
+    play(1000, 0.9);
+    play(300, 0);
+    expect(events.filter((e) => e.type === 'select').length).toBe(1);
   });
 });
