@@ -43,4 +43,7 @@ export interface EmotionDetector {
 
   // --- learning: called after each spoken reply ---
   addFeedback(feedback: ToneFeedback): Promise<void>;
+
+  /** Info about the currently loaded personalized model (if trained). */
+  readonly modelStats?: { nSamples: number; accuracy: number | null } | null;
 }

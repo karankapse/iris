@@ -7,13 +7,49 @@ and no per-frame network calls, leave the machine).
 
 import numpy as np
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold, cross_val_score
 from sklearn.preprocessing import StandardScaler
+from collections import Counter
 
 from app.schemas import EmotionModel
 
 
 class NotEnoughData(ValueError):
     pass
+
+
+def evaluate_model(samples: list[dict]) -> float | None:
+    """Returns the cross-validated accuracy (0.0 to 1.0) of the model on this data.
+    Returns None if there is not enough data to evaluate."""
+    if not samples:
+        return None
+
+    names = samples[-1]["feature_names"]
+    usable = [s for s in samples if s["feature_names"] == names]
+    labels = [s["label"] for s in usable]
+    
+    if len(set(labels)) < 2:
+        return None
+        
+    counts = Counter(labels)
+    min_class_count = min(counts.values())
+    
+    # We need at least 2 samples per class to do the simplest cross-validation (2-fold)
+    if min_class_count < 2:
+        return None
+
+    x = np.array([s["features"] for s in usable], dtype=float)
+    
+    # We don't fit the scaler outside the CV loop to avoid data leakage.
+    # Instead, we use a Pipeline, but to keep it simple and match train_model exactly,
+    # we can use sklearn's make_pipeline.
+    from sklearn.pipeline import make_pipeline
+    clf = make_pipeline(StandardScaler(), LogisticRegression(max_iter=1000, class_weight="balanced"))
+    
+    cv = min(5, min_class_count)
+    scores = cross_val_score(clf, x, labels, cv=StratifiedKFold(n_splits=cv, shuffle=True, random_state=42))
+    return float(np.mean(scores))
+
 
 
 def train_model(user_id: str, samples: list[dict]) -> EmotionModel:
@@ -49,4 +85,5 @@ def train_model(user_id: str, samples: list[dict]) -> EmotionModel:
         coef=coef.tolist(),
         intercept=intercept.tolist(),
         n_samples=len(usable),
+        accuracy=evaluate_model(samples),
     )

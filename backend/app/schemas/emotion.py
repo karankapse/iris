@@ -38,3 +38,7 @@ class EmotionModel(BaseModel):
     coef: list[list[float]] = Field(description="shape: [len(classes)][len(feature_names)]")
     intercept: list[float]
     n_samples: int
+    accuracy: float | None = Field(
+        default=None,
+        description="Cross-validated accuracy (0.0 to 1.0), or None if not enough data to measure.",
+    )

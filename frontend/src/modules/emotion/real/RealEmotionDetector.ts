@@ -92,4 +92,12 @@ export class RealEmotionDetector implements EmotionDetector {
       await this.train().catch((e) => console.info('[emotion] retrain skipped:', e?.message ?? e));
     }
   }
+
+  get modelStats() {
+    if (!this.model) return null;
+    return {
+      nSamples: this.model.n_samples,
+      accuracy: this.model.accuracy ?? null,
+    };
+  }
 }

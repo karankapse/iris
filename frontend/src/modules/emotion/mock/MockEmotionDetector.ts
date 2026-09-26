@@ -27,4 +27,8 @@ export class MockEmotionDetector implements EmotionDetector {
   async addFeedback(feedback: ToneFeedback) {
     console.info('[mock emotion] feedback', feedback);
   }
+  
+  get modelStats() {
+    return { nSamples: 99, accuracy: 0.95 };
+  }
 }

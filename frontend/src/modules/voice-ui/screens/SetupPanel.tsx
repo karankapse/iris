@@ -139,6 +139,10 @@ export function SetupPanel({
   const train = () =>
     run('train', async () => {
       await emotion.train();
+      const stats = emotion.modelStats;
+      if (stats?.accuracy) {
+        return `Trained on ${stats.nSamples} samples. Model accuracy: ${Math.round(stats.accuracy * 100)}%!`;
+      }
       return 'Trained! Your emotion model is now used to suggest tones.';
     });
 
@@ -288,9 +292,17 @@ export function SetupPanel({
                   ))}
                 </ul>
                 {countdown && <p className="prompt">{countdown}</p>}
-                <button onClick={train} disabled={busy !== null}>
-                  Train my emotion model
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
+                  <button onClick={train} disabled={busy !== null}>
+                    Train my emotion model
+                  </button>
+                  {emotion.modelStats && (
+                    <span className="stats">
+                      <strong>Current model:</strong> {emotion.modelStats.nSamples} samples
+                      {emotion.modelStats.accuracy && `, ${Math.round(emotion.modelStats.accuracy * 100)}% accurate`}
+                    </span>
+                  )}
+                </div>
               </>
             )}
           </section>
