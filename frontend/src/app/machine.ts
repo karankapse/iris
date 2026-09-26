@@ -196,7 +196,14 @@ export function reduce(state: State, event: Event): Result {
       return same({ ...state, detected: event.estimate });
 
     case 'error':
-      return same({ ...state, error: event.message });
+      // Several parts can fail at once (camera AND microphone): show all, without repeats.
+      return same({
+        ...state,
+        error:
+          state.error && !state.error.includes(event.message)
+            ? `${state.error} · ${event.message}`
+            : (state.error ?? event.message),
+      });
 
     case 'dismiss_error':
       return same({ ...state, error: null });

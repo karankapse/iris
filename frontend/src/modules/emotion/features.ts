@@ -29,11 +29,13 @@ export const FEATURE_NAMES = [
   'browDownRight',
   'noseSneerLeft',
   'noseSneerRight',
+  // Not a blendshape: computed from landmarks (see core/face/faceMath.ts, from Srihith's demo).
+  'mouthAsymmetry',
 ] as const;
 
-/** Turn a camera frame into the numeric vector the classifier uses. Missing shapes count as 0. */
+/** Turn a camera frame into the numeric vector the classifier uses. Missing values count as 0. */
 export function extractFeatures(frame: FaceFrame): number[] {
-  return FEATURE_NAMES.map((name) => frame.blendshapes[name] ?? 0);
+  return FEATURE_NAMES.map((name) => frame.metrics[name] ?? frame.blendshapes[name] ?? 0);
 }
 
 /** Pick at most `max` frames, evenly spread (a 3 s recording at 30 fps is 90 near-identical frames). */

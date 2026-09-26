@@ -4,9 +4,14 @@ import type { ApiEmotionModel } from '../../core/api';
 import { extractFeatures, FEATURE_NAMES, subsample } from './features';
 import { bestGuess, predictProbabilities } from './real/predict';
 
-const frame = (blendshapes: Record<string, number>): FaceFrame => ({
+const frame = (
+  blendshapes: Record<string, number>,
+  metrics: Record<string, number> = {},
+): FaceFrame => ({
   t: 0,
   blendshapes,
+  metrics,
+  landmarks: [],
   gaze: { x: 0, y: 0 },
   headPose: { yaw: 0, pitch: 0, roll: 0 },
 });
@@ -18,6 +23,11 @@ describe('extractFeatures', () => {
     expect(f[FEATURE_NAMES.indexOf('mouthSmileLeft')]).toBe(0.7);
     expect(f[FEATURE_NAMES.indexOf('jawOpen')]).toBe(0.2);
     expect(f[FEATURE_NAMES.indexOf('browInnerUp')]).toBe(0);
+  });
+
+  it('includes landmark-based metrics such as mouth asymmetry', () => {
+    const f = extractFeatures(frame({}, { mouthAsymmetry: 0.04 }));
+    expect(f[FEATURE_NAMES.indexOf('mouthAsymmetry')]).toBe(0.04);
   });
 
   it('ignores blink blendshapes (blinks are the control signal)', () => {

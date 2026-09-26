@@ -3,7 +3,7 @@
 ## Big picture
 
 ```
- mic ──> SpeechToText ─┐                                        ┌─> TtsProvider ──> speaker
+ mic ──> SpeechToText ─┐   (Muse Voice Transcribe, via the backend)                                        ┌─> TtsProvider ──> speaker
                        ├─> Orchestrator (state machine) ────────┤
  webcam ─> FaceTracker ┤        │  ▲                            └─> Partner view (2nd window)
             │          │        ▼  │
@@ -59,6 +59,18 @@ Paralyzed users often can't make typical expressions, so we don't use a generic 
    "yes, the tone was right" answer turns the face features from that moment into a new training
    sample (`routers/feedback.py`). Retraining then improves the model.
 
+## Speech-to-text path
+
+```
+mic -> AudioWorklet (128-sample blocks) -> PcmChunker: resample to 16 kHz, 80 ms chunks, 16-bit PCM
+    -> WebSocket /api/stt/stream -> FastAPI relay -> wss://api.meta.ai/v1/asr/realtime (Muse)
+    <- {ready | transcript(text, final) | error} <- (partials replace each other; final = sentence ended)
+```
+
+Muse runs in `ENDPOINTING` mode, so it decides where the partner's sentence ends; a `final`
+transcript triggers reply suggestions. Code: `modules/conversation/real/` (browser) and
+`backend/app/routers/stt.py` + `services/muse.py` (relay).
+
 ## Type sharing between frontend and backend
 
 - **HTTP payloads:** Pydantic models in `backend/app/schemas/` are the source of truth.
@@ -69,17 +81,23 @@ Paralyzed users often can't make typical expressions, so we don't use a generic 
 
 ## Privacy
 
-- Camera and microphone are processed in the browser. Raw video/audio is never stored or uploaded.
+- **Video** is processed in the browser and never leaves it.
+- **Microphone audio** is streamed to Meta's Muse Voice Transcribe for transcription (through our
+  backend so the API key stays server-side). The backend forwards audio from memory: it is never
+  written to disk or logged. Meta's own retention/privacy terms apply to what they receive, so
+  check them before using Iris with real patients. `VITE_STT_PROVIDER=mock` keeps everything local.
+- The relay only accepts WebSocket connections from our own frontend origin, so a random website
+  cannot use your Meta key through `localhost`.
 - The backend stores only numeric features, labels, and reply text, in local SQLite (`backend/data/`, git-ignored).
 - The Claude API receives conversation text (partner speech transcripts and the user's replies), which is necessary for suggestions.
-- **Known gap:** Chrome's Web Speech API sends microphone audio to Google for recognition. The
-  `SpeechToText` interface lets us replace it with a local Whisper implementation.
+- The alternative `webspeech` provider sends audio to Google (Chrome). The `SpeechToText`
+  interface also lets us add a fully local Whisper implementation later.
 
 ## Adding or swapping an implementation
 
 - **New TTS provider:** implement `TtsProvider` (`contracts/voice.ts`), add a case in
   `modules/voice-ui/tts/index.ts`, and select it with `VITE_TTS_PROVIDER`.
-- **Whisper STT:** implement `SpeechToText` and return it from `services.ts` when a flag is set.
+- **Another STT engine (e.g. local Whisper):** implement `SpeechToText`, add a case in `createStt()` in `app/services.ts`, and select it with `VITE_STT_PROVIDER`.
 - **New emotion:** add it to `EMOTIONS` (`contracts/emotion.ts`) *and* `Emotion` in
   `backend/app/schemas/common.py`, add a voice profile in `emotionProfiles.ts`, then `make gen-types`.
 

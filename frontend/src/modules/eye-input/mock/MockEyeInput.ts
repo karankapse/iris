@@ -36,6 +36,7 @@ export class MockEyeInput implements EyeInput {
 
   async calibrate() {
     // Nothing to calibrate for a keyboard.
+    return [];
   }
 
   on(handler: (event: EyeEvent) => void) {
