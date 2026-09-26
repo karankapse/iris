@@ -18,10 +18,12 @@ const MIN_FRAMES = 10;
 export function SetupPanel({
   services,
   orchestrator,
+  profile,
   onClose,
 }: {
   services: Services;
   orchestrator: Orchestrator;
+  profile: import('../../../core/api').ApiUserProfile;
   onClose: () => void;
 }) {
   const { eyeInput, emotion, faceTracker, mocks } = services;
@@ -30,6 +32,15 @@ export function SetupPanel({
   const [step, setStep] = useState<CalibrationStep | null>(null);
   const [countdown, setCountdown] = useState<string | null>(null);
   const [recorded, setRecorded] = useState<Partial<Record<Emotion, number>>>({});
+  
+  const [name, setName] = useState(profile?.name ?? '');
+  const [commonNeeds, setCommonNeeds] = useState((profile?.common_needs ?? []).join(', '));
+  const [relationships, setRelationships] = useState(
+    Object.entries(profile?.relationships ?? {})
+      .map(([k, v]) => `${k}: ${v}`)
+      .join(', ')
+  );
+
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -92,6 +103,25 @@ export function SetupPanel({
       return 'Trained! Your emotion model is now used to suggest tones.';
     });
 
+  const saveProfile = () => {
+    const rels: Record<string, string> = {};
+    relationships.split(',').forEach((p) => {
+      const [k, v] = p.split(':').map((s) => s.trim());
+      if (k && v) rels[k] = v;
+    });
+
+    const newProfile = {
+      name: name.trim() || null,
+      common_needs: commonNeeds
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+      relationships: Object.keys(rels).length > 0 ? rels : null,
+    };
+    orchestrator.setProfile(newProfile);
+    setMessage({ text: 'Profile saved!' });
+  };
+
   return (
     <div className="modal" role="dialog" aria-label="Set up">
       <div className="modal-card">
@@ -151,6 +181,26 @@ export function SetupPanel({
               </button>
             </>
           )}
+        </section>
+
+        <section>
+          <h3>3. AI Profile</h3>
+          <p>Tell the AI about yourself so it can suggest better, more personalized replies.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+            <label>
+              <strong>Name:</strong>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="E.g. Arya" style={{ display: 'block', width: '100%', padding: '0.25rem' }} />
+            </label>
+            <label>
+              <strong>Common Needs (comma-separated):</strong>
+              <input value={commonNeeds} onChange={(e) => setCommonNeeds(e.target.value)} placeholder="E.g. water, adjust pillow" style={{ display: 'block', width: '100%', padding: '0.25rem' }} />
+            </label>
+            <label>
+              <strong>Relationships (comma-separated, Name: Role):</strong>
+              <input value={relationships} onChange={(e) => setRelationships(e.target.value)} placeholder="E.g. Sarah: wife, Dr. Smith: doctor" style={{ display: 'block', width: '100%', padding: '0.25rem' }} />
+            </label>
+          </div>
+          <button onClick={saveProfile}>Save Profile</button>
         </section>
       </div>
     </div>

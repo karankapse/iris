@@ -10,7 +10,7 @@ const s = (i: number, text: string, tone: Suggestion['tone']): Suggestion => ({
 });
 
 /** Keyword-based fake "AI" so the UI works with no backend at all. */
-export const cannedSuggestions: SuggestionFetcher = async (history: ConversationTurn[], mood, profile?: ApiUserProfile) => {
+export const cannedSuggestions: SuggestionFetcher = async (history: ConversationTurn[], _mood, profile?: ApiUserProfile) => {
   const last =
     [...history]
       .reverse()

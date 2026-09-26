@@ -11,9 +11,10 @@ export interface View {
   highlight: number | null;
   dwell: number;
   eyeMode: EyeMode;
+  profile: import('../core/api').ApiUserProfile;
 }
 
-const STORAGE = { mood: 'iris.mood', eyeMode: 'iris.eyeMode' };
+const STORAGE = { mood: 'iris.mood', eyeMode: 'iris.eyeMode', profile: 'iris.profile' };
 
 function load<T extends string>(key: string, allowed: readonly T[]): T | null {
   try {
@@ -27,6 +28,22 @@ function save(key: string, value: string | null) {
   try {
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function loadJson<T>(key: string): T | null {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? JSON.parse(v) : null;
+  } catch {
+    return null;
+  }
+}
+function saveJson(key: string, value: any) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
   } catch {
     /* ignore */
   }
@@ -58,6 +75,7 @@ export class Orchestrator {
       // TODO: default to 'full' once the screen draws options at the up/right/down/left gaze
       // positions (optionRegions). Until then the stacked list only matches 'vertical'.
       eyeMode: load(STORAGE.eyeMode, ['full', 'vertical'] as const) ?? 'vertical',
+      profile: loadJson(STORAGE.profile) ?? { name: '', common_needs: [], relationships: {} },
     };
   }
 
@@ -171,6 +189,11 @@ export class Orchestrator {
     }
   }
 
+  setProfile(profile: import('../core/api').ApiUserProfile) {
+    saveJson(STORAGE.profile, profile);
+    this.setView({ ...this.view, profile });
+  }
+
   // ---- the core loop ---------------------------------------------------------------
   dispatch = (event: Event) => {
     const before = this.view.machine;
@@ -190,11 +213,7 @@ export class Orchestrator {
     const { conversation, tts, emotion } = this.services;
     switch (effect.type) {
       case 'suggest': {
-        const profile = {
-          name: 'Arya',
-          common_needs: ['water', 'adjust pillow'],
-          relationships: { 'Sarah': 'wife', 'Dr. Smith': 'doctor' }
-        };
+        const profile = this.view.profile;
         conversation.addTurn({ speaker: 'partner', text: effect.partnerText });
         conversation
           .suggestReplies(effect.mood, profile)

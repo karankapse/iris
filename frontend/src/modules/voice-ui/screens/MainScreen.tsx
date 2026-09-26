@@ -113,6 +113,7 @@ export function MainScreen({ services }: { services: Services }) {
         <SetupPanel
           services={services}
           orchestrator={orchestrator}
+          profile={view.profile}
           onClose={() => setShowSetup(false)}
         />
       )}
