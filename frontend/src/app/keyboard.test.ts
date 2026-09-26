@@ -6,8 +6,7 @@ function pathTo(symbol: string): number[] {
   const path: number[] = [];
   for (let guard = 0; guard < 10; guard++) {
     const entries = keyboardEntries(path);
-    const leaf = entries.find((e) => e.kind === 'symbol' && e.symbol === symbol);
-    if (leaf) return path;
+    if (entries.some((e) => e.kind === 'symbol' && e.symbol === symbol)) return path;
     const index = entries.findIndex(
       (e, i) => e.kind === 'group' && symbolsAt([...path, i]).includes(symbol),
     );
@@ -18,36 +17,37 @@ function pathTo(symbol: string): number[] {
 }
 
 describe('eye keyboard', () => {
-  it('never shows more than 4 options on any screen', () => {
+  it('EVERY screen has exactly 3 options (never a blank slot)', () => {
     const check = (path: number[]) => {
       const entries = keyboardEntries(path);
-      expect(entries.length).toBeGreaterThan(0);
-      expect(entries.length).toBeLessThanOrEqual(4);
+      expect(entries).toHaveLength(3);
       entries.forEach((e, i) => e.kind === 'group' && check([...path, i]));
     };
     check([]);
   });
 
-  it('can reach every symbol, in at most 3 selections', () => {
-    for (const symbol of SYMBOLS) {
-      const path = pathTo(symbol);
-      expect(path.length).toBeLessThanOrEqual(2); // 2 group picks + 1 final pick = 3 selections
-    }
+  it('can reach every symbol, in at most 4 selections', () => {
+    for (const symbol of SYMBOLS) expect(pathTo(symbol).length).toBeLessThanOrEqual(3); // 3 groups + 1 symbol
   });
 
-  it('starts with groups that together cover every symbol once', () => {
+  it('starts with 3 groups that together cover every symbol once', () => {
     const covered = keyboardEntries([]).flatMap((_, i) => symbolsAt([i]));
     expect([...covered].sort()).toEqual([...SYMBOLS].sort());
   });
 
   it('labels the special keys so they are readable', () => {
-    const labels = SYMBOLS.map((s) => {
-      const path = pathTo(s);
-      return keyboardEntries(path).find((e) => e.kind === 'symbol' && e.symbol === s)!.label;
-    });
+    const labels = SYMBOLS.map(
+      (s) => keyboardEntries(pathTo(s)).find((e) => e.kind === 'symbol' && e.symbol === s)!.label,
+    );
     expect(labels).toContain('␣ space');
     expect(labels).toContain('⌫ delete');
     expect(labels).toContain('✓ use this reply');
+  });
+
+  it('fills short screens with "← Back" instead of leaving a gap', () => {
+    const leaf = keyboardEntries(pathTo('A'));
+    expect(leaf.filter((e) => e.kind === 'back').length).toBeGreaterThan(0);
+    expect(leaf.some((e) => e.kind === 'symbol' && e.symbol === 'A')).toBe(true);
   });
 });
 

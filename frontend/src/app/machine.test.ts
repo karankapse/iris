@@ -7,7 +7,6 @@ import {
   getEntries,
   getOptions,
   initialState,
-  paged,
   reduce,
   type Effect,
   type Event,
@@ -102,9 +101,8 @@ describe('happy path', () => {
 describe('never speaks without confirmation', () => {
   const speaks = (effects: Effect[]) => effects.some((e) => e.type === 'speak');
 
-  it('selecting a reply, a phrase or typed text does not speak', () => {
+  it('selecting a reply or a phrase does not speak', () => {
     expect(speaks(run([select(0)], atSelectReply()).effects)).toBe(false);
-
     const phrases = choose(initialState(), 'Quick phrases');
     expect(speaks(run([select(0)], phrases).effects)).toBe(false);
   });
@@ -125,29 +123,82 @@ describe('never speaks without confirmation', () => {
   });
 });
 
-describe('at most 4 options on every screen', () => {
-  it('holds for every phase, including long lists', () => {
+describe('EXACTLY 3 options on every screen (no blanks), the 3rd is always "Other"-like', () => {
+  /** Walk every screen reachable from a start state (breadth-first over all options). */
+  function allReachable(start: State, limit = 400): State[] {
+    const seen = new Map<string, State>();
+    const queue = [start];
+    while (queue.length && seen.size < limit) {
+      const s = queue.shift()!;
+      const key = JSON.stringify([s.phase, s.page, s.kbPath, s.typed.length > 0, s.returnStack]);
+      if (seen.has(key)) continue;
+      seen.set(key, s);
+      getOptions(s).forEach((_, i) => queue.push(run([select(i)], s).state));
+    }
+    return [...seen.values()];
+  }
+
+  it('holds for every reachable screen, with long and short lists', () => {
     const many = Array.from({ length: 12 }, (_, i) => `phrase ${i}`);
-    let s = { ...atSelectReply(), phrases: many };
-    const phases: State[] = [initialState(), s];
-    phases.push(choose(s, 'More…')); // menu
-    phases.push(choose(choose(s, 'More…'), 'Quick phrases')); // phrases (12 of them)
-    phases.push(choose(choose(s, 'More…'), 'Set mood'));
-    phases.push(choose(choose(s, 'More…'), 'Type my own reply'));
-    s = run([select(0)], s).state; // confirmTone
-    phases.push(s, run([eye({ type: 'cancel' })], s).state); // pickTone
-    for (const state of phases) {
-      const n = getOptions(state).length;
-      expect(n, state.phase).toBeLessThanOrEqual(4);
+    const starts = [
+      initialState(),
+      { ...initialState(), phrases: many },
+      { ...initialState(), phrases: [] },
+      atSelectReply(),
+      run(
+        [
+          { type: 'partner_final', text: 'hi' },
+          { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1)] }, // only ONE suggestion
+        ],
+        { ...initialState(), phrases: [] },
+      ).state,
+      run([{ type: 'partner_final', text: 'hi' }]).state, // waiting for the AI
+    ];
+    for (const start of starts) {
+      for (const s of allReachable(start)) {
+        const opts = getOptions(s);
+        expect(opts, s.phase).toHaveLength(3);
+        for (const o of opts) expect(o.label.trim().length, s.phase).toBeGreaterThan(0);
+      }
     }
   });
 
-  it('paged(): short lists as they are, long lists 3 per page plus More', () => {
-    expect(paged([1, 2, 3, 4], 0)).toEqual({ shown: [1, 2, 3, 4], more: false });
-    expect(paged([1, 2, 3, 4, 5, 6, 7], 0)).toEqual({ shown: [1, 2, 3], more: true });
-    expect(paged([1, 2, 3, 4, 5, 6, 7], 1)).toEqual({ shown: [4, 5, 6], more: true });
-    expect(paged([1, 2, 3, 4, 5, 6, 7], 2)).toEqual({ shown: [7], more: true });
-    expect(paged([1, 2, 3, 4, 5, 6, 7], 3)).toEqual({ shown: [1, 2, 3], more: true }); // wraps
+  it('the 3rd option on the main screens is "Other…"', () => {
+    expect(labels(initialState())[2]).toBe('Other…');
+    expect(labels(atSelectReply())[2]).toBe('Other…');
+  });
+
+  it('a long list shows 2 at a time and the 3rd option pages through all of them', () => {
+    const s0 = { ...initialState(), phrases: ['a', 'b', 'c', 'd', 'e'] };
+    let s = choose(s0, 'Quick phrases');
+    const seen = new Set<string>();
+    for (let i = 0; i < 4; i++) {
+      expect(labels(s)[2]).toBe('Other →');
+      labels(s)
+        .slice(0, 2)
+        .forEach((l) => seen.add(l));
+      s = choose(s, 'Other →');
+    }
+    for (const p of ['a', 'b', 'c', 'd', 'e']) expect(seen.has(p)).toBe(true);
+    expect(seen.has('← Back')).toBe(true); // back is reachable in the cycle too
+  });
+
+  it('with only one AI suggestion, a quick phrase fills the second slot (no blank)', () => {
+    const s = run([
+      { type: 'partner_final', text: 'hi' },
+      { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1)] },
+    ]).state;
+    expect(labels(s)).toEqual(['reply 1', 'I need help', 'Other…']);
+  });
+
+  it('while thinking or speaking, the slots hold info cards that cannot be chosen', () => {
+    const thinking = run([{ type: 'partner_final', text: 'Hungry?' }]).state;
+    expect(getOptions(thinking).every((o) => o.info)).toBe(true);
+    expect(run([select(1)], thinking).state.phase).toBe('suggesting'); // nothing happens
+
+    const speaking = run([select(0), eye({ type: 'confirm' })], atSelectReply());
+    expect(labels(speaking.state)[0]).toBe('Stop speaking');
+    expect(run([select(0)], speaking.state).effects).toEqual([{ type: 'stop_speaking' }]);
   });
 });
 
@@ -159,21 +210,22 @@ describe('tone choice', () => {
     expect(chooseTone(null, detected('sad', 0.2), 'happy')).toBe('happy');
   });
 
-  it('pickTone lists every other tone across pages (6 tones -> 5 others)', () => {
+  it('pickTone reaches every other tone through the pages (6 tones -> 5 others)', () => {
     let s = run([select(0)], atSelectReply()).state;
     s = run([eye({ type: 'cancel' })], s).state;
-    const seen = new Set(labels(s).filter((l) => (EMOTIONS as readonly string[]).includes(l)));
-    expect(labels(s)).toContain('More tones →');
-    s = choose(s, 'More tones →');
-    labels(s).forEach((l) => (EMOTIONS as readonly string[]).includes(l) && seen.add(l));
+    const seen = new Set<string>();
+    for (let i = 0; i < 4; i++) {
+      labels(s).forEach((l) => (EMOTIONS as readonly string[]).includes(l) && seen.add(l));
+      s = choose(s, 'Other →');
+    }
     expect(seen.size).toBe(EMOTIONS.length - 1);
     expect(seen.has(s.tone!)).toBe(false); // the current tone is not offered
   });
 });
 
-describe('quick phrases, "More…" and mood', () => {
-  it('while listening the user can start: phrases, keyboard, mood', () => {
-    expect(labels(initialState())).toEqual(['Quick phrases', 'Type my own reply', 'Set mood']);
+describe('quick phrases, "Other…" and mood', () => {
+  it('while listening the user can start: phrases, keyboard, other', () => {
+    expect(labels(initialState())).toEqual(['Quick phrases', 'Type my own reply', 'Other…']);
   });
 
   it('a quick phrase goes to tone confirmation with the neutral tone', () => {
@@ -185,24 +237,22 @@ describe('quick phrases, "More…" and mood', () => {
     expect(s.tone).toBe('neutral');
   });
 
-  it('a long phrase list is paged', () => {
-    const s0 = { ...initialState(), phrases: Array.from({ length: 8 }, (_, i) => `p${i}`) };
-    let s = choose(s0, 'Quick phrases');
-    expect(labels(s)).toEqual(['p0', 'p1', 'p2', 'More phrases →']);
-    s = choose(s, 'More phrases →');
-    expect(labels(s)).toEqual(['p3', 'p4', 'p5', 'More phrases →']);
-  });
-
-  it('"More…" on the reply screen opens the menu, and back returns to the replies', () => {
-    let s = choose(atSelectReply(), 'More…');
+  it('"Other…" on the reply screen opens the menu, and back returns to the replies', () => {
+    let s = choose(atSelectReply(), 'Other…');
     expect(s.phase).toBe('menu');
-    expect(labels(s)).toEqual(['Quick phrases', 'Type my own reply', 'Set mood', '← Back']);
     s = run([eye({ type: 'cancel' })], s).state;
     expect(s.phase).toBe('selectReply');
   });
 
-  it('back from phrases returns to where you came from', () => {
-    let s = choose(choose(atSelectReply(), 'More…'), 'Quick phrases');
+  it('the 3rd AI suggestion is reachable under Other… → More replies', () => {
+    let s = choose(atSelectReply(), 'Other…');
+    for (let i = 0; i < 4 && !labels(s).includes('More replies'); i++) s = choose(s, 'Other →');
+    s = choose(s, 'More replies');
+    expect(labels(s)).toContain('reply 3');
+  });
+
+  it('back from phrases returns to where you came from, step by step', () => {
+    let s = choose(choose(atSelectReply(), 'Other…'), 'Quick phrases');
     s = run([eye({ type: 'cancel' })], s).state;
     expect(s.phase).toBe('menu');
     s = run([eye({ type: 'cancel' })], s).state;
@@ -210,32 +260,50 @@ describe('quick phrases, "More…" and mood', () => {
   });
 
   it('choosing a mood saves it and returns; the next tone proposal uses it', () => {
-    let r = run([select(2)], initialState()); // "Set mood"
-    expect(r.state.phase).toBe('pickMood');
-    r = run([select(2)], r.state); // [No mood, neutral, happy, More] -> happy
+    let s = choose(choose(initialState(), 'Other…'), 'Set mood');
+    expect(s.phase).toBe('pickMood');
+    for (let i = 0; i < 4 && !labels(s).includes('happy'); i++) s = choose(s, 'Other →');
+    const r = run([select(labels(s).indexOf('happy'))], s);
     expect(r.state.mood).toBe('happy');
-    expect(r.state.phase).toBe('listening');
+    expect(r.state.phase).toBe('menu');
     expect(r.effects).toEqual([{ type: 'save_mood', mood: 'happy' }]);
 
-    const s = run(
+    const next = run(
       [
         { type: 'partner_final', text: 'hi' },
         { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1, 'sad')] },
       ],
       r.state,
     ).state;
-    expect(run([select(0)], s).state.tone).toBe('happy'); // mood beats the AI's "sad"
+    expect(run([select(0)], next).state.tone).toBe('happy'); // mood beats the AI's "sad"
   });
 
-  it('the mood list can clear the mood and reach every mood through pages', () => {
-    let s = choose(initialState(), 'Set mood');
-    const seen = new Set(labels(s));
-    s = choose(s, 'More moods →');
-    labels(s).forEach((l) => seen.add(l));
-    s = choose(s, 'More moods →');
-    labels(s).forEach((l) => seen.add(l));
+  it('the mood list reaches every mood and "no mood"', () => {
+    let s = choose(choose(initialState(), 'Other…'), 'Set mood');
+    const seen = new Set<string>();
+    for (let i = 0; i < 5; i++) {
+      labels(s).forEach((l) => seen.add(l));
+      s = choose(s, 'Other →');
+    }
     for (const e of EMOTIONS) expect(seen.has(e)).toBe(true);
     expect([...seen].some((l) => l.startsWith('No mood'))).toBe(true);
+  });
+
+  it('on the tone screen, "Other reply…" goes back to choosing a reply without speaking', () => {
+    const s = run([select(0)], atSelectReply()).state;
+    const r = run([select(2)], s);
+    expect(r.state.phase).toBe('selectReply');
+    expect(r.effects).toEqual([]);
+  });
+
+  it('feedback can be skipped', () => {
+    const fb = run(
+      [select(0), eye({ type: 'confirm' }), { type: 'speak_done' }],
+      atSelectReply(),
+    ).state;
+    const r = run([select(2)], fb);
+    expect(r.state.phase).toBe('listening');
+    expect(r.effects).toEqual([]);
   });
 });
 
@@ -250,9 +318,9 @@ describe('eye keyboard', () => {
     expect(s.reply?.text).toBe('Hi');
   });
 
-  it('every keyboard screen has at most 4 options', () => {
+  it('every keyboard screen has exactly 3 options', () => {
     const s = choose(initialState(), 'Type my own reply');
-    expect(getOptions(s).length).toBeLessThanOrEqual(4);
+    expect(getOptions(s)).toHaveLength(3);
   });
 
   it('cancel backs out of a group first, then leaves the keyboard', () => {

@@ -1,4 +1,4 @@
-import { LAYOUT, TARGET_POSITION, optionRegions } from '../../../contracts';
+import { TARGET_POSITION, optionRegions } from '../../../contracts';
 import type {
   CalibrationStep,
   EyeEvent,
@@ -70,23 +70,22 @@ const TRAIN_EVERY_MS = 75;
 const CHECK_MS = 1200;
 const TRAIN_POINTS: { key: string; pos: { x: number; y: number } }[] = [
   { key: 'center', pos: TARGET_POSITION.center },
-  { key: 'up-left', pos: TARGET_POSITION['up-left'] },
-  { key: 'up-right', pos: TARGET_POSITION['up-right'] },
-  { key: 'down-left', pos: TARGET_POSITION['down-left'] },
-  { key: 'down-right', pos: TARGET_POSITION['down-right'] },
-  // extra points spread over the middle column and the box edges, so the mapping is learned everywhere
-  { key: 'top-middle', pos: { x: 50, y: 25 } },
-  { key: 'bottom-middle', pos: { x: 50, y: 75 } },
-  { key: 'left-middle', pos: { x: LAYOUT.leftColumn * 50, y: 50 } },
-  { key: 'right-middle', pos: { x: 100 - LAYOUT.leftColumn * 50, y: 50 } },
+  { key: 'left', pos: TARGET_POSITION.left },
+  { key: 'middle', pos: TARGET_POSITION.middle },
+  { key: 'right', pos: TARGET_POSITION.right },
+  // extra points spread over the rest band and the columns, so the mapping is learned everywhere
+  { key: 'rest-left', pos: { x: 32, y: 28 } }, //   "Partner said"
+  { key: 'rest-right', pos: { x: 68, y: 28 } }, //  the face view
+  { key: 'col-left', pos: { x: TARGET_POSITION.left.x, y: 60 } },
+  { key: 'col-middle', pos: { x: TARGET_POSITION.middle.x, y: 60 } },
+  { key: 'col-right', pos: { x: TARGET_POSITION.right.x, y: 60 } },
 ];
-const CHECK_ZONES: Zone[] = ['center', 'up-left', 'up-right', 'down-left', 'down-right'];
+const CHECK_ZONES: Zone[] = ['center', 'left', 'middle', 'right'];
 const ZONE_LABEL: Record<Zone, string> = {
-  center: 'Middle',
-  'up-left': 'Top-left',
-  'up-right': 'Top-right',
-  'down-left': 'Bottom-left',
-  'down-right': 'Bottom-right',
+  center: 'The rest area',
+  left: 'The left column',
+  middle: 'The middle column',
+  right: 'The right column',
 };
 
 function screenCalibrated(): boolean {
@@ -105,19 +104,23 @@ interface StepDef {
   seconds: number;
 }
 
-const CORNER_NAME: Record<string, string> = {
-  'up-left': 'top-left',
-  'up-right': 'top-right',
-  'down-left': 'bottom-left',
-  'down-right': 'bottom-right',
+const COLUMN_NAME: Record<string, string> = {
+  left: 'left',
+  middle: 'middle',
+  right: 'right',
 };
 
 const FULL_STEPS: StepDef[] = [
-  { key: 'center', target: 'center', prompt: 'Look at the dot in the middle', seconds: 3 },
-  ...(['up-left', 'up-right', 'down-left', 'down-right'] as const).map((z) => ({
+  {
+    key: 'center',
+    target: 'center',
+    prompt: 'Look at the dot at the top (the rest area)',
+    seconds: 3,
+  },
+  ...(['left', 'middle', 'right'] as const).map((z) => ({
     key: z,
     target: z,
-    prompt: `Look at the dot in the ${CORNER_NAME[z]} corner`,
+    prompt: `Look at the words in the ${COLUMN_NAME[z]} column`,
     seconds: 3,
   })),
   {
@@ -421,14 +424,14 @@ export class RealEyeInput implements EyeInput {
     }
 
     // 2) blink and up/down thresholds (used by vertical mode, and to detect blinks)
-    const topY =
-      this.mode === 'full' ? (medianY(f['up-left']) + medianY(f['up-right'])) / 2 : medianY(f.up);
+    // full mode: the rest band is at the top of the screen, the columns' words at the bottom
+    const topY = this.mode === 'full' ? medianY(f.center) : medianY(f.up);
     const bottomY =
       this.mode === 'full'
-        ? (medianY(f['down-left']) + medianY(f['down-right'])) / 2
+        ? (medianY(f.left) + medianY(f.middle) + medianY(f.right)) / 3
         : medianY(f.down);
     const samples: CalibrationSamples = {
-      centerY: medianY(f.center),
+      centerY: this.mode === 'full' ? (topY + bottomY) / 2 : medianY(f.center),
       upY: topY,
       downY: bottomY,
       openBlink: median(f.center.map(blinkScore)),
@@ -558,9 +561,12 @@ export class RealEyeInput implements EyeInput {
       if (open.length >= 10 && closed.length >= 10) {
         const result = tuningFromSamples(
           {
-            centerY: medianY(framesOf(['center'])),
-            upY: medianY(framesOf(['up-left', 'up-right'])),
-            downY: medianY(framesOf(['down-left', 'down-right'])),
+            centerY:
+              (medianY(framesOf(['center'])) + medianY(framesOf(['left', 'middle', 'right']))) / 2,
+            upY: medianY(framesOf(['center', 'rest-left', 'rest-right'])),
+            downY: medianY(
+              framesOf(['left', 'middle', 'right', 'col-left', 'col-middle', 'col-right']),
+            ),
             openBlink: median(open.map(blinkScore)),
             closedBlink: median(closed.map(blinkScore)),
           },

@@ -1,5 +1,5 @@
-// Turn a gaze point on the screen into a zone: one of the four corner boxes, or the middle
-// column (rest). Plain geometry: the boxes are where the layout draws them (see LAYOUT).
+// Turn a gaze point on the screen into a zone: the REST band at the top, or one of the three
+// columns below it. Plain geometry: the boxes are where the layout draws them (see LAYOUT).
 import { LAYOUT } from '../../../contracts';
 import { FeatureSmoother, type Zone } from './corners';
 
@@ -10,36 +10,32 @@ export interface Viewport {
 
 /** The plain zone containing (x, y). Points off-screen count as the nearest edge zone. */
 export function zoneAt(x: number, y: number, vp: Viewport): Zone {
-  const col =
-    x < vp.w * LAYOUT.leftColumn ? 'left' : x > vp.w * LAYOUT.rightColumn ? 'right' : 'middle';
-  if (col === 'middle') return 'center';
-  const top = y < vp.h * LAYOUT.middleRow;
-  if (col === 'left') return top ? 'up-left' : 'down-left';
-  return top ? 'up-right' : 'down-right';
+  if (y < vp.h * LAYOUT.restBottom) return 'center'; // rest: "Partner said" and the face view
+  if (x < vp.w * LAYOUT.leftColumn) return 'left';
+  if (x > vp.w * LAYOUT.rightColumn) return 'right';
+  return 'middle';
 }
 
 /** Does `zone`'s box, grown by (mx, my) pixels on every side, contain (x, y)? */
 function inside(zone: Zone, x: number, y: number, vp: Viewport, mx: number, my: number): boolean {
   const left = vp.w * LAYOUT.leftColumn;
   const right = vp.w * LAYOUT.rightColumn;
-  const mid = vp.h * LAYOUT.middleRow;
+  const rest = vp.h * LAYOUT.restBottom;
   switch (zone) {
     case 'center':
-      return x >= left - mx && x <= right + mx;
-    case 'up-left':
-      return x <= left + mx && y <= mid + my;
-    case 'up-right':
-      return x >= right - mx && y <= mid + my;
-    case 'down-left':
-      return x <= left + mx && y >= mid - my;
-    case 'down-right':
-      return x >= right - mx && y >= mid - my;
+      return y <= rest + my;
+    case 'left':
+      return y >= rest - my && x <= left + mx;
+    case 'right':
+      return y >= rest - my && x >= right - mx;
+    case 'middle':
+      return y >= rest - my && x >= left - mx && x <= right + mx;
   }
 }
 
 /** How far past a box edge the gaze must go before we leave the current zone (fraction of screen). */
 const STICKY_X = 0.03;
-const STICKY_Y = 0.04;
+const STICKY_Y = 0.05;
 
 /**
  * Stable "current zone" from noisy screen gaze:

@@ -1,5 +1,5 @@
 // Which part of the screen is the person looking at? A personal classifier for 5 zones:
-// the centre (rest) and the 4 corners.
+// the rest area and the 3 columns.
 //
 // Why not simple thresholds? Webcam gaze is noisy and every face is different. So instead of
 // guessing, calibration asks the person to look at a dot in each zone and we LEARN what each one
@@ -12,7 +12,7 @@
 import type { FaceFrame, Region } from '../../../contracts';
 
 export type Zone = 'center' | Region;
-export const ZONES: Zone[] = ['center', 'up-left', 'up-right', 'down-left', 'down-right'];
+export const ZONES: Zone[] = ['center', 'left', 'middle', 'right'];
 
 export const FEATURE_COUNT = 6;
 
@@ -59,11 +59,10 @@ export interface TrainResult {
 }
 
 const ZONE_NAME: Record<Zone, string> = {
-  center: 'the centre',
-  'up-left': 'top-left',
-  'up-right': 'top-right',
-  'down-left': 'bottom-left',
-  'down-right': 'bottom-right',
+  center: 'the rest area',
+  left: 'the left column',
+  middle: 'the middle column',
+  right: 'the right column',
 };
 
 /** Learn a model from the calibration frames of each zone. Returns null if there is too little data. */
@@ -147,11 +146,10 @@ export function defaultCornerModel(): CornerModel {
   const at = (x: number, y: number) => [x, y, 0, 0, 0, 0];
   return {
     centroids: {
-      center: at(0, 0),
-      'up-left': at(-0.3, -0.2),
-      'up-right': at(0.3, -0.2),
-      'down-left': at(-0.3, 0.3),
-      'down-right': at(0.3, 0.3),
+      center: at(0, -0.15),
+      left: at(-0.3, 0.3),
+      middle: at(0, 0.3),
+      right: at(0.3, 0.3),
     },
     sigma: [0.12, 0.12, 1, 1, 1, 1],
     weight: [1, 1, 0, 0, 0, 0],

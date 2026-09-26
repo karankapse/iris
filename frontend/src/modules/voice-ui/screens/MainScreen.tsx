@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Services } from '../../../app/services';
 import { useOrchestrator } from '../../../app/useOrchestrator';
 import { CameraPreview } from './CameraPreview';
-import { CornerLayout } from './CornerLayout';
+import { ColumnLayout } from './ColumnLayout';
 import { DevPanel } from './DevPanel';
 import { GazeDot } from './GazeDot';
 import { MicPanel } from './MicPanel';
@@ -95,7 +95,7 @@ export function MainScreen({ services }: { services: Services }) {
     <>
       {showDot && services.gaze && <GazeDot services={services} />}
       {eyeMode === 'full' ? (
-        <CornerLayout
+        <ColumnLayout
           orchestrator={orchestrator}
           view={view}
           draft={draft}
@@ -103,7 +103,15 @@ export function MainScreen({ services }: { services: Services }) {
           onPick={pick}
           face={
             <>
-              {services.usesCamera && <CameraPreview services={services} showReadout={false} />}
+              {services.usesCamera ? (
+                <CameraPreview services={services} showReadout={false} />
+              ) : (
+                // no camera in use (keyboard mock): a simple face stands in for the live view
+                <div className="face-placeholder" aria-hidden="true">
+                  <span />
+                  <span />
+                </div>
+              )}
               <div className="face-row">
                 {services.usesMic && (
                   <span className={`chip-state ${stt.state}`}>mic: {stt.state}</span>

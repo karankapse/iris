@@ -5,13 +5,14 @@
 //   listening -> suggesting -> selectReply -> confirmTone -> speaking -> feedback -> listening
 //        |                        |             |  ^
 //        |                        |           pickTone
-//        +-- quick phrases / type my own / set mood (also via "More…" from selectReply)
+//        +-- quick phrases / type my own / "Other…" (menu, mood, more replies)
 //
 // THE SAFETY RULE: the only way into `speaking` is a confirm/select on `confirmTone`.
 //
-// EVERY screen shows at most 4 options (MAX_OPTIONS). Longer lists are paged: 3 items plus a
-// "More…" option that shows the next 3. Each option carries the ACTION it performs, so what is
-// shown and what happens can never disagree (see `getEntries`).
+// EVERY screen shows EXACTLY 3 options (MAX_OPTIONS), never fewer, so there are no blank slots.
+// The third is always "Other…": it opens a menu, or shows the next page of a long list. Lists that
+// are too short are filled up (with "← Back" or info cards). Each option carries the ACTION it
+// performs, so what is shown and what happens can never disagree (see `getEntries`).
 // ============================================================================
 import { EMOTIONS } from '../contracts';
 import type { Emotion, EmotionEstimate, EyeEvent, Suggestion } from '../contracts';
@@ -20,10 +21,11 @@ import { applySymbol, DONE, keyboardEntries } from './keyboard';
 import { DEFAULT_PHRASES } from './phrases';
 
 export type Phase =
-  | 'listening' //   waiting for the partner (the user can also start: phrases / type / mood)
+  | 'listening' //   waiting for the partner (the user can also start: phrases / type / other)
   | 'suggesting' //  waiting for the AI's suggested replies
   | 'selectReply' // pick one of the replies
-  | 'menu' //        "More…": quick phrases, type my own, set mood
+  | 'moreReplies' // the AI's other suggestions (from "Other…")
+  | 'menu' //        "Other…": quick phrases, type my own, set mood
   | 'phrases' //     quick-access saved phrases
   | 'typing' //      the eye keyboard
   | 'pickMood' //    choose the persistent mood
@@ -64,7 +66,7 @@ export interface State {
   error: string | null;
   /** Quick-access phrases (from the user's profile). */
   phrases: string[];
-  /** Which page of a long list is showing (tones, moods, phrases). */
+  /** Which page of a long list is showing (tones, moods, phrases...). */
   page: number;
   /** Where "back" goes from a sub-screen, most recent last (a stack: menu -> phrases -> back -> back). */
   returnStack: Phase[];
@@ -149,37 +151,31 @@ export function chooseTone(
   return suggested;
 }
 
-// ---- paging: at most 4 options per screen ----------------------------------------------------
-
-const PER_PAGE = MAX_OPTIONS - 1; // 3 items + one "More…" option
-
-/** Up to 4 items are shown as they are; longer lists show 3 per page plus a "More…" option. */
-export function paged<T>(items: T[], page: number): { shown: T[]; more: boolean } {
-  if (items.length <= MAX_OPTIONS) return { shown: items, more: false };
-  const pages = Math.ceil(items.length / PER_PAGE);
-  const p = ((page % pages) + pages) % pages;
-  return { shown: items.slice(p * PER_PAGE, p * PER_PAGE + PER_PAGE), more: true };
-}
-
 // ---- what is on screen: options that carry their own action -----------------------------------
 
 export interface Option {
   label: string;
   hint?: string;
+  /** An info card: fills a slot but cannot be chosen (used while thinking or speaking). */
+  info?: boolean;
 }
 
-type SubScreen = 'menu' | 'phrases' | 'typing' | 'pickMood';
+type SubScreen = 'menu' | 'moreReplies' | 'phrases' | 'typing' | 'pickMood';
 
 export type Action =
+  | { kind: 'none' } //                               info card: nothing happens
   | { kind: 'reply'; text: string; tone: Emotion } // a suggestion or phrase: go to tone confirmation
   | { kind: 'goto'; phase: SubScreen }
-  | { kind: 'more' } //                              show the next page
+  | { kind: 'more' } //                               show the next page
   | { kind: 'back' }
   | { kind: 'mood'; mood: Emotion | null }
   | { kind: 'tone'; tone: Emotion }
   | { kind: 'speak' }
+  | { kind: 'stop' }
   | { kind: 'changeTone' }
+  | { kind: 'discardReply' }
   | { kind: 'feedback'; ok: boolean }
+  | { kind: 'skipFeedback' }
   | { kind: 'key'; symbol: string }
   | { kind: 'group'; index: number };
 
@@ -188,7 +184,7 @@ export interface Entry {
   action: Action;
 }
 
-/** Only 3 AI suggestions are shown: the 4th slot is "More…" (phrases, keyboard, mood). */
+/** The AI suggestions that fit in the first two slots; the rest are under "Other…". */
 export const visibleSuggestions = (s: State) => s.suggestions.slice(0, MAX_OPTIONS - 1);
 export const otherTones = (s: State) => EMOTIONS.filter((e) => e !== s.tone);
 
@@ -196,92 +192,152 @@ const goto = (label: string, phase: SubScreen): Entry => ({
   option: { label },
   action: { kind: 'goto', phase },
 });
-const moreEntry = (label: string): Entry => ({ option: { label }, action: { kind: 'more' } });
+const other = (phase: SubScreen = 'menu'): Entry => goto('Other…', phase);
 const backEntry: Entry = { option: { label: '← Back' }, action: { kind: 'back' } };
+const info = (label: string, hint?: string): Entry => ({
+  option: { label, hint, info: true },
+  action: { kind: 'none' },
+});
+const replyEntry = (text: string, tone: Emotion, hint?: string): Entry => ({
+  option: { label: text, hint },
+  action: { kind: 'reply', text, tone },
+});
+
+/**
+ * Exactly 3 entries from a list of any length:
+ *  - exactly 3: as they are
+ *  - more: 2 per page plus "Other →" (next page; it cycles, and the last page wraps around so it is
+ *    never short)
+ *  - fewer: filled up from `fillers` (default: "← Back")
+ */
+function threeOf(entries: Entry[], page: number, fillers: Entry[] = [backEntry]): Entry[] {
+  const n = entries.length;
+  if (n > MAX_OPTIONS) {
+    const per = MAX_OPTIONS - 1;
+    const pages = Math.ceil(n / per);
+    const start = (((page % pages) + pages) % pages) * per;
+    return [
+      entries[start % n],
+      entries[(start + 1) % n],
+      { option: { label: 'Other →' }, action: { kind: 'more' } },
+    ];
+  }
+  const out = [...entries];
+  for (const f of fillers) if (out.length < MAX_OPTIONS) out.push(f);
+  while (out.length < MAX_OPTIONS) out.push(backEntry);
+  return out;
+}
 
 export function getEntries(s: State): Entry[] {
   switch (s.phase) {
     case 'listening':
-      return [
-        goto('Quick phrases', 'phrases'),
-        goto('Type my own reply', 'typing'),
-        goto(s.mood ? `Mood: ${s.mood} (change)` : 'Set mood', 'pickMood'),
-      ];
+      return [goto('Quick phrases', 'phrases'), goto('Type my own reply', 'typing'), other()];
 
-    case 'selectReply':
-      return [
-        ...visibleSuggestions(s).map((x): Entry => ({
-          option: { label: x.text, hint: x.tone },
-          action: { kind: 'reply', text: x.text, tone: x.tone },
-        })),
-        goto('More…', 'menu'),
+    case 'selectReply': {
+      // The two best AI suggestions. If there are fewer than two, quick phrases fill the gap.
+      const pool: Entry[] = [
+        ...s.suggestions.map((x) => replyEntry(x.text, x.tone, x.tone)),
+        ...s.phrases.map((p) => replyEntry(p, 'neutral', 'quick phrase')),
       ];
+      const two = pool.slice(0, MAX_OPTIONS - 1);
+      while (two.length < MAX_OPTIONS - 1) two.push(info('No suggestions yet'));
+      return [...two, other()];
+    }
 
-    case 'menu':
-      return [
-        goto('Quick phrases', 'phrases'),
-        goto('Type my own reply', 'typing'),
+    case 'menu': {
+      // Don't repeat what the previous screen already offered (the listening screen shows
+      // "Quick phrases" and "Type my own reply" directly), so the useful items come first.
+      const from = s.returnStack.at(-1);
+      const items: Entry[] = [
+        ...(s.suggestions.length > MAX_OPTIONS - 1 && from === 'selectReply'
+          ? [goto('More replies', 'moreReplies')]
+          : []),
+        ...(from === 'listening'
+          ? []
+          : [goto('Quick phrases', 'phrases'), goto('Type my own reply', 'typing')]),
         goto('Set mood', 'pickMood'),
         backEntry,
       ];
-
-    case 'phrases': {
-      if (s.phrases.length === 0) {
-        return [
-          { option: { label: 'No phrases yet: add some in the menu' }, action: { kind: 'back' } },
-        ];
-      }
-      const { shown, more } = paged(s.phrases, s.page);
-      const entries = shown.map((text): Entry => ({
-        option: { label: text },
-        action: { kind: 'reply', text, tone: 'neutral' },
-      }));
-      return more ? [...entries, moreEntry('More phrases →')] : entries;
+      return threeOf(items, s.page);
     }
+
+    case 'moreReplies':
+      return threeOf(
+        [
+          ...s.suggestions.slice(MAX_OPTIONS - 1).map((x) => replyEntry(x.text, x.tone, x.tone)),
+          backEntry,
+        ],
+        s.page,
+      );
+
+    case 'phrases':
+      if (s.phrases.length === 0) {
+        return [info('No quick phrases yet'), info('Add some in the Menu'), backEntry];
+      }
+      return threeOf([...s.phrases.map((p) => replyEntry(p, 'neutral')), backEntry], s.page);
 
     case 'pickMood': {
       const items: { mood: Emotion | null; label: string }[] = [
         { mood: null, label: 'No mood (automatic)' },
         ...EMOTIONS.map((e) => ({ mood: e as Emotion | null, label: e })),
       ];
-      const { shown, more } = paged(items, s.page);
-      const entries = shown.map((i): Entry => ({
-        option: { label: i.mood === s.mood ? `${i.label} ✓` : i.label },
-        action: { kind: 'mood', mood: i.mood },
-      }));
-      return more ? [...entries, moreEntry('More moods →')] : entries;
+      return threeOf(
+        [
+          ...items.map((i): Entry => ({
+            option: { label: i.mood === s.mood ? `${i.label} ✓` : i.label },
+            action: { kind: 'mood', mood: i.mood },
+          })),
+          backEntry,
+        ],
+        s.page,
+      );
     }
 
-    case 'pickTone': {
-      const { shown, more } = paged(otherTones(s), s.page);
-      const entries = shown.map((tone): Entry => ({
-        option: { label: tone },
-        action: { kind: 'tone', tone },
-      }));
-      return more ? [...entries, moreEntry('More tones →')] : entries;
-    }
+    case 'pickTone':
+      return threeOf(
+        [
+          ...otherTones(s).map((tone): Entry => ({
+            option: { label: tone },
+            action: { kind: 'tone', tone },
+          })),
+          backEntry,
+        ],
+        s.page,
+      );
 
     case 'confirmTone':
       return [
         { option: { label: `Speak it (${s.tone})` }, action: { kind: 'speak' } },
         { option: { label: 'Change tone' }, action: { kind: 'changeTone' } },
+        { option: { label: 'Other reply…' }, action: { kind: 'discardReply' } },
       ];
 
     case 'feedback':
       return [
         { option: { label: 'Yes, that tone was right' }, action: { kind: 'feedback', ok: true } },
         { option: { label: 'No, it was off' }, action: { kind: 'feedback', ok: false } },
+        { option: { label: 'Not sure (skip)' }, action: { kind: 'skipFeedback' } },
       ];
 
     case 'typing':
       return keyboardEntries(s.kbPath).map((e): Entry =>
         e.kind === 'group'
           ? { option: { label: e.label }, action: { kind: 'group', index: e.index } }
-          : { option: { label: e.label }, action: { kind: 'key', symbol: e.symbol } },
+          : e.kind === 'symbol'
+            ? { option: { label: e.label }, action: { kind: 'key', symbol: e.symbol } }
+            : backEntry,
       );
 
-    default:
-      return [];
+    // Nothing can be chosen right now, but the three slots are still filled: info cards.
+    case 'suggesting':
+      return [info('They said', s.partnerText), info('Thinking of replies…'), info('One moment')];
+
+    case 'speaking':
+      return [
+        { option: { label: 'Stop speaking' }, action: { kind: 'stop' } },
+        info(s.reply ? `“${s.reply.text}”` : 'Speaking…'),
+        info(s.tone ? `Tone: ${s.tone}` : 'Speaking'),
+      ];
   }
 }
 
@@ -428,6 +484,7 @@ function goBack(state: State): Result {
         ? same({ ...state, kbPath: state.kbPath.slice(0, -1) })
         : same(leaveSubScreen(state));
     case 'menu':
+    case 'moreReplies':
     case 'phrases':
     case 'pickMood':
       return same(leaveSubScreen(state));
@@ -454,6 +511,9 @@ function goBack(state: State): Result {
 
 function applyAction(state: State, action: Action): Result {
   switch (action.kind) {
+    case 'none':
+      return same(state);
+
     case 'reply':
       return proposeTone(state, { text: action.text, suggestedTone: action.tone });
 
@@ -486,8 +546,22 @@ function applyAction(state: State, action: Action): Result {
     case 'speak':
       return speak(state);
 
+    case 'stop':
+      return { state, effects: [{ type: 'stop_speaking' }] };
+
     case 'changeTone':
       return same({ ...state, phase: 'pickTone', page: 0 });
+
+    case 'discardReply':
+      // "Other reply…": drop this one and pick again
+      return same({
+        ...state,
+        phase: state.suggestions.length > 0 ? 'selectReply' : 'listening',
+        reply: null,
+        tone: null,
+        returnStack: [],
+        page: 0,
+      });
 
     case 'feedback':
       if (!state.lastSpoken) return same(state);
@@ -495,6 +569,9 @@ function applyAction(state: State, action: Action): Result {
         state: { ...state, phase: 'listening' },
         effects: [{ type: 'user_feedback', spoken: state.lastSpoken, ok: action.ok }],
       };
+
+    case 'skipFeedback':
+      return same({ ...state, phase: 'listening' });
 
     case 'group':
       return same({ ...state, kbPath: [...state.kbPath, action.index] });

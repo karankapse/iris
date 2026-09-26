@@ -3,42 +3,40 @@
 // The rest of the app only knows these abstract events, never raw gaze numbers.
 // ============================================================================
 
-/** The four screen corners, where up to 4 options sit (a 2x2 grid that fills the screen). */
-export type Region = 'up-left' | 'up-right' | 'down-left' | 'down-right';
+/** The three columns, where the 3 options sit (each column is a tall box; its words are at the bottom). */
+export type Region = 'left' | 'middle' | 'right';
 
 /**
- * Which corner each on-screen option lives in, in option order (max 4 options), reading order:
- *   1 option: top-left    2: top-left, top-right    3: + bottom-left    4: + bottom-right
- * In 'vertical' mode there are no corners: options are stacked, and looking up/down steps the
+ * Which column each on-screen option lives in, in option order. EVERY screen has exactly 3 options
+ * (the third is always "Other…"), so in full mode this is always left, middle, right.
+ * In 'vertical' mode there are no columns: options are stacked, and looking up/down steps the
  * highlight (many locked-in users can only move their eyes vertically). The UI and the eye
  * input both use this function, so what's drawn always matches where you have to look.
  */
 export function optionRegions(optionCount: number, mode: 'full' | 'vertical'): Region[] {
   if (mode === 'vertical' || optionCount <= 0) return [];
-  return (['up-left', 'up-right', 'down-left', 'down-right'] as const).slice(
-    0,
-    Math.min(optionCount, 4),
-  );
+  return (['left', 'middle', 'right'] as const).slice(0, Math.min(optionCount, 3));
 }
 
 /**
- * The screen is split into three columns (options | face + "partner said" | options) and two rows.
- * Fractions of the viewport; the CSS grid in styles.css (.corner-grid) uses the same numbers.
+ * How the screen is divided, as fractions of the viewport (styles.css .columns-grid draws the same):
+ *  - the TOP band (above `restBottom`) is the REST zone: "Partner said" and your face live there,
+ *    and looking at them means "I'm not choosing anything";
+ *  - below it, three columns: left | middle | right. You choose by looking at the words, which sit
+ *    at the bottom of each column.
  */
-export const LAYOUT = { leftColumn: 0.36, rightColumn: 0.64, middleRow: 0.5 } as const;
+export const LAYOUT = { restBottom: 0.5, leftColumn: 1 / 3, rightColumn: 2 / 3 } as const;
 
 /**
- * Where on the screen (percent of width, height) each calibration target and option sits.
- * Shared so the calibration dots appear exactly where the option cards are drawn.
+ * Where on the screen (percent of width, height) each calibration target sits: the rest area at the
+ * top, and the words at the bottom of each column. Shared so the calibration dots appear exactly
+ * where the real text is drawn.
  */
 export const TARGET_POSITION: Record<'center' | Region, { x: number; y: number }> = {
-  // The middle column holds the face view (top) and "Partner said" (bottom); its centre is the
-  // screen centre, which is where the person rests their gaze.
-  center: { x: 50, y: 50 },
-  'up-left': { x: 18, y: 25 },
-  'up-right': { x: 82, y: 25 },
-  'down-left': { x: 18, y: 75 },
-  'down-right': { x: 82, y: 75 },
+  center: { x: 50, y: 28 }, // the rest zone (between "Partner said" and the face view)
+  left: { x: 17, y: 84 }, //   the column centres, at the height where the words are drawn
+  middle: { x: 50, y: 84 },
+  right: { x: 83, y: 84 },
 };
 
 export type EyeMode =

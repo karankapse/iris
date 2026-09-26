@@ -140,18 +140,15 @@ describe('GazeStepper', () => {
 });
 
 describe('optionRegions (shared layout)', () => {
-  it('places options in the screen corners, in reading order', () => {
-    expect(optionRegions(4, 'full')).toEqual(['up-left', 'up-right', 'down-left', 'down-right']);
-    expect(optionRegions(3, 'full')).toEqual(['up-left', 'up-right', 'down-left']);
-    expect(optionRegions(2, 'full')).toEqual(['up-left', 'up-right']);
-    expect(optionRegions(1, 'full')).toEqual(['up-left']);
+  it('places the 3 options in the left, middle and right columns', () => {
+    expect(optionRegions(3, 'full')).toEqual(['left', 'middle', 'right']);
     expect(optionRegions(0, 'full')).toEqual([]);
   });
-  it('has no corners in vertical mode (options are stacked)', () => {
-    expect(optionRegions(4, 'vertical')).toEqual([]);
+  it('has no columns in vertical mode (options are stacked)', () => {
+    expect(optionRegions(3, 'vertical')).toEqual([]);
   });
-  it('never returns more than 4', () => {
-    expect(optionRegions(9, 'full')).toHaveLength(4);
+  it('never returns more than 3', () => {
+    expect(optionRegions(9, 'full')).toHaveLength(3);
   });
 });
 
@@ -346,124 +343,114 @@ describe('RealEyeInput (vertical mode)', () => {
   });
 });
 
-describe('RealEyeInput (full mode: corners + dwell + blink)', () => {
-  /** What the camera reports when looking at each corner (default, uncalibrated model). */
+describe('RealEyeInput (full mode, MediaPipe gaze: columns + dwell + blink)', () => {
+  /** What the camera reports when looking at each column's words (default, uncalibrated model). */
   const LOOK = {
-    tl: { gazeX: -0.5, gazeY: -0.4 },
-    tr: { gazeX: 0.5, gazeY: -0.4 },
-    bl: { gazeX: -0.5, gazeY: 0.6 },
-    br: { gazeX: 0.5, gazeY: 0.6 },
+    left: { gazeX: -0.5, gazeY: 0.5 },
+    middle: { gazeX: 0, gazeY: 0.5 },
+    right: { gazeX: 0.5, gazeY: 0.5 },
+    rest: { gazeX: 0, gazeY: -0.3 },
   };
-  /** Rest at the centre first, so dwell is armed (as after any screen change). */
-  const ready = (n = 4) => {
-    const h = setup(n, 'full');
-    h.play(600);
+  /** Rest at the top first, so dwell is armed (as after any screen change). */
+  const ready = () => {
+    const h = setup(3, 'full');
+    h.play(600, LOOK.rest);
     return h;
   };
   const selects = (h: ReturnType<typeof setup>) => h.nonHighlight();
 
-  it('looking at a corner highlights the option placed there (reading order)', () => {
-    const h = ready(4);
-    h.play(500, LOOK.tl);
+  it('looking at a column highlights the option placed there', () => {
+    const h = ready();
+    h.play(500, LOOK.left);
     expect(h.highlights().at(-1)?.optionIndex).toBe(0);
-    h.play(500, LOOK.tr);
+    h.play(500, LOOK.middle);
     expect(h.highlights().at(-1)?.optionIndex).toBe(1);
-    h.play(500, LOOK.bl);
+    h.play(500, LOOK.right);
     expect(h.highlights().at(-1)?.optionIndex).toBe(2);
-    h.play(500, LOOK.br);
-    expect(h.highlights().at(-1)?.optionIndex).toBe(3);
-    h.play(500);
-    expect(h.highlights().at(-1)?.optionIndex).toBeNull(); // centre = rest
+    h.play(500, LOOK.rest);
+    expect(h.highlights().at(-1)?.optionIndex).toBeNull(); // top = rest
   });
 
-  it('dwell: holding the gaze on a corner fills the bar and then selects that option', () => {
-    const h = ready(4);
-    h.play(800, LOOK.tr);
+  it('dwell: holding the gaze on a column fills the bar and then selects that option', () => {
+    const h = ready();
+    h.play(800, LOOK.right);
     expect(Math.max(...h.highlights().map((e) => e.dwellProgress))).toBeGreaterThan(0.2);
     expect(selects(h)).toEqual([]); // not yet
-    h.play(1200, LOOK.tr);
-    expect(selects(h)).toEqual([{ type: 'select', optionIndex: 1 }]);
-  });
-
-  it('a short look does not select', () => {
-    const h = ready(4);
-    h.play(700, LOOK.br);
-    h.play(600);
-    expect(selects(h)).toEqual([]);
-  });
-
-  it('a deliberate blink selects the corner you are looking at, immediately', () => {
-    const h = ready(4);
-    h.play(500, LOOK.bl);
-    h.play(700, { blink: 0.9, ...LOOK.bl });
-    h.play(300, LOOK.bl);
+    h.play(1200, LOOK.right);
     expect(selects(h)).toEqual([{ type: 'select', optionIndex: 2 }]);
   });
 
-  it('eyes rolling while blinking do not change what gets selected', () => {
-    const h = ready(4);
-    h.play(500, LOOK.tr);
-    h.play(700, { blink: 0.9, gazeX: -0.9, gazeY: 0.9 }); // gaze numbers go wild while closed
-    h.play(300);
-    expect(selects(h)).toEqual([{ type: 'select', optionIndex: 1 }]);
-  });
-
-  it('a blink while looking at the centre selects nothing', () => {
-    const h = ready(4);
-    h.play(700, { blink: 0.9 });
-    h.play(300);
+  it('a short look does not select', () => {
+    const h = ready();
+    h.play(700, LOOK.middle);
+    h.play(600, LOOK.rest);
     expect(selects(h)).toEqual([]);
   });
 
-  it('after a selection the same gaze does NOT select again until you look back at the centre', () => {
-    const h = ready(4);
-    h.play(2300, LOOK.tl); // dwell completes once...
+  it('a deliberate blink selects the column you are looking at, immediately', () => {
+    const h = ready();
+    h.play(500, LOOK.middle);
+    h.play(700, { blink: 0.9, ...LOOK.middle });
+    h.play(300, LOOK.middle);
+    expect(selects(h)).toEqual([{ type: 'select', optionIndex: 1 }]);
+  });
+
+  it('eyes rolling while blinking do not change what gets selected', () => {
+    const h = ready();
+    h.play(500, LOOK.left);
+    h.play(700, { blink: 0.9, gazeX: 0.9, gazeY: -0.9 }); // gaze numbers go wild while closed
+    h.play(300, LOOK.rest);
+    expect(selects(h)).toEqual([{ type: 'select', optionIndex: 0 }]);
+  });
+
+  it('a blink while resting (looking at the top) selects nothing', () => {
+    const h = ready();
+    h.play(700, { blink: 0.9, ...LOOK.rest });
+    h.play(300, LOOK.rest);
+    expect(selects(h)).toEqual([]);
+  });
+
+  it('after a selection the same gaze does NOT select again until you look back at the rest area', () => {
+    const h = ready();
+    h.play(2300, LOOK.left); // dwell completes once...
     expect(selects(h)).toHaveLength(1);
-    h.play(3000, LOOK.tl); // ...and continuing to stare does nothing more
+    h.play(3000, LOOK.left); // ...and continuing to stare does nothing more
     expect(selects(h)).toHaveLength(1);
-    h.play(500); // back to the centre: re-armed
-    h.play(2300, LOOK.tl);
+    h.play(500, LOOK.rest); // back to rest: re-armed
+    h.play(2300, LOOK.left);
     expect(selects(h)).toHaveLength(2);
   });
 
-  it('a new screen disarms dwell until the gaze has rested at the centre (no accidental selection)', () => {
-    const h = ready(4);
-    h.play(500, LOOK.tr);
-    h.eye.setOptionCount(2); // screen changed while the person is still looking top-right
-    h.play(3000, LOOK.tr);
+  it('a new screen disarms dwell until the gaze has rested (no accidental selection)', () => {
+    const h = ready();
+    h.play(500, LOOK.right);
+    h.eye.setOptionCount(3); // screen changed while the person is still looking right
+    h.play(3000, LOOK.right);
     expect(selects(h)).toEqual([]);
-    h.play(500); // rest
-    h.play(2300, LOOK.tr);
-    expect(selects(h)).toEqual([{ type: 'select', optionIndex: 1 }]);
-  });
-
-  it('looking at a corner with no option there highlights nothing (2 options: top row only)', () => {
-    const h = ready(2);
-    h.play(500, LOOK.bl);
-    expect(h.highlights().every((e) => e.optionIndex === null)).toBe(true);
-    h.play(3000, LOOK.bl);
-    expect(selects(h)).toEqual([]);
+    h.play(500, LOOK.rest);
+    h.play(2300, LOOK.right);
+    expect(selects(h)).toEqual([{ type: 'select', optionIndex: 2 }]);
   });
 
   it('holding the eyes closed cancels', () => {
-    const h = ready(4);
-    h.play(1700, { blink: 0.9 });
-    h.play(300);
+    const h = ready();
+    h.play(1700, { blink: 0.9, ...LOOK.rest });
+    h.play(300, LOOK.rest);
     expect(selects(h)).toEqual([{ type: 'cancel' }]);
   });
 
   it('losing the face for a moment resets dwell (no selection when it comes back)', () => {
-    const h = ready(4);
-    h.play(1000, LOOK.tl); // dwell is part-way (1.0 s of 1.5 s)
+    const h = ready();
+    h.play(1000, LOOK.left); // dwell is part-way (1.0 s of 1.5 s)
     h.skip(2000); // no frames for 2 s: the face was lost
-    h.play(1000, LOOK.tl); // reappears still looking there: old dwell must not carry over
+    h.play(1000, LOOK.left); // reappears still looking there: old dwell must not carry over
     expect(selects(h)).toEqual([]);
   });
 
-  it('reports which corner it currently sees, for the camera panel', () => {
-    const h = ready(4);
-    h.play(500, LOOK.br);
-    expect(h.eye.status?.().region).toBe('down-right');
+  it('reports which zone it currently sees, for the camera panel', () => {
+    const h = ready();
+    h.play(500, LOOK.right);
+    expect(h.eye.status?.().region).toBe('right');
   });
 });
 
@@ -489,15 +476,15 @@ class FakeGaze implements ScreenGaze {
 describe('RealEyeInput (screen gaze: which box on the screen is the gaze in?)', () => {
   const W = window.innerWidth; // jsdom: 1024 x 768
   const H = window.innerHeight;
+  // the words at the bottom of each column, and the rest area at the top
   const spots = {
-    tl: { x: W * 0.15, y: H * 0.2 },
-    tr: { x: W * 0.85, y: H * 0.2 },
-    bl: { x: W * 0.15, y: H * 0.8 },
-    br: { x: W * 0.85, y: H * 0.8 },
-    mid: { x: W * 0.5, y: H * 0.5 },
+    left: { x: W * 0.15, y: H * 0.8 },
+    middle: { x: W * 0.5, y: H * 0.8 },
+    right: { x: W * 0.85, y: H * 0.8 },
+    mid: { x: W * 0.5, y: H * 0.25 },
   };
 
-  function setupGaze(n = 4) {
+  function setupGaze(n = 3) {
     localStorage.clear();
     const tracker = new FakeTracker();
     const gaze = new FakeGaze();
@@ -522,10 +509,10 @@ describe('RealEyeInput (screen gaze: which box on the screen is the gaze in?)', 
   it('lights up the option whose box the gaze is in', () => {
     const h = setupGaze();
     h.play(600, spots.mid);
-    h.play(500, spots.tl);
+    h.play(500, spots.left);
     expect(h.lit().at(-1)?.optionIndex).toBe(0);
-    h.play(500, spots.br);
-    expect(h.lit().at(-1)?.optionIndex).toBe(3);
+    h.play(500, spots.right);
+    expect(h.lit().at(-1)?.optionIndex).toBe(2);
     h.play(500, spots.mid);
     expect(h.lit().at(-1)?.optionIndex).toBeNull();
   });
@@ -533,24 +520,24 @@ describe('RealEyeInput (screen gaze: which box on the screen is the gaze in?)', 
   it('selects by dwell (look and keep looking), and only once', () => {
     const h = setupGaze();
     h.play(600, spots.mid);
-    h.play(2500, spots.tr);
+    h.play(2500, spots.middle);
     expect(h.selects()).toEqual([{ type: 'select', optionIndex: 1 }]);
   });
 
   it('selects by a deliberate blink while looking at a box', () => {
     const h = setupGaze();
     h.play(600, spots.mid);
-    h.play(600, spots.bl);
-    h.play(700, spots.bl, 0.9);
-    h.play(300, spots.bl);
+    h.play(600, spots.right);
+    h.play(700, spots.right, 0.9);
+    h.play(300, spots.right);
     expect(h.selects()).toEqual([{ type: 'select', optionIndex: 2 }]);
   });
 
   it('a gaze that wanders off while the eyes are closed does not change the selection', () => {
     const h = setupGaze();
     h.play(600, spots.mid);
-    h.play(600, spots.tl);
-    h.play(700, spots.br, 0.9); // gaze estimates jump while the eyes are closed
+    h.play(600, spots.left);
+    h.play(700, spots.right, 0.9); // gaze estimates jump while the eyes are closed
     h.play(300, spots.mid);
     expect(h.selects()).toEqual([{ type: 'select', optionIndex: 0 }]);
   });
@@ -558,9 +545,9 @@ describe('RealEyeInput (screen gaze: which box on the screen is the gaze in?)', 
   it('a new screen needs a look at the middle before dwell can select (no accidental pick)', () => {
     const h = setupGaze();
     h.play(600, spots.mid);
-    h.play(500, spots.tl);
+    h.play(500, spots.left);
     h.eye.setOptionCount(3);
-    h.play(3000, spots.tl);
+    h.play(3000, spots.left);
     expect(h.selects()).toEqual([]);
   });
 
@@ -573,14 +560,14 @@ describe('RealEyeInput (screen gaze: which box on the screen is the gaze in?)', 
   it('reports the current zone for the camera panel', () => {
     const h = setupGaze();
     h.play(600, spots.mid);
-    h.play(600, spots.br);
-    expect(h.eye.status?.().region).toBe('down-right');
+    h.play(600, spots.right);
+    expect(h.eye.status?.().region).toBe('right');
   });
 });
 
 describe('RealEyeInput.configure (user settings)', () => {
   it('a longer dwell setting makes selection slower, a shorter one faster', () => {
-    const at = { x: window.innerWidth * 0.85, y: window.innerHeight * 0.2 };
+    const at = { x: window.innerWidth * 0.85, y: window.innerHeight * 0.8 }; // right column's words
     const run = (dwellMs: number, lookMs: number) => {
       localStorage.clear();
       const tracker = new FakeTracker();
@@ -589,7 +576,7 @@ describe('RealEyeInput.configure (user settings)', () => {
       eye.configure({ dwellMs, blinkMs: 500, steadinessMs: 150, doubleBlinkBack: false });
       const events: EyeEvent[] = [];
       eye.on((e) => events.push(e));
-      eye.start({ mode: 'full', optionCount: 4 });
+      eye.start({ mode: 'full', optionCount: 3 });
       let t = 1000;
       const play = (ms: number, p: { x: number; y: number }) => {
         for (const end = t + ms; t < end; t += 33) {
@@ -597,7 +584,7 @@ describe('RealEyeInput.configure (user settings)', () => {
           gaze.emit({ ...p, t });
         }
       };
-      play(600, { x: window.innerWidth / 2, y: window.innerHeight / 2 });
+      play(600, { x: window.innerWidth / 2, y: window.innerHeight * 0.25 }); // rest
       play(lookMs, at);
       return events.filter((e) => e.type === 'select').length;
     };

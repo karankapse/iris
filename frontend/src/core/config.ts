@@ -1,8 +1,8 @@
 /** Single local user for now. Later this could come from a profile picker. */
 export const USER_ID = 'local-user';
 
-/** The eye UI never shows more than this many options at once. */
-export const MAX_OPTIONS = 4;
+/** Every screen shows exactly this many options (the last is always "Other…"). */
+export const MAX_OPTIONS = 3;
 
 /**
  * Each module can run as a mock (fake, works with no camera/mic/API key) or for real.

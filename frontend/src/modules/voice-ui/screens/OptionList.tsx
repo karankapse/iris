@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { optionRegions } from '../../../contracts';
 import type { Region } from '../../../contracts';
 import type { Option } from '../../../app/machine';
@@ -26,25 +27,36 @@ function Card({
   dwell: number;
   onPick: (i: number) => void;
   className: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }) {
+  // Info cards fill a slot (so there is never a blank) but cannot be chosen.
+  const classes = [
+    className,
+    highlighted && !option.info ? 'highlighted' : '',
+    option.info ? 'info' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
     <button
-      className={`${className} ${highlighted ? 'highlighted' : ''}`}
+      className={classes}
       style={style}
-      onClick={() => onPick(index)}
+      onClick={() => !option.info && onPick(index)}
+      aria-disabled={option.info || undefined}
     >
-      <span className="option-number">{index + 1}</span>
-      <span className="option-label">{option.label}</span>
-      {option.hint && <span className="option-hint">{option.hint}</span>}
-      {highlighted && dwell > 0 && <span className="dwell" style={{ width: `${dwell * 100}%` }} />}
+      <span className="option-text">
+        {!option.info && <span className="option-number">{index + 1}</span>}
+        <span className="option-label">{option.label}</span>
+        {option.hint && <span className="option-hint">{option.hint}</span>}
+      </span>
+      {highlighted && dwell > 0 && !option.info && (
+        <span className="dwell" style={{ width: `${dwell * 100}%` }} />
+      )}
     </button>
   );
 }
 
-/**
- * VERTICAL mode: BIG stacked targets, one per row. Looking up/down moves the highlight.
- */
+/** VERTICAL mode: BIG stacked targets, one per row. Looking up/down moves the highlight. */
 export function OptionList({ options, highlight, dwell, onPick }: Props) {
   return (
     <ul className="options" data-count={options.length}>
@@ -64,20 +76,15 @@ export function OptionList({ options, highlight, dwell, onPick }: Props) {
   );
 }
 
-/** CSS grid-area name for each corner (defined in styles.css: .corner-grid). */
-const AREA: Record<Region, string> = {
-  'up-left': 'tl',
-  'up-right': 'tr',
-  'down-left': 'bl',
-  'down-right': 'br',
-};
+/** CSS grid column for each region (see styles.css: .columns-grid). */
+const COLUMN: Record<Region, number> = { left: 1, middle: 2, right: 3 };
 
 /**
- * FULL mode: each option is drawn in the screen corner you look at to choose it. The positions
- * come from `optionRegions`, the same function the eye input uses, so they always agree.
- * These cards are placed into the parent's `.corner-grid`.
+ * FULL mode: three tall columns. Each option's box stretches from the top of the screen to the
+ * bottom, and its words sit at the BOTTOM: you choose by looking at the words. The positions come
+ * from `optionRegions`, the same function the eye input uses, so they always agree.
  */
-export function CornerOptions({ options, highlight, dwell, onPick }: Props) {
+export function ColumnOptions({ options, highlight, dwell, onPick }: Props) {
   const regions = optionRegions(options.length, 'full');
   return (
     <>
@@ -89,8 +96,8 @@ export function CornerOptions({ options, highlight, dwell, onPick }: Props) {
           highlighted={highlight === i}
           dwell={dwell}
           onPick={onPick}
-          className="corner-card"
-          style={{ gridArea: AREA[regions[i]] }}
+          className="column-card"
+          style={{ gridColumn: COLUMN[regions[i]], gridRow: 1 }}
         />
       ))}
     </>

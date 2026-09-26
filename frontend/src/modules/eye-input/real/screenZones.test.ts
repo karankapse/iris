@@ -1,22 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { ScreenZoneTracker, zoneAt } from './screenZones';
 
-const VP = { w: 1000, h: 800 };
-// columns: 0-360 | 360-640 | 640-1000, rows: 0-400 | 400-800
+const VP = { w: 900, h: 800 };
+// rest band: y < 400.  columns below it: 0-300 | 300-600 | 600-900
 
 describe('zoneAt', () => {
-  it('finds the corner boxes and the middle column', () => {
-    expect(zoneAt(100, 100, VP)).toBe('up-left');
-    expect(zoneAt(900, 100, VP)).toBe('up-right');
-    expect(zoneAt(100, 700, VP)).toBe('down-left');
-    expect(zoneAt(900, 700, VP)).toBe('down-right');
-    expect(zoneAt(500, 100, VP)).toBe('center'); // face view
-    expect(zoneAt(500, 700, VP)).toBe('center'); // "partner said"
+  it('the top half is the rest zone ("Partner said" and the face)', () => {
+    expect(zoneAt(100, 100, VP)).toBe('center');
+    expect(zoneAt(450, 250, VP)).toBe('center');
+    expect(zoneAt(850, 390, VP)).toBe('center');
+  });
+
+  it('below it, the three columns', () => {
+    expect(zoneAt(100, 700, VP)).toBe('left');
+    expect(zoneAt(450, 700, VP)).toBe('middle');
+    expect(zoneAt(800, 700, VP)).toBe('right');
   });
 
   it('treats points off the screen as the nearest edge zone', () => {
-    expect(zoneAt(-200, -50, VP)).toBe('up-left');
-    expect(zoneAt(1300, 2000, VP)).toBe('down-right');
+    expect(zoneAt(-200, 2000, VP)).toBe('left');
+    expect(zoneAt(1300, 2000, VP)).toBe('right');
+    expect(zoneAt(450, -300, VP)).toBe('center');
   });
 });
 
@@ -29,57 +33,56 @@ describe('ScreenZoneTracker', () => {
     return tr.current;
   };
 
-  it('settles on the box being looked at, and returns to rest in the middle', () => {
+  it('settles on the column being looked at, and returns to rest at the top', () => {
     const tr = make();
-    expect(look(tr, 150, 150, 500, 0)).toBe('up-left');
-    expect(look(tr, 850, 650, 500, 1000)).toBe('down-right');
-    expect(look(tr, 500, 400, 500, 2000)).toBe('center');
+    expect(look(tr, 150, 700, 500, 0)).toBe('left');
+    expect(look(tr, 800, 700, 500, 1000)).toBe('right');
+    expect(look(tr, 450, 200, 500, 2000)).toBe('center');
   });
 
   it('ignores a glance shorter than the hold time', () => {
     const tr = make();
-    look(tr, 500, 400, 500, 0);
-    look(tr, 850, 150, 100, 600); // two samples
+    look(tr, 450, 200, 500, 0);
+    look(tr, 800, 700, 100, 600); // two samples
     expect(tr.current).toBe('center');
   });
 
-  it('does not flicker when the gaze hovers on the edge between two boxes', () => {
+  it('does not flicker when the gaze hovers on the edge between two columns', () => {
     const tr = make();
-    look(tr, 150, 150, 500, 0); // in the top-left box
-    // wobble around the column boundary (x = 360): +-15 px, well inside the sticky margin
+    look(tr, 150, 700, 500, 0); // left column
     let t = 1000;
     let changes = 0;
     let last = tr.current;
     for (let i = 0; i < 40; i++, t += 50) {
-      tr.update(t, { x: 360 + (i % 2 ? 15 : -15), y: 150 }, false);
+      tr.update(t, { x: 300 + (i % 2 ? 15 : -15), y: 700 }, false); // wobble around x = 300
       if (tr.current !== last) {
         changes += 1;
         last = tr.current;
       }
     }
     expect(changes).toBe(0);
-    expect(tr.current).toBe('up-left');
+    expect(tr.current).toBe('left');
   });
 
-  it('does leave the box once the gaze is clearly outside it', () => {
+  it('does leave the column once the gaze is clearly outside it', () => {
     const tr = make();
-    look(tr, 150, 150, 500, 0);
-    expect(look(tr, 560, 150, 600, 1000)).toBe('center'); // 200 px past the edge
+    look(tr, 150, 700, 500, 0);
+    expect(look(tr, 450, 700, 600, 1000)).toBe('middle');
   });
 
   it('smooths out a one-sample glitch far away', () => {
     const tr = make();
-    look(tr, 500, 400, 500, 0);
-    tr.update(600, { x: 950, y: 50 }, false); // a single wild prediction
-    look(tr, 500, 400, 300, 650);
+    look(tr, 450, 200, 500, 0);
+    tr.update(600, { x: 850, y: 750 }, false); // a single wild prediction
+    look(tr, 450, 200, 300, 650);
     expect(tr.current).toBe('center');
   });
 
   it('keeps the last zone when suppressed (eyes closing) or when there is no face', () => {
     const tr = make();
-    look(tr, 850, 650, 500, 0);
+    look(tr, 800, 700, 500, 0);
     for (let t = 600; t < 1000; t += 50) tr.update(t, { x: 100, y: 100 }, true);
     for (let t = 1000; t < 1400; t += 50) tr.update(t, null, false);
-    expect(tr.current).toBe('down-right');
+    expect(tr.current).toBe('right');
   });
 });

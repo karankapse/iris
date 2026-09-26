@@ -5,6 +5,7 @@ const STATUS: Record<PartnerViewMessage['phase'], string> = {
   listening: 'Listening to you…',
   suggesting: 'Getting reply ideas…',
   selectReply: 'Choosing a reply…',
+  moreReplies: 'Choosing a reply…',
   menu: 'Choosing what to do…',
   phrases: 'Choosing a quick phrase…',
   typing: 'Typing a reply…',

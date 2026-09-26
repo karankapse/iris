@@ -31,11 +31,10 @@ const IRISES: Connection[] = [
 ];
 
 const REGION_LABEL: Record<string, string> = {
-  center: 'middle (resting)',
-  'up-left': 'top-left',
-  'up-right': 'top-right',
-  'down-left': 'bottom-left',
-  'down-right': 'bottom-right',
+  center: 'resting (top)',
+  left: 'left column',
+  middle: 'middle column',
+  right: 'right column',
 };
 
 /**

@@ -22,11 +22,10 @@ function rng(seed: number) {
 
 /** What each zone looks like for a simulated person: [gazeX, gazeY, irisX, irisY, yaw, pitch]. */
 const PERSON: Record<Zone, number[]> = {
-  center: [0.0, 0.05, 0.0, 0.0, 0, 0],
-  'up-left': [-0.25, -0.12, 0.12, -0.06, -6, 4],
-  'up-right': [0.25, -0.12, -0.12, -0.06, 6, 4],
-  'down-left': [-0.25, 0.3, 0.12, 0.09, -6, -4],
-  'down-right': [0.25, 0.3, -0.12, 0.09, 6, -4],
+  center: [0.0, -0.12, 0.0, -0.06, 0, 4], // the rest area at the top
+  left: [-0.25, 0.3, 0.12, 0.09, -6, -4],
+  middle: [0.0, 0.3, 0.0, 0.09, 0, -4],
+  right: [0.25, 0.3, -0.12, 0.09, 6, -4],
 };
 /** Frame-to-frame noise: big for MediaPipe's gaze (like real webcams), smaller for the iris. */
 const NOISE = [0.12, 0.12, 0.03, 0.03, 2.5, 2.5];
@@ -99,9 +98,9 @@ describe('trainCornerModel', () => {
     const random = rng(5);
     const samples = {} as Record<Zone, number[][]>;
     for (const z of ZONES) samples[z] = frames(z, 60, random);
-    samples['up-right'] = frames('up-left', 60, random); // the person did not really look top-right
+    samples.right = frames('left', 60, random); // the person did not really look at the right column
     const { warnings } = trainCornerModel(samples)!;
-    expect(warnings.join(' ')).toMatch(/top-left and top-right/i);
+    expect(warnings.join(' ')).toMatch(/left column and the right column/i);
   });
 
   it('is not fooled by a few wild frames during calibration (uses medians)', () => {
@@ -118,11 +117,10 @@ describe('defaultCornerModel (no calibration yet)', () => {
   it('sorts obvious looks by MediaPipe gaze alone', () => {
     const m = defaultCornerModel();
     const at = (x: number, y: number) => classify(m, [x, y, 0, 0, 0, 0]).zone;
-    expect(at(0, 0)).toBe('center');
-    expect(at(-0.5, -0.3)).toBe('up-left');
-    expect(at(0.5, -0.3)).toBe('up-right');
-    expect(at(-0.5, 0.5)).toBe('down-left');
-    expect(at(0.5, 0.5)).toBe('down-right');
+    expect(at(0, -0.3)).toBe('center');
+    expect(at(-0.5, 0.5)).toBe('left');
+    expect(at(0, 0.5)).toBe('middle');
+    expect(at(0.5, 0.5)).toBe('right');
   });
 });
 
@@ -160,8 +158,8 @@ describe('CornerTracker', () => {
     const { model } = trainOnPerson();
     const tr = new CornerTracker(model, HOLD);
     const random = rng(21);
-    expect(feed(tr, 'up-left', 600, 0, random)).toBe('up-left');
-    expect(feed(tr, 'down-right', 600, 1000, random)).toBe('down-right');
+    expect(feed(tr, 'left', 600, 0, random)).toBe('left');
+    expect(feed(tr, 'right', 600, 1000, random)).toBe('right');
     expect(feed(tr, 'center', 600, 2000, random)).toBe('center');
   });
 
@@ -170,7 +168,7 @@ describe('CornerTracker', () => {
     const tr = new CornerTracker(model, HOLD);
     const random = rng(2);
     feed(tr, 'center', 600, 0, random);
-    feed(tr, 'up-right', 66, 700, random); // two frames
+    feed(tr, 'right', 66, 700, random); // two frames
     expect(tr.current).toBe('center');
   });
 
@@ -178,9 +176,9 @@ describe('CornerTracker', () => {
     const { model } = trainOnPerson();
     const tr = new CornerTracker(model, HOLD);
     const random = rng(4);
-    feed(tr, 'down-left', 600, 0, random);
-    for (let t = 700; t < 1100; t += 33) tr.update(t, PERSON['up-right'], true);
-    expect(tr.current).toBe('down-left');
+    feed(tr, 'left', 600, 0, random);
+    for (let t = 700; t < 1100; t += 33) tr.update(t, PERSON.right, true);
+    expect(tr.current).toBe('left');
   });
 });
 
