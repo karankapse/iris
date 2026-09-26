@@ -4,6 +4,7 @@ We use the SDK's `messages.parse()` with a Pydantic model: the API is constraine
 JSON matching the schema, and the SDK validates it for us.
 """
 
+import logging
 import uuid
 
 import anthropic
