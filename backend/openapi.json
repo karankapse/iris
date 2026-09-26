@@ -61,6 +61,18 @@
       "EmotionModel": {
         "description": "A trained logistic-regression model, exported so the browser can run it locally.\n\nPrediction in the browser:\n    x_scaled = (x - means) / scales\n    logits[c] = sum_j(coef[c][j] * x_scaled[j]) + intercept[c]\n    probabilities = softmax(logits)",
         "properties": {
+          "accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cross-validated accuracy (0.0 to 1.0), or None if not enough data to measure.",
+            "title": "Accuracy"
+          },
           "classes": {
             "items": {
               "enum": [
