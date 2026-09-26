@@ -1,6 +1,6 @@
 // Typed client for the FastAPI backend. Types come from the backend's Pydantic models via
 // `src/shared/api.generated.ts` (regenerate with `make gen-types`). Do not hand-write payload types.
-import type { Emotion } from '../contracts';
+import type { Emotion, UserProfile } from '../contracts';
 import type { components } from '../shared/api.generated';
 
 type Schemas = components['schemas'];
@@ -22,7 +22,11 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+async function request<T>(
+  method: 'GET' | 'POST' | 'PUT',
+  path: string,
+  body?: unknown,
+): Promise<T> {
   const res = await fetch(path, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
@@ -36,8 +40,17 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown):
 }
 
 export const api = {
-  suggestions: (history: ApiTurn[], mood: Emotion | null) =>
-    request<Schemas['SuggestionsResponse']>('POST', '/api/suggestions', { history, mood }),
+  suggestions: (history: ApiTurn[], mood: Emotion | null, profile?: UserProfile) =>
+    request<Schemas['SuggestionsResponse']>('POST', '/api/suggestions', {
+      history,
+      mood,
+      profile: profile ?? null,
+    }),
+
+  getProfile: (userId: string) => request<UserProfile>('GET', `/api/profile/${userId}`),
+
+  putProfile: (userId: string, profile: UserProfile) =>
+    request<UserProfile>('PUT', `/api/profile/${userId}`, profile),
 
   addSamples: (body: Schemas['SamplesRequest']) =>
     request<{ stored: number }>('POST', '/api/emotion/samples', body),

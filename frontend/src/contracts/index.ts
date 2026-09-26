@@ -4,4 +4,5 @@ export * from './conversation';
 export * from './emotion';
 export * from './eye';
 export * from './face';
+export * from './gaze';
 export * from './voice';

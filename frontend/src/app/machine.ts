@@ -3,20 +3,32 @@
 // No React, no camera, no network in here, which makes the rules easy to test.
 //
 //   listening -> suggesting -> selectReply -> confirmTone -> speaking -> feedback -> listening
-//                                 |             |  ^
-//                               typing       pickTone
+//        |                        |             |  ^
+//        |                        |           pickTone
+//        +-- quick phrases / type my own / "Other…" (menu, mood, more replies)
 //
 // THE SAFETY RULE: the only way into `speaking` is a confirm/select on `confirmTone`.
+//
+// EVERY screen shows EXACTLY 3 options (MAX_OPTIONS), never fewer, so there are no blank slots.
+// The third is always "Other…": it opens a menu, or shows the next page of a long list. Lists that
+// are too short are filled up (with "← Back" or info cards). Each option carries the ACTION it
+// performs, so what is shown and what happens can never disagree (see `getEntries`).
 // ============================================================================
 import { EMOTIONS } from '../contracts';
 import type { Emotion, EmotionEstimate, EyeEvent, Suggestion } from '../contracts';
 import { MAX_OPTIONS } from '../core/config';
+import { applySymbol, DONE, keyboardEntries } from './keyboard';
+import { DEFAULT_PHRASES } from './phrases';
 
 export type Phase =
-  | 'listening' //   waiting for the partner to say something
+  | 'listening' //   waiting for the partner (the user can also start: phrases / type / other)
   | 'suggesting' //  waiting for the AI's suggested replies
-  | 'selectReply' // user picks one of the replies (or "type my own")
-  | 'typing' //      fallback: custom reply
+  | 'selectReply' // pick one of the replies
+  | 'moreReplies' // the AI's other suggestions (from "Other…")
+  | 'menu' //        "Other…": quick phrases, type my own, set mood
+  | 'phrases' //     quick-access saved phrases
+  | 'typing' //      the eye keyboard
+  | 'pickMood' //    choose the persistent mood
   | 'confirmTone' // "speak it in this tone?"  yes / change
   | 'pickTone' //    choose a different tone
   | 'speaking'
@@ -52,6 +64,15 @@ export interface State {
   utteranceCount: number;
   idPrefix: string;
   error: string | null;
+  /** Quick-access phrases (from the user's profile). */
+  phrases: string[];
+  /** Which page of a long list is showing (tones, moods, phrases...). */
+  page: number;
+  /** Where "back" goes from a sub-screen, most recent last (a stack: menu -> phrases -> back -> back). */
+  returnStack: Phase[];
+  /** Eye keyboard: the text typed so far, and which group of keys we are inside. */
+  typed: string;
+  kbPath: number[];
 }
 
 export type Event =
@@ -60,6 +81,7 @@ export type Event =
   | { type: 'suggestions_ready'; requestId: number; suggestions: Suggestion[] }
   | { type: 'suggestions_failed'; requestId: number; message: string }
   | { type: 'set_mood'; mood: Emotion | null }
+  | { type: 'set_phrases'; phrases: string[] }
   | { type: 'emotion_estimate'; estimate: EmotionEstimate }
   | { type: 'eye'; event: EyeEvent }
   | { type: 'custom_reply'; text: string }
@@ -72,6 +94,7 @@ export type Event =
 export type Effect =
   | { type: 'suggest'; requestId: number; partnerText: string; mood: Emotion | null }
   | { type: 'snapshot_features' }
+  | { type: 'save_mood'; mood: Emotion | null }
   | { type: 'speak'; spoken: SpokenReply }
   | { type: 'stop_speaking' }
   | { type: 'user_feedback'; spoken: SpokenReply; ok: boolean }
@@ -82,7 +105,11 @@ export interface Result {
   effects: Effect[];
 }
 
-export function initialState(mood: Emotion | null = null, idPrefix = 'utt'): State {
+export function initialState(
+  mood: Emotion | null = null,
+  idPrefix = 'utt',
+  phrases: string[] = DEFAULT_PHRASES,
+): State {
   return {
     phase: 'listening',
     partnerText: '',
@@ -97,6 +124,11 @@ export function initialState(mood: Emotion | null = null, idPrefix = 'utt'): Sta
     utteranceCount: 0,
     idPrefix,
     error: null,
+    phrases,
+    page: 0,
+    returnStack: [],
+    typed: '',
+    kbPath: [],
   };
 }
 
@@ -119,36 +151,199 @@ export function chooseTone(
   return suggested;
 }
 
-// ---- what is on screen as selectable options (max 4) ------------------------
+// ---- what is on screen: options that carry their own action -----------------------------------
 
 export interface Option {
   label: string;
   hint?: string;
+  /** An info card: fills a slot but cannot be chosen (used while thinking or speaking). */
+  info?: boolean;
 }
 
-/** Only 3 AI suggestions are shown: the 4th slot is always "Type my own reply". */
+type SubScreen = 'menu' | 'moreReplies' | 'phrases' | 'typing' | 'pickMood';
+
+export type Action =
+  | { kind: 'none' } //                               info card: nothing happens
+  | { kind: 'reply'; text: string; tone: Emotion } // a suggestion or phrase: go to tone confirmation
+  | { kind: 'goto'; phase: SubScreen }
+  | { kind: 'more' } //                               show the next page
+  | { kind: 'back' }
+  | { kind: 'mood'; mood: Emotion | null }
+  | { kind: 'tone'; tone: Emotion }
+  | { kind: 'speak' }
+  | { kind: 'stop' }
+  | { kind: 'changeTone' }
+  | { kind: 'discardReply' }
+  | { kind: 'feedback'; ok: boolean }
+  | { kind: 'skipFeedback' }
+  | { kind: 'key'; symbol: string }
+  | { kind: 'group'; index: number };
+
+export interface Entry {
+  option: Option;
+  action: Action;
+}
+
+/** The AI suggestions that fit in the first two slots; the rest are under "Other…". */
 export const visibleSuggestions = (s: State) => s.suggestions.slice(0, MAX_OPTIONS - 1);
 export const otherTones = (s: State) => EMOTIONS.filter((e) => e !== s.tone);
 
-export function getOptions(s: State): Option[] {
+const goto = (label: string, phase: SubScreen): Entry => ({
+  option: { label },
+  action: { kind: 'goto', phase },
+});
+const other = (phase: SubScreen = 'menu'): Entry => goto('Other…', phase);
+const backEntry: Entry = { option: { label: '← Back' }, action: { kind: 'back' } };
+const info = (label: string, hint?: string): Entry => ({
+  option: { label, hint, info: true },
+  action: { kind: 'none' },
+});
+const replyEntry = (text: string, tone: Emotion, hint?: string): Entry => ({
+  option: { label: text, hint },
+  action: { kind: 'reply', text, tone },
+});
+
+/**
+ * Exactly 3 entries from a list of any length:
+ *  - exactly 3: as they are
+ *  - more: 2 per page plus "Other →" (next page; it cycles, and the last page wraps around so it is
+ *    never short)
+ *  - fewer: filled up from `fillers` (default: "← Back")
+ */
+function threeOf(entries: Entry[], page: number, fillers: Entry[] = [backEntry]): Entry[] {
+  const n = entries.length;
+  if (n > MAX_OPTIONS) {
+    const per = MAX_OPTIONS - 1;
+    const pages = Math.ceil(n / per);
+    const start = (((page % pages) + pages) % pages) * per;
+    return [
+      entries[start % n],
+      entries[(start + 1) % n],
+      { option: { label: 'Other →' }, action: { kind: 'more' } },
+    ];
+  }
+  const out = [...entries];
+  for (const f of fillers) if (out.length < MAX_OPTIONS) out.push(f);
+  while (out.length < MAX_OPTIONS) out.push(backEntry);
+  return out;
+}
+
+export function getEntries(s: State): Entry[] {
   switch (s.phase) {
-    case 'selectReply':
-      return [
-        ...visibleSuggestions(s).map((x) => ({ label: x.text, hint: x.tone })),
-        { label: 'Type my own reply' },
+    case 'listening':
+      return [goto('Quick phrases', 'phrases'), goto('Type my own reply', 'typing'), other()];
+
+    case 'selectReply': {
+      // The two best AI suggestions. If there are fewer than two, quick phrases fill the gap.
+      const pool: Entry[] = [
+        ...s.suggestions.map((x) => replyEntry(x.text, x.tone, x.tone)),
+        ...s.phrases.map((p) => replyEntry(p, 'neutral', 'quick phrase')),
       ];
-    case 'confirmTone':
-      return [{ label: `Speak it (${s.tone})` }, { label: 'Change tone' }];
+      const two = pool.slice(0, MAX_OPTIONS - 1);
+      while (two.length < MAX_OPTIONS - 1) two.push(info('No suggestions yet'));
+      return [...two, other()];
+    }
+
+    case 'menu': {
+      // Don't repeat what the previous screen already offered (the listening screen shows
+      // "Quick phrases" and "Type my own reply" directly), so the useful items come first.
+      const from = s.returnStack.at(-1);
+      const items: Entry[] = [
+        ...(s.suggestions.length > MAX_OPTIONS - 1 && from === 'selectReply'
+          ? [goto('More replies', 'moreReplies')]
+          : []),
+        ...(from === 'listening'
+          ? []
+          : [goto('Quick phrases', 'phrases'), goto('Type my own reply', 'typing')]),
+        goto('Set mood', 'pickMood'),
+        backEntry,
+      ];
+      return threeOf(items, s.page);
+    }
+
+    case 'moreReplies':
+      return threeOf(
+        [
+          ...s.suggestions.slice(MAX_OPTIONS - 1).map((x) => replyEntry(x.text, x.tone, x.tone)),
+          backEntry,
+        ],
+        s.page,
+      );
+
+    case 'phrases':
+      if (s.phrases.length === 0) {
+        return [info('No quick phrases yet'), info('Add some in the Menu'), backEntry];
+      }
+      return threeOf([...s.phrases.map((p) => replyEntry(p, 'neutral')), backEntry], s.page);
+
+    case 'pickMood': {
+      const items: { mood: Emotion | null; label: string }[] = [
+        { mood: null, label: 'No mood (automatic)' },
+        ...EMOTIONS.map((e) => ({ mood: e as Emotion | null, label: e })),
+      ];
+      return threeOf(
+        [
+          ...items.map((i): Entry => ({
+            option: { label: i.mood === s.mood ? `${i.label} ✓` : i.label },
+            action: { kind: 'mood', mood: i.mood },
+          })),
+          backEntry,
+        ],
+        s.page,
+      );
+    }
+
     case 'pickTone':
-      return otherTones(s).map((t) => ({ label: t }));
+      return threeOf(
+        [
+          ...otherTones(s).map((tone): Entry => ({
+            option: { label: tone },
+            action: { kind: 'tone', tone },
+          })),
+          backEntry,
+        ],
+        s.page,
+      );
+
+    case 'confirmTone':
+      return [
+        { option: { label: `Speak it (${s.tone})` }, action: { kind: 'speak' } },
+        { option: { label: 'Change tone' }, action: { kind: 'changeTone' } },
+        { option: { label: 'Other reply…' }, action: { kind: 'discardReply' } },
+      ];
+
     case 'feedback':
-      return [{ label: 'Yes, that tone was right' }, { label: 'No, it was off' }];
-    default:
-      return [];
+      return [
+        { option: { label: 'Yes, that tone was right' }, action: { kind: 'feedback', ok: true } },
+        { option: { label: 'No, it was off' }, action: { kind: 'feedback', ok: false } },
+        { option: { label: 'Not sure (skip)' }, action: { kind: 'skipFeedback' } },
+      ];
+
+    case 'typing':
+      return keyboardEntries(s.kbPath).map((e): Entry =>
+        e.kind === 'group'
+          ? { option: { label: e.label }, action: { kind: 'group', index: e.index } }
+          : e.kind === 'symbol'
+            ? { option: { label: e.label }, action: { kind: 'key', symbol: e.symbol } }
+            : backEntry,
+      );
+
+    // Nothing can be chosen right now, but the three slots are still filled: info cards.
+    case 'suggesting':
+      return [info('They said', s.partnerText), info('Thinking of replies…'), info('One moment')];
+
+    case 'speaking':
+      return [
+        { option: { label: 'Stop speaking' }, action: { kind: 'stop' } },
+        info(s.reply ? `“${s.reply.text}”` : 'Speaking…'),
+        info(s.tone ? `Tone: ${s.tone}` : 'Speaking'),
+      ];
   }
 }
 
-// ---- the reducer ---------------------------------------------------------------
+export const getOptions = (s: State): Option[] => getEntries(s).map((e) => e.option);
+
+// ---- the reducer ---------------------------------------------------------------------------------
 
 const same = (state: State): Result => ({ state, effects: [] });
 
@@ -173,6 +368,10 @@ export function reduce(state: State, event: Event): Result {
           tone: null,
           requestId,
           error: null,
+          page: 0,
+          typed: '',
+          kbPath: [],
+          returnStack: [],
         },
         effects: [{ type: 'suggest', requestId, partnerText: text, mood: state.mood }],
       };
@@ -192,6 +391,9 @@ export function reduce(state: State, event: Event): Result {
     case 'set_mood':
       return same({ ...state, mood: event.mood });
 
+    case 'set_phrases':
+      return same({ ...state, phrases: event.phrases });
+
     case 'emotion_estimate':
       return same({ ...state, detected: event.estimate });
 
@@ -209,6 +411,7 @@ export function reduce(state: State, event: Event): Result {
       return same({ ...state, error: null });
 
     case 'custom_reply': {
+      // A caregiver typing the reply in the text box instead of using the eye keyboard.
       const text = event.text.trim();
       if (state.phase !== 'typing' || !text) return same(state);
       return proposeTone(state, { text, suggestedTone: 'neutral' });
@@ -236,6 +439,10 @@ function proposeTone(state: State, reply: Reply): Result {
       phase: 'confirmTone',
       reply,
       tone: chooseTone(state.mood, state.detected, reply.suggestedTone),
+      returnStack: [],
+      page: 0,
+      typed: '',
+      kbPath: [],
     },
     effects: [{ type: 'snapshot_features' }],
   };
@@ -255,64 +462,143 @@ function speak(state: State): Result {
   };
 }
 
-function reduceEye(state: State, e: EyeEvent): Result {
-  if (e.type === 'highlight') return same(state); // display-only; handled by the Orchestrator
+/** Pop one level off the "where did I come from" stack (listening if there is nothing to go back to). */
+function leaveSubScreen(state: State): State {
+  const stack = state.returnStack;
+  return {
+    ...state,
+    phase: stack.at(-1) ?? 'listening',
+    returnStack: stack.slice(0, -1),
+    page: 0,
+    typed: '',
+    kbPath: [],
+  };
+}
 
+/** "Back" / cancel: one step back, depending on where we are. */
+function goBack(state: State): Result {
   switch (state.phase) {
-    case 'selectReply': {
-      const shown = visibleSuggestions(state);
-      if (e.type === 'select') {
-        if (e.optionIndex < shown.length) {
-          const s = shown[e.optionIndex];
-          return proposeTone(state, { text: s.text, suggestedTone: s.tone });
-        }
-        if (e.optionIndex === shown.length) return same({ ...state, phase: 'typing' });
-      }
-      if (e.type === 'cancel') return same({ ...state, phase: 'listening' });
-      return same(state);
-    }
-
     case 'typing':
-      return e.type === 'cancel'
-        ? same({ ...state, phase: state.suggestions.length ? 'selectReply' : 'listening' })
-        : same(state);
-
+      // inside a group of keys: back out of the group first; at the top: leave the keyboard
+      return state.kbPath.length > 0
+        ? same({ ...state, kbPath: state.kbPath.slice(0, -1) })
+        : same(leaveSubScreen(state));
+    case 'menu':
+    case 'moreReplies':
+    case 'phrases':
+    case 'pickMood':
+      return same(leaveSubScreen(state));
+    case 'selectReply':
+      return same({ ...state, phase: 'listening' });
     case 'confirmTone':
-      if (e.type === 'confirm' || (e.type === 'select' && e.optionIndex === 0)) return speak(state);
-      if (e.type === 'cancel' || (e.type === 'select' && e.optionIndex === 1)) {
-        return same({ ...state, phase: 'pickTone' });
-      }
-      return same(state);
-
-    case 'pickTone': {
-      if (e.type === 'select') {
-        const tone = otherTones(state)[e.optionIndex];
-        // Back to confirmTone: choosing a tone is not the same as confirming to speak.
-        if (tone) return same({ ...state, phase: 'confirmTone', tone });
-      }
-      if (e.type === 'cancel') return same({ ...state, phase: 'confirmTone' });
-      return same(state);
-    }
-
+      return same({ ...state, phase: 'pickTone', page: 0 });
+    case 'pickTone':
+      return same({ ...state, phase: 'confirmTone', page: 0 });
     case 'speaking':
       // Emergency stop. The speak promise then resolves and `speak_done` moves us on.
-      return e.type === 'cancel' ? { state, effects: [{ type: 'stop_speaking' }] } : same(state);
-
-    case 'feedback': {
-      const ok =
-        e.type === 'confirm' || (e.type === 'select' && e.optionIndex === 0)
-          ? true
-          : e.type === 'cancel' || (e.type === 'select' && e.optionIndex === 1)
-            ? false
-            : null;
-      if (ok === null || !state.lastSpoken) return same(state);
-      return {
-        state: { ...state, phase: 'listening' },
-        effects: [{ type: 'user_feedback', spoken: state.lastSpoken, ok }],
-      };
-    }
-
+      return { state, effects: [{ type: 'stop_speaking' }] };
+    case 'feedback':
+      return state.lastSpoken
+        ? {
+            state: { ...state, phase: 'listening' },
+            effects: [{ type: 'user_feedback', spoken: state.lastSpoken, ok: false }],
+          }
+        : same(state);
     default:
       return same(state);
   }
+}
+
+function applyAction(state: State, action: Action): Result {
+  switch (action.kind) {
+    case 'none':
+      return same(state);
+
+    case 'reply':
+      return proposeTone(state, { text: action.text, suggestedTone: action.tone });
+
+    case 'goto':
+      return same({
+        ...state,
+        phase: action.phase,
+        returnStack: [...state.returnStack, state.phase],
+        page: 0,
+        typed: '',
+        kbPath: [],
+      });
+
+    case 'more':
+      return same({ ...state, page: state.page + 1 });
+
+    case 'back':
+      return goBack(state);
+
+    case 'mood':
+      return {
+        state: { ...leaveSubScreen(state), mood: action.mood },
+        effects: [{ type: 'save_mood', mood: action.mood }],
+      };
+
+    case 'tone':
+      // Back to confirmTone: choosing a tone is not the same as confirming to speak.
+      return same({ ...state, phase: 'confirmTone', tone: action.tone, page: 0 });
+
+    case 'speak':
+      return speak(state);
+
+    case 'stop':
+      return { state, effects: [{ type: 'stop_speaking' }] };
+
+    case 'changeTone':
+      return same({ ...state, phase: 'pickTone', page: 0 });
+
+    case 'discardReply':
+      // "Other reply…": drop this one and pick again
+      return same({
+        ...state,
+        phase: state.suggestions.length > 0 ? 'selectReply' : 'listening',
+        reply: null,
+        tone: null,
+        returnStack: [],
+        page: 0,
+      });
+
+    case 'feedback':
+      if (!state.lastSpoken) return same(state);
+      return {
+        state: { ...state, phase: 'listening' },
+        effects: [{ type: 'user_feedback', spoken: state.lastSpoken, ok: action.ok }],
+      };
+
+    case 'skipFeedback':
+      return same({ ...state, phase: 'listening' });
+
+    case 'group':
+      return same({ ...state, kbPath: [...state.kbPath, action.index] });
+
+    case 'key':
+      if (action.symbol === DONE) {
+        const text = state.typed.trim();
+        return text ? proposeTone(state, { text, suggestedTone: 'neutral' }) : same(state);
+      }
+      return same({ ...state, typed: applySymbol(state.typed, action.symbol), kbPath: [] });
+  }
+}
+
+function reduceEye(state: State, e: EyeEvent): Result {
+  if (e.type === 'highlight') return same(state); // display-only; handled by the Orchestrator
+
+  if (e.type === 'select') {
+    const entry = getEntries(state)[e.optionIndex];
+    return entry ? applyAction(state, entry.action) : same(state);
+  }
+
+  if (e.type === 'confirm') {
+    // "Yes": speak on the tone screen, or "the tone was right" on the feedback screen.
+    if (state.phase === 'confirmTone') return applyAction(state, { kind: 'speak' });
+    if (state.phase === 'feedback') return applyAction(state, { kind: 'feedback', ok: true });
+    return same(state);
+  }
+
+  return goBack(state); // cancel
 }

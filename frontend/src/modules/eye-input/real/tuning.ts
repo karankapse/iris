@@ -16,19 +16,9 @@ export interface EyeTuning {
   gazeUp: number;
   /** gaze.y at or above this = looking DOWN (positive). */
   gazeDown: number;
-  /**
-   * Horizontal gaze. The camera-derived gaze.x may be mirrored on some setups, so calibration
-   * works out `gazeXSign` (+1 or -1): x' = gaze.x * gazeXSign always means "to the user's right".
-   */
-  gazeXSign: 1 | -1;
-  /** x' at or below this = looking LEFT (negative). */
-  gazeLeft: number;
-  /** x' at or above this = looking RIGHT (positive). */
-  gazeRight: number;
-
-  /** A new gaze region must hold this long before it counts (filters jitter). */
+  /** Full mode: a corner must stay the best match this long before it counts (filters jitter). */
   regionHoldMs: number;
-  /** Full mode: keep looking at an option this long to select it (dwell). */
+  /** Full mode: keep looking at an option's corner this long to select it (dwell). */
   dwellMs: number;
   /** Vertical mode: look must be held this long before the highlight moves. */
   gazeHoldMs: number;
@@ -50,9 +40,6 @@ export const DEFAULT_TUNING: EyeTuning = {
   cancelMs: 1500,
   gazeUp: -0.2,
   gazeDown: 0.3,
-  gazeXSign: 1,
-  gazeLeft: -0.25,
-  gazeRight: 0.25,
   regionHoldMs: 150,
   dwellMs: 1500,
   gazeHoldMs: 250,
@@ -62,7 +49,7 @@ export const DEFAULT_TUNING: EyeTuning = {
   frameGapMs: 300,
 };
 
-const STORAGE_KEY = 'iris.eyeTuning.v2';
+const STORAGE_KEY = 'iris.eyeTuning.v3';
 
 export function loadTuning(): EyeTuning {
   try {
@@ -70,11 +57,8 @@ export function loadTuning(): EyeTuning {
     if (saved && typeof saved === 'object') {
       const merged: EyeTuning = { ...DEFAULT_TUNING };
       for (const key of Object.keys(DEFAULT_TUNING) as (keyof EyeTuning)[]) {
-        if (key !== 'gazeXSign' && typeof saved[key] === 'number' && Number.isFinite(saved[key])) {
-          (merged[key] as number) = saved[key];
-        }
+        if (typeof saved[key] === 'number' && Number.isFinite(saved[key])) merged[key] = saved[key];
       }
-      if (saved.gazeXSign === 1 || saved.gazeXSign === -1) merged.gazeXSign = saved.gazeXSign;
       return merged;
     }
   } catch {
@@ -94,14 +78,10 @@ export function saveTuning(tuning: EyeTuning) {
 // ---- calibration maths (pure, so it can be tested) --------------------------------
 
 export interface CalibrationSamples {
-  /** Median gaze.y while looking straight / up / down. */
+  /** Median gaze.y while looking at the centre / up / down (up and down = the top and bottom corners). */
   centerY: number;
   upY: number;
   downY: number;
-  /** Median gaze.x while looking straight / left / right. Absent when horizontal steps were skipped. */
-  centerX?: number;
-  leftX?: number;
-  rightX?: number;
   /** Median blink score with eyes open (during the "straight" step) and closed. */
   openBlink: number;
   closedBlink: number;
@@ -140,29 +120,6 @@ export function tuningFromSamples(
   else {
     tuning.gazeDown = centerY + DEFAULT_TUNING.gazeDown;
     warnings.push('Looking DOWN was hard to tell apart from looking straight.');
-  }
-
-  const { centerX, leftX, rightX } = samples;
-  if (centerX !== undefined && leftX !== undefined && rightX !== undefined) {
-    if (Math.abs(rightX - leftX) >= 2 * MIN_GAZE_SEPARATION) {
-      // Whichever way the numbers went when the person looked right defines "right".
-      tuning.gazeXSign = rightX >= leftX ? 1 : -1;
-      const c = centerX * tuning.gazeXSign;
-      const l = leftX * tuning.gazeXSign;
-      const r = rightX * tuning.gazeXSign;
-      tuning.gazeLeft =
-        c - l >= MIN_GAZE_SEPARATION ? c + (l - c) * 0.5 : c + DEFAULT_TUNING.gazeLeft;
-      tuning.gazeRight =
-        r - c >= MIN_GAZE_SEPARATION ? c + (r - c) * 0.5 : c + DEFAULT_TUNING.gazeRight;
-      if (c - l < MIN_GAZE_SEPARATION)
-        warnings.push('Looking LEFT was hard to tell apart from looking straight.');
-      if (r - c < MIN_GAZE_SEPARATION)
-        warnings.push('Looking RIGHT was hard to tell apart from looking straight.');
-    } else {
-      warnings.push(
-        'Looking LEFT and RIGHT looked the same. Use vertical-only mode, or try again.',
-      );
-    }
   }
 
   if (closedBlink - openBlink >= MIN_BLINK_SEPARATION) {

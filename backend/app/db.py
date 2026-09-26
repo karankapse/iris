@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS emotion_models (
     model TEXT NOT NULL,           -- JSON of EmotionModel
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS profiles (
+    user_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,            -- JSON of UserProfile
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
@@ -156,3 +161,18 @@ class Database:
                 (user_id,),
             ).fetchone()
             return dict(row) if row else None
+
+    # ---- profile -------------------------------------------------------------
+    def save_profile(self, user_id: str, profile_json: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO profiles (user_id, data) VALUES (?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET data = excluded.data,"
+                " updated_at = CURRENT_TIMESTAMP",
+                (user_id, profile_json),
+            )
+
+    def get_profile(self, user_id: str) -> str | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute("SELECT data FROM profiles WHERE user_id = ?", (user_id,)).fetchone()
+            return row["data"] if row else None

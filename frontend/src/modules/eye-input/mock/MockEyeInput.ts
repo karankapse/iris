@@ -4,7 +4,7 @@ import { createEmitter } from '../../../core/emitter';
 /**
  * Keyboard stand-in for the webcam, so everyone can develop without a camera:
  *
- *   ↑ / ↓        move the highlight       (= looking up / down)
+ *   ↑ ↓ ← →      move the highlight       (= looking at another option/corner)
  *   Space        select highlighted option (= a deliberate blink / dwell finished)
  *   1 – 4        select that option directly
  *   Enter        confirm                   (= "yes")
@@ -56,10 +56,10 @@ export class MockEyeInput implements EyeInput {
 
     const handled = () => e.preventDefault();
 
-    if (e.key === 'ArrowDown' && this.optionCount > 0) {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowRight') && this.optionCount > 0) {
       handled();
       this.setHighlight(Math.min(this.optionCount - 1, (this.highlighted ?? -1) + 1));
-    } else if (e.key === 'ArrowUp' && this.optionCount > 0) {
+    } else if ((e.key === 'ArrowUp' || e.key === 'ArrowLeft') && this.optionCount > 0) {
       handled();
       this.setHighlight(Math.max(0, (this.highlighted ?? 1) - 1));
     } else if (e.key === ' ' && this.highlighted !== null) {
