@@ -16,7 +16,7 @@ import { createEmitter } from '../emitter';
  */
 export class WebGazerGaze implements ScreenGaze {
   private emitter = createEmitter<GazePoint | null>();
-  private lib: typeof import('webgazer').default | null = null;
+  private lib: NonNullable<Window['webgazer']> | null = null;
   /** Bumped by every start()/stop() so a slow start() can tell it has been cancelled. */
   private generation = 0;
 
@@ -24,8 +24,9 @@ export class WebGazerGaze implements ScreenGaze {
     if (this.lib) return;
     const generation = ++this.generation;
 
-    const mod = await import('webgazer');
-    const webgazer = mod.default;
+    await loadScript(WEBGAZER_SCRIPT);
+    const webgazer = window.webgazer;
+    if (!webgazer) throw new Error('WebGazer loaded but did not start. Reload the page.');
     if (generation !== this.generation) return;
 
     // Serve WebGazer's face model from our own server (`npm run setup:mediapipe` copies it),
@@ -76,6 +77,25 @@ export class WebGazerGaze implements ScreenGaze {
   async clearTraining() {
     await this.lib?.clearData();
   }
+}
+
+const WEBGAZER_SCRIPT = '/webgazer/webgazer.js';
+
+/**
+ * Load a classic script. WebGazer is loaded this way (not imported) on purpose: its face-model
+ * code relies on a top-level `this` that a bundler would turn into `undefined`, which breaks it
+ * with "(void 0) is not a constructor".
+ */
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.webgazer) return resolve();
+    const el = document.createElement('script');
+    el.src = src;
+    el.onload = () => resolve();
+    el.onerror = () =>
+      reject(new Error(`Could not load ${src}. Run "cd frontend && npm run setup:mediapipe".`));
+    document.head.appendChild(el);
+  });
 }
 
 function describe(e: unknown): string {

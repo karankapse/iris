@@ -18,7 +18,10 @@ await mkdir('public/webgazer', { recursive: true });
 await cp('node_modules/webgazer/dist/mediapipe/face_mesh', 'public/webgazer/face_mesh', {
   recursive: true,
 });
-console.log('copied WebGazer face model -> public/webgazer/face_mesh');
+// WebGazer itself is loaded as a plain <script> (NOT through the bundler): its face model code
+// needs a classic-script `this`, which bundlers rewrite to `undefined`.
+await cp('node_modules/webgazer/dist/webgazer.js', 'public/webgazer/webgazer.js');
+console.log('copied WebGazer -> public/webgazer');
 
 await mkdir('public/models', { recursive: true });
 const modelPath = 'public/models/face_landmarker.task';
