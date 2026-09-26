@@ -15,7 +15,8 @@ interface Readout {
 }
 
 const NO_FACE_AFTER_MS = 500;
-const SIZES = { small: { w: 160, h: 120 }, large: { w: 480, h: 360 } } as const;
+const W = 480;
+const H = 360;
 /** How quickly the zoom follows the face (0..1 per frame): smooth, not jumpy. */
 const FOLLOW = 0.12;
 
@@ -45,12 +46,12 @@ const REGION_LABEL: Record<string, string> = {
  */
 export function CameraPreview({
   services,
-  size = 'large',
+  showReadout = true,
 }: {
   services: Services;
-  size?: keyof typeof SIZES;
+  /** The numbers under the picture (blink, gaze, asymmetry, emotion). */
+  showReadout?: boolean;
 }) {
-  const { w: W, h: H } = SIZES[size];
   const canvas = useRef<HTMLCanvasElement>(null);
   const latest = useRef<FaceFrame | null>(null);
   const crop = useRef<Crop | null>(null);
@@ -158,10 +159,10 @@ export function CameraPreview({
       cancelAnimationFrame(raf);
       clearInterval(timer);
     };
-  }, [services, W, H]);
+  }, [services]);
 
   return (
-    <aside className={`camera camera-${size}`}>
+    <aside className="camera">
       <canvas ref={canvas} width={W} height={H} />
       <div className="camera-chips">
         <span className={`chip-state ${readout.face ? 'listening' : 'error'}`}>
@@ -170,7 +171,7 @@ export function CameraPreview({
         {readout.region && <span className="chip-state">looking: {readout.region}</span>}
         {!readout.calibrated && <span className="chip-state error">not calibrated</span>}
       </div>
-      {size === 'large' && (
+      {showReadout && (
         <dl className="readout">
           <dt>Eyes closed</dt>
           <dd>

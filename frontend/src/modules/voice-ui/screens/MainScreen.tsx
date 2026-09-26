@@ -43,7 +43,7 @@ export function MainScreen({ services }: { services: Services }) {
   // The detail panels: inline under the options in the stacked layout, in a drawer in the corner layout.
   const panels = (
     <>
-      {services.usesCamera && <CameraPreview services={services} size="large" />}
+      {services.usesCamera && <CameraPreview services={services} />}
       {services.usesMic && <MicPanel status={stt} />}
       <MoodBar
         mood={machine.mood}
@@ -67,10 +67,10 @@ export function MainScreen({ services }: { services: Services }) {
           draft={draft}
           setDraft={setDraft}
           onPick={pick}
-          sidebar={
+          face={
             <>
-              {services.usesCamera && <CameraPreview services={services} size="small" />}
-              <div className="sidebar-row">
+              {services.usesCamera && <CameraPreview services={services} showReadout={false} />}
+              <div className="face-row">
                 {services.usesMic && (
                   <span className={`chip-state ${stt.state}`}>mic: {stt.state}</span>
                 )}

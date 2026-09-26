@@ -26,11 +26,13 @@ export function optionRegions(optionCount: number, mode: 'full' | 'vertical'): R
  * Shared so the calibration dots appear exactly where the option cards are drawn.
  */
 export const TARGET_POSITION: Record<'center' | Region, { x: number; y: number }> = {
+  // The middle column holds the face view (top) and "Partner said" (bottom); its centre is the
+  // screen centre, which is where the person rests their gaze.
   center: { x: 50, y: 50 },
-  'up-left': { x: 25, y: 18 },
-  'up-right': { x: 75, y: 18 },
-  'down-left': { x: 25, y: 82 },
-  'down-right': { x: 75, y: 82 },
+  'up-left': { x: 18, y: 25 },
+  'up-right': { x: 82, y: 25 },
+  'down-left': { x: 18, y: 75 },
+  'down-right': { x: 82, y: 75 },
 };
 
 export type EyeMode =
