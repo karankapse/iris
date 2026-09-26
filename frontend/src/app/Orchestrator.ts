@@ -192,6 +192,11 @@ export class Orchestrator {
   /** Pause/resume acting on eye gestures (e.g. while the setup screen is open). */
   setSuspended(suspended: boolean) {
     this.suspended = suspended;
+    if (suspended) {
+      this.services.stt.stop();
+    } else {
+      this.services.stt.start();
+    }
   }
 
   // ---- user settings -----------------------------------------------------------
@@ -355,12 +360,18 @@ export class Orchestrator {
         break;
 
       case 'speak':
+        // Prevent "own-voice echo": stop STT so it doesn't transcribe the app's own voice
+        this.services.stt.stop();
         tts
           .speak(effect.spoken.text, effect.spoken.tone, {
             speed: this.view.settings.speechSpeed,
           })
           .catch((e) => console.error('[tts]', e))
           .finally(() => {
+            // Re-enable STT now that we are done talking, but only if we aren't suspended (e.g. in Setup menu)
+            if (!this.suspended) {
+              this.services.stt.start();
+            }
             conversation.addTurn({ speaker: 'user', text: effect.spoken.text });
             this.dispatch({ type: 'speak_done' });
           });
