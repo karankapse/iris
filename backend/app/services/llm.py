@@ -123,6 +123,6 @@ def generate_suggestions(
     # Show the canned replies rather than failing the whole request.
     if response.parsed_output is None or not response.parsed_output.replies:
         logger.warning("Claude returned no usable replies (stop_reason=%s)", response.stop_reason)
-        return mock_suggestions(history)
+        return mock_suggestions(history, mood=mood, reaction=reaction)
     drafts = response.parsed_output.replies[:4]  # the UI never shows more than 4 options
     return [Suggestion(id=str(uuid.uuid4()), text=d.text, tone=d.tone) for d in drafts]
