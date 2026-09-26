@@ -9,7 +9,12 @@ def _samples(label, rows, source="calibration"):
 
 def test_health_reports_mock_mode(client):
     body = client.get("/api/health").json()
-    assert body == {"ok": True, "mock_llm": True, "stt_configured": False}
+    assert body == {
+        "ok": True,
+        "mock_llm": True,
+        "stt_configured": False,
+        "voice_configured": False,
+    }
 
 
 def test_suggestions_are_3_or_4_and_valid(client):

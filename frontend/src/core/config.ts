@@ -21,6 +21,7 @@ export const flags = {
    */
   stt: (import.meta.env.VITE_STT_PROVIDER as 'mock' | 'muse' | 'webspeech' | undefined) ?? 'mock',
   mockConversation: isMock(import.meta.env.VITE_MOCK_CONVERSATION),
-  /** 'browser' = speechSynthesis (default), 'silent' = no sound (tests / quiet dev). */
-  tts: (import.meta.env.VITE_TTS_PROVIDER as 'browser' | 'silent' | undefined) ?? 'browser',
+  /** 'cloned' = ElevenLabs with BrowserTts fallback (default), 'browser' = speechSynthesis only, 'silent' = no sound. */
+  tts:
+    (import.meta.env.VITE_TTS_PROVIDER as 'browser' | 'silent' | 'cloned' | undefined) ?? 'cloned',
 };
