@@ -3,22 +3,35 @@
 // The rest of the app only knows these abstract events, never raw gaze numbers.
 // ============================================================================
 
-/** The four coarse gaze regions. Options on screen sit at these positions. */
-export type Region = 'up' | 'right' | 'down' | 'left';
+/** The four screen corners, where up to 4 options sit (a 2x2 grid that fills the screen). */
+export type Region = 'up-left' | 'up-right' | 'down-left' | 'down-right';
 
 /**
- * Which region each on-screen option lives in, in option order (max 4 options).
- *   2 options: left / right         3 options: up / right / down       4 options: up / right / down / left
- * In 'vertical' mode there are no regions: options are stacked, and looking up/down steps the
+ * Which corner each on-screen option lives in, in option order (max 4 options), reading order:
+ *   1 option: top-left    2: top-left, top-right    3: + bottom-left    4: + bottom-right
+ * In 'vertical' mode there are no corners: options are stacked, and looking up/down steps the
  * highlight (many locked-in users can only move their eyes vertically). The UI and the eye
  * input both use this function, so what's drawn always matches where you have to look.
  */
 export function optionRegions(optionCount: number, mode: 'full' | 'vertical'): Region[] {
   if (mode === 'vertical' || optionCount <= 0) return [];
-  if (optionCount === 1) return ['up'];
-  if (optionCount === 2) return ['left', 'right'];
-  return (['up', 'right', 'down', 'left'] as const).slice(0, Math.min(optionCount, 4));
+  return (['up-left', 'up-right', 'down-left', 'down-right'] as const).slice(
+    0,
+    Math.min(optionCount, 4),
+  );
 }
+
+/**
+ * Where on the screen (percent of width, height) each calibration target and option sits.
+ * Shared so the calibration dots appear exactly where the option cards are drawn.
+ */
+export const TARGET_POSITION: Record<'center' | Region, { x: number; y: number }> = {
+  center: { x: 50, y: 50 },
+  'up-left': { x: 25, y: 18 },
+  'up-right': { x: 75, y: 18 },
+  'down-left': { x: 25, y: 82 },
+  'down-right': { x: 75, y: 82 },
+};
 
 export type EyeMode =
   | 'full' //     left/right/up/down + blinks
@@ -36,6 +49,8 @@ export type EyeEvent =
 
 /** One instruction shown to the user (or caregiver) during calibration. */
 export interface CalibrationStep {
+  /** Where to look: a dot is shown at that spot ('closed' = eyes shut, no dot). */
+  target: 'center' | Region | 'up' | 'down' | 'closed';
   /** e.g. "Look straight at the screen" */
   prompt: string;
   /** How long this step lasts. */
@@ -52,7 +67,7 @@ export interface EyeInput {
   setOptionCount(optionCount: number): void;
   stop(): void;
   /**
-   * Short guided calibration (look straight, left, right, up, down, close your eyes). Calls
+   * Short guided calibration (look at a dot in the centre and each corner, then close your eyes). Calls
    * `onStep` at the start of each step so the UI can show the instruction. While calibrating,
    * no other events are emitted. Rejects with a readable message if the face isn't visible.
    * Resolves with warnings (empty = all good) for signals that were too weak to trust, so the
@@ -61,4 +76,6 @@ export interface EyeInput {
   calibrate(onStep?: (step: CalibrationStep) => void): Promise<string[]>;
   /** Subscribe to events. Returns an unsubscribe function. */
   on(handler: (event: EyeEvent) => void): () => void;
+  /** Optional live diagnostics for the camera panel (which corner is detected, is it calibrated). */
+  status?(): { region: 'center' | Region | null; calibrated: boolean };
 }

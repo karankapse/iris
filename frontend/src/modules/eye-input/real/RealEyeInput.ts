@@ -9,7 +9,17 @@ import type {
 } from '../../../contracts';
 import { createEmitter } from '../../../core/emitter';
 import { BlinkDetector } from './blink';
-import { GazeStepper, RegionTracker } from './gaze';
+import {
+  CornerTracker,
+  defaultCornerModel,
+  gazeFeatures,
+  loadCornerModel,
+  saveCornerModel,
+  trainCornerModel,
+  ZONES,
+  type Zone,
+} from './corners';
+import { GazeStepper } from './gaze';
 import {
   loadTuning,
   median,
@@ -22,13 +32,13 @@ import {
 /**
  * HOW THE USER CONTROLS THE APP WITH THEIR EYES
  * ---------------------------------------------
- * Options are shown at up to 4 screen positions: top, right, bottom, left (see `optionRegions`).
- *
- * FULL mode (all four directions):
- *   look at an option        -> it is highlighted
- *   keep looking (dwell)     -> a bar fills; when full, the option is SELECTED
- *   blink deliberately       -> selects the highlighted option immediately (faster than dwell)
- *   look at the centre       -> rest: nothing is highlighted and dwell restarts
+ * FULL mode: up to 4 options sit in the four CORNERS of the screen (a 2x2 grid).
+ *   look at a corner        -> its option is highlighted
+ *   keep looking (dwell)    -> a bar fills; when full, the option is SELECTED
+ *   blink deliberately      -> selects the highlighted option immediately (faster than dwell)
+ *   look at the centre      -> rest: nothing is highlighted and dwell restarts
+ *   Which corner you are looking at is decided by a personal classifier trained during
+ *   calibration (see corners.ts).
  *
  * VERTICAL mode (for people who can only move their eyes up and down):
  *   options are stacked in a list; look UP / DOWN and hold to move the highlight,
@@ -43,43 +53,51 @@ import {
  */
 
 const BLINK_KEYS = ['eyeBlinkLeft', 'eyeBlinkRight'] as const;
-/** Skip the first part of each calibration step: people need a moment to react. */
-const CALIBRATION_REACTION_MS = 800;
-const MIN_CALIBRATION_FRAMES = 5;
+/** Skip the first part of each calibration step: people need a moment to find the dot. */
+const CALIBRATION_REACTION_MS = 900;
+const MIN_CALIBRATION_FRAMES = 10;
 const PROGRESS_STEP = 0.05;
 
-type StepKey = 'center' | 'left' | 'right' | 'up' | 'down' | 'closed';
-const CALIBRATION_STEPS: { key: StepKey; prompt: string; seconds: number; sideways: boolean }[] = [
-  {
-    key: 'center',
-    prompt: 'Look straight at the middle of the screen',
+type StepKey = Zone | 'up' | 'down' | 'closed';
+interface StepDef {
+  key: StepKey;
+  target: CalibrationStep['target'];
+  prompt: string;
+  seconds: number;
+}
+
+const CORNER_NAME: Record<string, string> = {
+  'up-left': 'top-left',
+  'up-right': 'top-right',
+  'down-left': 'bottom-left',
+  'down-right': 'bottom-right',
+};
+
+const FULL_STEPS: StepDef[] = [
+  { key: 'center', target: 'center', prompt: 'Look at the dot in the middle', seconds: 3 },
+  ...(['up-left', 'up-right', 'down-left', 'down-right'] as const).map((z) => ({
+    key: z,
+    target: z,
+    prompt: `Look at the dot in the ${CORNER_NAME[z]} corner`,
     seconds: 3,
-    sideways: false,
-  },
-  {
-    key: 'left',
-    prompt: 'Look LEFT, toward the left edge of the screen',
-    seconds: 3,
-    sideways: true,
-  },
-  {
-    key: 'right',
-    prompt: 'Look RIGHT, toward the right edge of the screen',
-    seconds: 3,
-    sideways: true,
-  },
-  { key: 'up', prompt: 'Look UP, toward the top of the screen', seconds: 3, sideways: false },
-  {
-    key: 'down',
-    prompt: 'Look DOWN, toward the bottom of the screen',
-    seconds: 3,
-    sideways: false,
-  },
+  })),
   {
     key: 'closed',
+    target: 'closed',
     prompt: 'Close your eyes gently and keep them closed',
     seconds: 2.5,
-    sideways: false,
+  },
+];
+
+const VERTICAL_STEPS: StepDef[] = [
+  { key: 'center', target: 'center', prompt: 'Look at the dot in the middle', seconds: 3 },
+  { key: 'up', target: 'up', prompt: 'Look at the dot at the top', seconds: 3 },
+  { key: 'down', target: 'down', prompt: 'Look at the dot at the bottom', seconds: 3 },
+  {
+    key: 'closed',
+    target: 'closed',
+    prompt: 'Close your eyes gently and keep them closed',
+    seconds: 2.5,
   },
 ];
 
@@ -93,7 +111,12 @@ export class RealEyeInput implements EyeInput {
   private tuning: EyeTuning = loadTuning();
   private blink = new BlinkDetector(this.tuning);
   private stepper = new GazeStepper(this.tuning); // vertical mode
-  private regions = new RegionTracker(this.tuning); // full mode
+
+  private savedModel = loadCornerModel();
+  private corners = new CornerTracker(
+    this.savedModel ?? defaultCornerModel(),
+    this.tuning.regionHoldMs,
+  ); // full mode
 
   private unsubscribe: (() => void) | null = null;
   private mode: EyeMode = 'full';
@@ -104,7 +127,7 @@ export class RealEyeInput implements EyeInput {
   private lastFrameAt = -Infinity;
 
   // dwell (full mode)
-  private dwellRegion: string | null = null;
+  private dwellZone: Zone | null = null;
   private dwellStart = 0;
   /** False after a selection / screen change, until the person looks back at the centre. */
   private armed = false;
@@ -117,7 +140,7 @@ export class RealEyeInput implements EyeInput {
   start(options: { mode: EyeMode; optionCount: number }) {
     this.unsubscribe?.();
     this.mode = options.mode;
-    this.regions.reset();
+    this.corners.reset();
     this.stepper.reset();
     this.unsubscribe = this.tracker.onFrame((frame) => this.onFrame(frame));
     this.setOptionCount(options.optionCount);
@@ -128,9 +151,9 @@ export class RealEyeInput implements EyeInput {
     this.blink.invalidate(); // a blink that began on the previous screen must not act here
     this.stepper.reset();
     this.armed = false; // no dwell-select on a fresh screen until the gaze has rested at the centre
-    this.dwellRegion = null;
+    this.dwellZone = null;
     const index =
-      this.mode === 'full' ? this.optionAt(this.regions.current) : optionCount > 0 ? 0 : null;
+      this.mode === 'full' ? this.optionAt(this.corners.current) : optionCount > 0 ? 0 : null;
     this.setHighlight(index, 0);
   }
 
@@ -143,9 +166,17 @@ export class RealEyeInput implements EyeInput {
     return this.emitter.on(handler);
   }
 
-  /** The option that sits in `region` on the current screen (full mode), if any. */
-  private optionAt(region: string): number | null {
-    const index = optionRegions(this.optionCount, 'full').indexOf(region as never);
+  status() {
+    return {
+      region: this.mode === 'full' ? this.corners.current : null,
+      calibrated: this.mode === 'full' ? this.savedModel !== null : true,
+    };
+  }
+
+  /** The option that sits in `zone` on the current screen (full mode), if any. */
+  private optionAt(zone: Zone): number | null {
+    if (zone === 'center') return null;
+    const index = optionRegions(this.optionCount, 'full').indexOf(zone);
     return index === -1 ? null : index;
   }
 
@@ -156,8 +187,8 @@ export class RealEyeInput implements EyeInput {
     // Face lost for a moment: whatever gaze we were tracking is stale. Start fresh and wait
     // for the person to look at the centre again before any dwell can complete.
     if (frame.t - this.lastFrameAt > this.tuning.frameGapMs) {
-      this.regions.reset();
-      this.dwellRegion = null;
+      this.corners.reset();
+      this.dwellZone = null;
       this.armed = false;
     }
     this.lastFrameAt = frame.t;
@@ -180,15 +211,15 @@ export class RealEyeInput implements EyeInput {
     settling: boolean,
   ) {
     const t = frame.t;
-    const region = this.regions.update(t, frame.gaze.x, frame.gaze.y, settling, true);
-    const index = region === 'center' ? null : this.optionAt(region);
+    const zone = this.corners.update(t, gazeFeatures(frame), settling);
+    const index = this.optionAt(zone);
 
-    // Dwell restarts whenever the region changes; looking at the centre re-arms it.
-    if (region !== this.dwellRegion) {
-      this.dwellRegion = region;
+    // Dwell restarts whenever the zone changes; looking at the centre re-arms it.
+    if (zone !== this.dwellZone) {
+      this.dwellZone = zone;
       this.dwellStart = t;
     }
-    if (region === 'center') this.armed = true;
+    if (zone === 'center') this.armed = true;
 
     let dwellProgress = 0;
     if (index !== null && this.armed && !settling) {
@@ -196,10 +227,7 @@ export class RealEyeInput implements EyeInput {
     }
 
     // A deliberate blink selects what you are looking at; so does a full dwell.
-    if (index !== null && outcome === 'select') {
-      this.select(index);
-      dwellProgress = 0;
-    } else if (index !== null && dwellProgress >= 1) {
+    if (index !== null && (outcome === 'select' || dwellProgress >= 1)) {
       this.select(index);
       dwellProgress = 0;
     }
@@ -245,59 +273,83 @@ export class RealEyeInput implements EyeInput {
   async calibrate(onStep?: (step: CalibrationStep) => void): Promise<string[]> {
     if (this.collector) throw new Error('Calibration is already running.');
 
-    // Vertical-only users skip the sideways steps.
-    const steps = CALIBRATION_STEPS.filter((s) => this.mode === 'full' || !s.sideways);
-    const medians: Partial<Record<StepKey, { x: number; y: number; blink: number }>> = {};
+    const steps = this.mode === 'full' ? FULL_STEPS : VERTICAL_STEPS;
+    const frames: Partial<Record<StepKey, FaceFrame[]>> = {};
     try {
       for (const [i, step] of steps.entries()) {
-        onStep?.({ prompt: step.prompt, seconds: step.seconds, index: i + 1, total: steps.length });
+        onStep?.({
+          target: step.target,
+          prompt: step.prompt,
+          seconds: step.seconds,
+          index: i + 1,
+          total: steps.length,
+        });
 
-        const frames: FaceFrame[] = [];
+        const collected: FaceFrame[] = [];
         const startedAt = performance.now();
         this.collector = (f) => {
-          if (f.t - startedAt >= CALIBRATION_REACTION_MS) frames.push(f);
+          if (f.t - startedAt >= CALIBRATION_REACTION_MS) collected.push(f);
         };
         await new Promise((resolve) => setTimeout(resolve, step.seconds * 1000));
         this.collector = null;
 
-        if (frames.length < MIN_CALIBRATION_FRAMES) {
+        if (collected.length < MIN_CALIBRATION_FRAMES) {
           throw new Error(
             `I couldn't see the face during "${step.prompt}". Check the camera and lighting, and keep the face in view.`,
           );
         }
-        medians[step.key] = {
-          x: median(frames.map((f) => f.gaze.x)),
-          y: median(frames.map((f) => f.gaze.y)),
-          blink: median(frames.map(blinkScore)),
-        };
+        frames[step.key] = collected;
       }
     } finally {
       this.collector = null;
     }
 
-    const m = medians;
+    const warnings: string[] = [];
+    const medianY = (fs: FaceFrame[]) => median(fs.map((f) => f.gaze.y));
+    const f = frames as Record<StepKey, FaceFrame[]>;
+
+    // 1) which corner is which (full mode only)
+    if (this.mode === 'full') {
+      const samples = {} as Record<Zone, number[][]>;
+      for (const z of ZONES) samples[z] = f[z].map(gazeFeatures);
+      const trained = trainCornerModel(samples);
+      if (!trained)
+        throw new Error('Not enough usable camera frames to learn the corners. Try again.');
+      this.corners.setModel(trained.model);
+      this.savedModel = trained.model;
+      saveCornerModel(trained.model);
+      warnings.push(...trained.warnings);
+      console.info(
+        '[eye calibration] corner model',
+        JSON.stringify({ weight: trained.model.weight, sigma: trained.model.sigma }),
+      );
+    }
+
+    // 2) blink and up/down thresholds (used by vertical mode, and to detect blinks)
+    const topY =
+      this.mode === 'full' ? (medianY(f['up-left']) + medianY(f['up-right'])) / 2 : medianY(f.up);
+    const bottomY =
+      this.mode === 'full'
+        ? (medianY(f['down-left']) + medianY(f['down-right'])) / 2
+        : medianY(f.down);
     const samples: CalibrationSamples = {
-      centerY: m.center!.y,
-      upY: m.up!.y,
-      downY: m.down!.y,
-      centerX: m.center!.x,
-      leftX: m.left?.x,
-      rightX: m.right?.x,
-      openBlink: m.center!.blink,
-      closedBlink: m.closed!.blink,
+      centerY: medianY(f.center),
+      upY: topY,
+      downY: bottomY,
+      openBlink: median(f.center.map(blinkScore)),
+      closedBlink: median(f.closed.map(blinkScore)),
     };
-    // The raw numbers, so a weak result can be understood (they show up in the dev server log).
     console.info('[eye calibration] samples', JSON.stringify(samples));
 
-    const { tuning, warnings } = tuningFromSamples(samples, this.tuning);
+    const result = tuningFromSamples(samples, this.tuning);
+    warnings.push(...result.warnings);
     for (const w of warnings) console.warn('[eye calibration]', w);
-    console.info('[eye calibration] tuning', JSON.stringify(tuning));
 
-    this.tuning = tuning;
-    this.blink.setTuning(tuning);
-    this.stepper.setTuning(tuning);
-    this.regions.setTuning(tuning);
-    saveTuning(tuning);
+    this.tuning = result.tuning;
+    this.blink.setTuning(result.tuning);
+    this.stepper.setTuning(result.tuning);
+    this.corners.setHoldMs(result.tuning.regionHoldMs);
+    saveTuning(result.tuning);
     return warnings;
   }
 }

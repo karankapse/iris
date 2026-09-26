@@ -426,3 +426,281 @@ kbd {
 .mic-note.warn {
   color: var(--bad);
 }
+
+/* --- corner layout (full eye mode): options sit in the 4 screen corners --------------- */
+.corner-grid {
+  height: 100vh;
+  height: 100dvh;
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 36fr 28fr 36fr;
+  grid-template-areas: 'tl tr' 'mid mid' 'bl br';
+  overflow: hidden;
+}
+.corner-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 28px;
+  text-align: left;
+  font-size: clamp(1.4rem, 3.2vw, 2.8rem);
+  line-height: 1.15;
+  color: var(--text);
+  background: var(--panel);
+  border: 5px solid #30363d;
+  border-radius: 22px;
+  cursor: pointer;
+  min-height: 0;
+}
+.corner-card.highlighted {
+  border-color: var(--accent);
+  background: #1c2a3f;
+  box-shadow: 0 0 0 4px rgba(88, 166, 255, 0.35);
+}
+.corner-card .option-number {
+  font-size: 1.1rem;
+  color: var(--muted);
+}
+.corner-card .option-hint {
+  font-size: 1rem;
+  color: var(--accent);
+}
+.corner-card .dwell {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 12px;
+  background: var(--accent);
+}
+.mid {
+  grid-area: mid;
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  gap: 16px;
+  align-items: center;
+  min-height: 0;
+}
+.mid-left,
+.mid-right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+}
+.mid-right {
+  align-items: flex-end;
+}
+.mid-center {
+  text-align: center;
+  min-width: 0;
+}
+.mid-center .status {
+  font-size: clamp(1.4rem, 3vw, 2.4rem);
+  margin: 0 0 6px;
+}
+.mid-center .reply {
+  font-size: clamp(1.2rem, 2.6vw, 2rem);
+}
+.mid-center .tone {
+  font-size: 1.2rem;
+}
+.rest-hint {
+  color: var(--muted);
+  font-size: 1rem;
+  margin: 6px 0 0;
+}
+.mid .partner-said p {
+  font-size: clamp(1.1rem, 2vw, 1.6rem);
+}
+
+.camera-small {
+  padding: 6px;
+  gap: 6px;
+  flex-direction: column;
+}
+.camera-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* --- menu drawer -------------------------------------------------------------------------- */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 20;
+}
+.drawer {
+  width: min(520px, 100%);
+  height: 100%;
+  overflow: auto;
+  background: var(--bg);
+  border-left: 2px solid #30363d;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.drawer header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.drawer h2 {
+  margin: 0;
+}
+.drawer button {
+  font-size: 1rem;
+}
+.drawer-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --- calibration: full-screen dots ------------------------------------------------------------ */
+.calib-overlay {
+  position: fixed;
+  inset: 0;
+  background: #05080c;
+  z-index: 30;
+}
+.calib-dot {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  margin: -32px 0 0 -32px;
+  border-radius: 50%;
+  background: #ffd33d;
+  box-shadow:
+    0 0 0 10px rgba(255, 211, 61, 0.3),
+    0 0 40px rgba(255, 211, 61, 0.6);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    transform: scale(0.8);
+  }
+}
+.calib-text {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translateX(-50%);
+  text-align: center;
+  width: min(700px, 80%);
+}
+.calib-step {
+  color: var(--muted);
+  margin: 0;
+}
+.calib-prompt {
+  font-size: 2rem;
+  margin: 6px 0;
+}
+.calib-seconds {
+  font-size: 3rem;
+  margin: 0;
+  color: var(--accent);
+}
+
+.error.floating {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  width: min(900px, 92%);
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
+}
+.corner-ghost {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 4px dashed #2a313a;
+  border-radius: 22px;
+  color: #3d4652;
+  font-size: clamp(1.1rem, 2.4vw, 1.9rem);
+  min-height: 0;
+}
+.partner-type {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.partner-type input {
+  flex: 1;
+  min-width: 0;
+  font-size: 1.2rem;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 2px solid #30363d;
+  background: var(--panel);
+  color: var(--text);
+}
+.partner-type button {
+  font-size: 1.1rem;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 0;
+  cursor: pointer;
+}
+
+/* keep the camera thumbnail inside the middle band */
+.mid-right {
+  justify-content: center;
+}
+.camera-small {
+  width: 100%;
+  max-width: 220px;
+}
+.camera-small canvas {
+  width: 100%;
+  height: auto;
+}
+.camera-small .chip-state {
+  font-size: 0.72rem;
+  padding: 1px 8px;
+}
+.sidebar-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+.linkbtn.small {
+  padding: 5px 10px;
+  font-size: 0.9rem;
+}
+
+/* compact thumbnail: picture on the left, status chips on the right, so it fits the middle band */
+.camera-small {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  max-width: none;
+  width: auto;
+}
+.camera-small canvas {
+  width: 160px;
+  height: 120px;
+  flex: none;
+}
+.camera-small .camera-chips {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.mid-right {
+  align-items: flex-end;
+}

@@ -41,14 +41,13 @@ Read [docs/architecture.md](docs/architecture.md) for the full picture.
 
 ## Status: work in progress
 
-Working: real camera face tracking (MediaPipe) with a live preview, eye control by blinks and
-up/down gaze, calibration, Muse speech-to-text through the backend, emotion detection with a
-per-user model, tone confirmation, emotional TTS, and the partner view.
+Working: real camera face tracking (MediaPipe) with a zoomed live preview, eye control (options in
+the four screen corners, chosen by looking + dwell or a blink), calibration, speech-to-text (Meta
+Muse, or Chrome's as a fallback), emotion detection with a per-user model, tone confirmation,
+emotional TTS, and the partner view.
 
-**Not finished yet** (see the open issues): the on-screen layout for the four gaze regions
-(top/right/bottom/left) and dwell selection in that mode, the eye-controlled keyboard, choosing
-the mood by eye, camera zoom to the face, and automatic retraining. Until the layout lands the
-app defaults to **vertical-only** eye mode (look up/down to move, blink to select).
+**Not finished yet** (see the open issues): the eye-controlled keyboard (custom replies are typed
+by a caregiver for now), choosing the mood by eye, and automatic retraining from feedback.
 
 ## Setup
 
@@ -72,17 +71,30 @@ VITE_MOCK_EMOTION=1      # pick the "detected" emotion in the Dev Panel
 VITE_STT_PROVIDER=mock   # type what the partner says in the Dev Panel
 ```
 
-## How to control it with your eyes (vertical-only mode, the current default)
+## How to control it with your eyes
+
+**Calibrate first** (click **Calibrate**, about 20 seconds): a dot appears in the middle and in each
+corner of the screen, and you look at it. Iris learns what *your* eyes look like at each corner.
+Then close your eyes for a moment so it learns your blink.
+
+Up to four options are shown in the **four corners** of the screen (a 2×2 grid, reading order):
 
 | Do this | What happens |
 |---|---|
-| Look **up** or **down** and hold | the highlight moves through the options |
-| **Blink deliberately** (about 0.5 s) | selects the highlighted option |
+| Look at a corner | that option lights up |
+| Keep looking (about 1.5 s) | a bar fills, then the option is selected (**dwell**) |
+| **Blink deliberately** (about 0.5 s) while looking at it | selects it right away |
+| Look at the middle | rest: nothing is selected |
 | Keep your **eyes closed** (about 1.5 s) | cancel / go back |
 
-Natural blinks are ignored. Iris never speaks until you confirm the tone.
-With the keyboard mock (`VITE_MOCK_EYE=1`): <kbd>↑</kbd>/<kbd>↓</kbd> move, <kbd>Space</kbd> or
-<kbd>1</kbd>–<kbd>4</kbd> select, <kbd>Enter</kbd> confirm, <kbd>Esc</kbd> cancel.
+Natural blinks are ignored, and after a selection you must look back at the middle before the next
+dwell can complete. Iris never speaks until you confirm the tone.
+
+**Vertical-only mode** (tick "vertical-only eyes" in the Menu) is for people who can only move their
+eyes up and down: options are stacked, look up/down to move the highlight, and blink to select.
+
+With the keyboard mock (`VITE_MOCK_EYE=1`): arrow keys move, <kbd>Space</kbd> or <kbd>1</kbd>–<kbd>4</kbd>
+select, <kbd>Enter</kbd> confirm, <kbd>Esc</kbd> cancel.
 
 ## Microphone: speech-to-text with Meta Muse Voice Transcribe
 

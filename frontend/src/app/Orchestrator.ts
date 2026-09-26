@@ -58,9 +58,7 @@ export class Orchestrator {
       highlight: null,
       dwell: 0,
       stt: { state: 'off', engine: '' },
-      // TODO: default to 'full' once the screen draws options at the up/right/down/left gaze
-      // positions (optionRegions). Until then the stacked list only matches 'vertical'.
-      eyeMode: load(STORAGE.eyeMode, ['full', 'vertical'] as const) ?? 'vertical',
+      eyeMode: load(STORAGE.eyeMode, ['full', 'vertical'] as const) ?? 'full',
     };
   }
 

@@ -1,106 +1,50 @@
 import { useState } from 'react';
-import { getOptions } from '../../../app/machine';
-import type { Phase } from '../../../app/machine';
 import type { Services } from '../../../app/services';
 import { useOrchestrator } from '../../../app/useOrchestrator';
-import { DevPanel } from './DevPanel';
 import { CameraPreview } from './CameraPreview';
+import { CornerLayout } from './CornerLayout';
+import { DevPanel } from './DevPanel';
 import { MicPanel } from './MicPanel';
 import { MoodBar } from './MoodBar';
-import { OptionList } from './OptionList';
 import { SetupPanel } from './SetupPanel';
+import { StackLayout } from './StackLayout';
 
-const STATUS: Record<Phase, string> = {
-  listening: 'Listening…',
-  suggesting: 'Thinking of replies…',
-  selectReply: 'Choose a reply',
-  typing: 'Type a reply',
-  confirmTone: 'Speak it in this tone?',
-  pickTone: 'Choose a different tone',
-  speaking: 'Speaking…',
-  feedback: 'Was the tone right?',
-};
-
-/** The main user screen. Everything the user sees is large and high-contrast on purpose. */
+/** The main user screen: picks the corner layout (full eye mode) or the stacked list (vertical). */
 export function MainScreen({ services }: { services: Services }) {
   const { orchestrator, view } = useOrchestrator(services);
-  const { machine, highlight, dwell, eyeMode, stt } = view;
+  const { machine, eyeMode, stt } = view;
   const [draft, setDraft] = useState('');
   const [showSetup, setShowSetup] = useState(false);
-  const options = getOptions(machine);
+  const [showMenu, setShowMenu] = useState(false);
 
   const pick = (optionIndex: number) =>
     orchestrator.dispatch({ type: 'eye', event: { type: 'select', optionIndex } });
 
-  return (
-    <main className="screen">
-      <header className="topbar">
-        <div className="partner-said">
-          <span className="label">Partner said</span>
-          <p>{machine.interim || machine.partnerText || '—'}</p>
-        </div>
-        <div className="topbtns">
-          <button className="linkbtn" onClick={() => setShowSetup(true)}>
-            Set up / calibrate
-          </button>
-          <button
-            className="linkbtn"
-            onClick={() => window.open('/partner', 'iris-partner', 'width=900,height=700')}
-          >
-            Open partner view ↗
-          </button>
-        </div>
-      </header>
+  const actionButtons = (
+    <>
+      <button
+        className="linkbtn"
+        onClick={() => {
+          setShowMenu(false);
+          setShowSetup(true);
+        }}
+      >
+        Set up / calibrate
+      </button>
+      <button
+        className="linkbtn"
+        onClick={() => window.open('/partner', 'iris-partner', 'width=900,height=700')}
+      >
+        Open partner view ↗
+      </button>
+    </>
+  );
 
-      {machine.error && (
-        <div className="error" role="alert">
-          {machine.error}
-          <button onClick={() => orchestrator.dispatch({ type: 'dismiss_error' })}>Dismiss</button>
-        </div>
-      )}
-
-      <section className="stage">
-        <h1 className="status">{STATUS[machine.phase]}</h1>
-
-        {['confirmTone', 'pickTone', 'speaking'].includes(machine.phase) && machine.reply && (
-          <>
-            <p className="reply">“{machine.reply.text}”</p>
-            {machine.tone && <p className="tone">Tone: {machine.tone}</p>}
-          </>
-        )}
-
-        {machine.phase === 'typing' ? (
-          <form
-            className="typing"
-            onSubmit={(e) => {
-              e.preventDefault();
-              orchestrator.dispatch({ type: 'custom_reply', text: draft });
-              setDraft('');
-            }}
-          >
-            {/* TODO(Voice & UI): replace with the eye-controlled keyboard (starter issue). */}
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Caregiver can type here for now"
-            />
-            <button type="submit">Use this reply</button>
-            <button
-              type="button"
-              onClick={() => orchestrator.dispatch({ type: 'eye', event: { type: 'cancel' } })}
-            >
-              Back
-            </button>
-          </form>
-        ) : (
-          <OptionList options={options} highlight={highlight} dwell={dwell} onPick={pick} />
-        )}
-      </section>
-
-      {services.usesCamera && <CameraPreview services={services} />}
+  // The detail panels: inline under the options in the stacked layout, in a drawer in the corner layout.
+  const panels = (
+    <>
+      {services.usesCamera && <CameraPreview services={services} size="large" />}
       {services.usesMic && <MicPanel status={stt} />}
-
       <MoodBar
         mood={machine.mood}
         eyeMode={eyeMode}
@@ -111,6 +55,62 @@ export function MainScreen({ services }: { services: Services }) {
         mocks={services.mocks}
         onPartnerText={(text) => orchestrator.dispatch({ type: 'partner_final', text })}
       />
+    </>
+  );
+
+  return (
+    <>
+      {eyeMode === 'full' ? (
+        <CornerLayout
+          orchestrator={orchestrator}
+          view={view}
+          draft={draft}
+          setDraft={setDraft}
+          onPick={pick}
+          sidebar={
+            <>
+              {services.usesCamera && <CameraPreview services={services} size="small" />}
+              <div className="sidebar-row">
+                {services.usesMic && (
+                  <span className={`chip-state ${stt.state}`}>mic: {stt.state}</span>
+                )}
+                {services.usesCamera && (
+                  <button className="linkbtn small" onClick={() => setShowSetup(true)}>
+                    Calibrate
+                  </button>
+                )}
+                <button className="linkbtn small" onClick={() => setShowMenu(true)}>
+                  ☰ Menu
+                </button>
+              </div>
+            </>
+          }
+        />
+      ) : (
+        <StackLayout
+          orchestrator={orchestrator}
+          view={view}
+          draft={draft}
+          setDraft={setDraft}
+          onPick={pick}
+          topButtons={actionButtons}
+          extras={panels}
+        />
+      )}
+
+      {showMenu && (
+        <div className="drawer-backdrop" onClick={() => setShowMenu(false)}>
+          <aside className="drawer" onClick={(e) => e.stopPropagation()}>
+            <header>
+              <h2>Menu</h2>
+              <button onClick={() => setShowMenu(false)}>Close</button>
+            </header>
+            <div className="drawer-buttons">{actionButtons}</div>
+            {panels}
+          </aside>
+        </div>
+      )}
+
       {showSetup && (
         <SetupPanel
           services={services}
@@ -118,6 +118,6 @@ export function MainScreen({ services }: { services: Services }) {
           onClose={() => setShowSetup(false)}
         />
       )}
-    </main>
+    </>
   );
 }
