@@ -14,8 +14,8 @@ export interface VoiceProfile {
  * tweak them by ear! (A cloud TTS with real emotional styles would replace this table.)
  */
 export const EMOTION_PROFILES: Record<Emotion, VoiceProfile> = {
-  neutral: { rate: 1.0, pitch: 1.0, volume: 1.0 },
-  happy: { rate: 1.1, pitch: 1.25, volume: 1.0 },
+  neutral: { rate: 0.98, pitch: 1.0, volume: 1.0 },
+  happy: { rate: 1.15, pitch: 1.35, volume: 1.0 },
   sad: { rate: 0.8, pitch: 0.8, volume: 0.75 },
   excited: { rate: 1.25, pitch: 1.35, volume: 1.0 },
   joking: { rate: 1.2, pitch: 1.15, volume: 1.0 },

@@ -229,10 +229,15 @@ export function SetupPanel({
 
   const testVoice = (tone: Emotion) =>
     run(`test-voice-${tone}`, async () => {
-      await services.tts.speak(
-        `Hello, this is a preview speaking with feeling in a ${tone} tone.`,
-        tone,
-      );
+      const phrases: Partial<Record<Emotion, string>> = {
+        happy: "I'm so thrilled and happy! Everything is going wonderfully!",
+        neutral: 'This is my calm, everyday speaking voice in a neutral tone.',
+        serious: 'I need to discuss something important and serious with you.',
+        joking: 'Oh sure, because that always goes according to plan, right?',
+      };
+      const text =
+        phrases[tone] || `Hello, this is a preview speaking with feeling in a ${tone} tone.`;
+      await services.tts.speak(text, tone);
     });
 
   const isDurationValid = audioDuration === null || audioDuration >= MIN_AUDIO_DURATION_S;
@@ -358,11 +363,14 @@ export function SetupPanel({
               {voiceProfile?.voice_id && (
                 <div className="test-buttons">
                   <span>Test tone:</span>
+                  <button onClick={() => testVoice('neutral')} disabled={busy !== null}>
+                    Neutral 😐
+                  </button>
                   <button onClick={() => testVoice('happy')} disabled={busy !== null}>
                     Happy 😊
                   </button>
                   <button onClick={() => testVoice('serious')} disabled={busy !== null}>
-                    Serious 😐
+                    Serious 🧐
                   </button>
                   <button onClick={() => testVoice('joking')} disabled={busy !== null}>
                     Joking 😉

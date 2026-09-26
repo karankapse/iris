@@ -27,18 +27,18 @@ def _get_settings(request: Request):
 
 # Emotion-to-slider mapping for ElevenLabs Multilingual v2
 EMOTION_SLIDERS: dict[str, dict[str, float]] = {
-    # Balanced, natural everyday speech
-    "neutral": {"stability": 0.50, "similarity_boost": 0.80, "style": 0.10, "speed": 1.00},
-    # Lively, energetic, lower stability for pitch swings, high style for brightness
-    "happy": {"stability": 0.30, "similarity_boost": 0.80, "style": 0.65, "speed": 1.10},
+    # Truly neutral: high stability for even, calm pitch, 0 style exaggeration, steady pace
+    "neutral": {"stability": 0.82, "similarity_boost": 0.80, "style": 0.00, "speed": 0.98},
+    # Lively, cheerful, lower stability for melodic pitch swings, high style for brightness
+    "happy": {"stability": 0.18, "similarity_boost": 0.75, "style": 0.88, "speed": 1.15},
     # Vibrant, enthusiastic, expressive pitch variation and pace
-    "excited": {"stability": 0.25, "similarity_boost": 0.80, "style": 0.75, "speed": 1.15},
+    "excited": {"stability": 0.15, "similarity_boost": 0.75, "style": 0.92, "speed": 1.18},
     # Subdued, slower tempo, slightly higher stability to sound softer and controlled
-    "sad": {"stability": 0.75, "similarity_boost": 0.80, "style": 0.15, "speed": 0.85},
+    "sad": {"stability": 0.80, "similarity_boost": 0.80, "style": 0.15, "speed": 0.82},
     # Playful, fast inflection, high style exaggeration
-    "joking": {"stability": 0.25, "similarity_boost": 0.80, "style": 0.70, "speed": 1.15},
+    "joking": {"stability": 0.22, "similarity_boost": 0.75, "style": 0.78, "speed": 1.15},
     # Authoritative, grounded, steady tempo
-    "serious": {"stability": 0.80, "similarity_boost": 0.85, "style": 0.05, "speed": 0.95},
+    "serious": {"stability": 0.88, "similarity_boost": 0.85, "style": 0.02, "speed": 0.92},
 }
 
 
@@ -245,10 +245,15 @@ async def speak(req: SpeakRequest, request: Request):
 
     # Punctuation styling for extra expressiveness
     styled_text = req.text.strip()
-    if req.emotion in ("happy", "excited") and not styled_text.endswith("!"):
-        styled_text += "!"
-    elif req.emotion == "sad" and not (styled_text.endswith("...") or styled_text.endswith(".")):
-        styled_text += "..."
+    if req.emotion in ("happy", "excited"):
+        styled_text = styled_text.rstrip(".!?,") + "!"
+    elif req.emotion == "neutral":
+        styled_text = styled_text.rstrip(".!?,") + "."
+    elif req.emotion == "sad":
+        if not (styled_text.endswith("...") or styled_text.endswith(".")):
+            styled_text = styled_text.rstrip(".!?,") + "..."
+    elif req.emotion == "serious":
+        styled_text = styled_text.rstrip(".!?,") + "."
 
     client = httpx.AsyncClient(timeout=30.0)
     try:
