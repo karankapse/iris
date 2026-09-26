@@ -5,8 +5,9 @@ LLM_PROVIDER picks the backend: anthropic (default), ollama, or mock.
 Claude: we use the SDK's `messages.parse()` with a Pydantic model: the API is constrained to
 return JSON matching the schema, and the SDK validates it for us.
 
-Ollama: we call its OpenAI-compatible endpoint in JSON mode and validate the result with the
-same Pydantic model. Any failure (Ollama not running, bad JSON) falls back to canned replies.
+Ollama: we call its native chat endpoint with `format` set to the same Pydantic model's JSON
+schema, so the output is constrained to valid replies and tones, then validate it. Any failure
+(Ollama not running, bad JSON) falls back to canned replies.
 """
 
 import logging
@@ -40,7 +41,7 @@ at least one clear yes/no style option."""
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_URL = "http://localhost:11434/v1/chat/completions"
+OLLAMA_URL = "http://localhost:11434/api/chat"
 
 # Small local models need the JSON shape spelled out; Claude gets it from the schema instead.
 OLLAMA_JSON_INSTRUCTIONS = """
@@ -89,15 +90,15 @@ def _ollama_suggestions(
                     {"role": "system", "content": SYSTEM_PROMPT + OLLAMA_JSON_INSTRUCTIONS},
                     {"role": "user", "content": _format_history(history, mood)},
                 ],
-                # The OpenAI-compatible endpoint's spelling of Ollama's `format: "json"`.
-                "response_format": {"type": "json_object"},
+                # Constrains generation to this schema, so small models can't invent tones.
+                "format": _Drafts.model_json_schema(),
                 "stream": False,
             },
             timeout=60.0,
         )
         response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-        drafts = _Drafts.model_validate_json(content).replies[:4]
+        content = response.json()["message"]["content"]
+        drafts = [d for d in _Drafts.model_validate_json(content).replies if d.text.strip()][:4]
     except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, ValidationError):
         logger.exception("Ollama suggestions failed; falling back to canned replies")
         return mock_suggestions(history)
