@@ -9,7 +9,8 @@ export default defineConfig({
   server: {
     port: 5173,
     // Forward /api/* to the FastAPI backend so the browser only talks to one origin.
-    proxy: { '/api': 'http://localhost:8000' },
+    // `ws: true` also forwards the speech-to-text WebSocket.
+    proxy: { '/api': { target: 'http://localhost:8000', ws: true } },
   },
   test: {
     environment: 'jsdom',

@@ -253,3 +253,123 @@ kbd {
   border-color: var(--bad);
   background: #3a2410;
 }
+
+/* --- camera preview + setup ------------------------------------------------- */
+.topbtns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.camera {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 12px;
+}
+.camera canvas {
+  border-radius: 8px;
+  background: #000;
+  max-width: 100%;
+}
+.readout {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  color: var(--muted);
+}
+.readout dt {
+  color: var(--muted);
+}
+.readout dd {
+  margin: 0;
+  color: var(--text);
+}
+.readout .ok {
+  color: var(--good);
+  font-weight: 600;
+}
+.readout .bad {
+  color: var(--bad);
+  font-weight: 600;
+}
+.readout meter {
+  width: 110px;
+  vertical-align: middle;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 10;
+}
+.modal-card {
+  background: var(--panel);
+  border: 2px solid #30363d;
+  border-radius: 14px;
+  padding: 20px 24px;
+  width: min(720px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.modal-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-card h2,
+.modal-card h3 {
+  margin: 0;
+}
+.modal-card button {
+  font-size: 1.05rem;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 0;
+  cursor: pointer;
+}
+.modal-card button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.emotions {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: grid;
+  gap: 8px;
+}
+.emotions li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+}
+.msg {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #12321c;
+  border: 1px solid var(--good);
+}
+.msg.error {
+  background: #3d1f1f;
+  border-color: #f85149;
+}
+.prompt {
+  font-size: 1.5rem;
+  color: var(--accent);
+  margin: 8px 0;
+}

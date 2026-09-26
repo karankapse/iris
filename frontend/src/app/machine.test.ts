@@ -162,6 +162,16 @@ describe('robustness', () => {
     expect(s.error).toBe('boom');
   });
 
+  it('keeps every distinct error (camera and mic can fail together) without repeats', () => {
+    const s = run([
+      { type: 'error', message: 'Camera denied' },
+      { type: 'error', message: 'Mic denied' },
+      { type: 'error', message: 'Camera denied' },
+    ]).state;
+    expect(s.error).toBe('Camera denied · Mic denied');
+    expect(run([{ type: 'dismiss_error' }], s).state.error).toBeNull();
+  });
+
   it('cancel while speaking asks to stop', () => {
     const speaking = run([select(0), eye({ type: 'confirm' })], atSelectReply()).state;
     expect(run([eye({ type: 'cancel' })], speaking).effects).toEqual([{ type: 'stop_speaking' }]);
