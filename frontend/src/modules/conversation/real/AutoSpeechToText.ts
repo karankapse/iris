@@ -2,20 +2,25 @@ import type { SpeechToText, SttStatus, Transcript } from '../../../contracts';
 import { createEmitter } from '../../../core/emitter';
 import { MuseSpeechToText } from './MuseSpeechToText';
 import { WebSpeechToText } from './WebSpeechToText';
+import { LocalWhisperSpeechToText } from './LocalWhisperSpeechToText';
 
-export type Engine = 'muse' | 'webspeech';
+export type Engine = 'muse' | 'local_whisper' | 'webspeech';
 
 /**
- * Meta Muse if the backend has a key for it, otherwise Chrome's built-in recognition so the
- * microphone still works while the key is missing.
+ * Meta Muse if the backend has a key for it.
+ * Otherwise, Local Whisper AI if available.
+ * Finally, Chrome's built-in recognition as a fallback.
  */
 export async function pickEngine(
-  fetchHealth: () => Promise<{ stt_configured?: boolean }>,
+  fetchHealth: () => Promise<{ stt_configured?: boolean; whisper_available?: boolean }>,
 ): Promise<Engine> {
   try {
-    return (await fetchHealth()).stt_configured ? 'muse' : 'webspeech';
+    const health = await fetchHealth();
+    if (health.stt_configured) return 'muse';
+    if (health.whisper_available) return 'local_whisper';
+    return 'webspeech';
   } catch {
-    return 'webspeech'; // backend not reachable: Muse can't work without it
+    return 'webspeech'; // backend not reachable: Muse/Whisper can't work without it
   }
 }
 
@@ -60,7 +65,10 @@ export class AutoSpeechToText implements SpeechToText {
     const engine = await pickEngine(() => fetch('/api/health').then((r) => r.json()));
     if (!this.wanted) return; // stopped while we were choosing
 
-    const inner: SpeechToText = engine === 'muse' ? new MuseSpeechToText() : new WebSpeechToText();
+    const inner: SpeechToText = 
+      engine === 'muse' ? new MuseSpeechToText() : 
+      engine === 'local_whisper' ? new LocalWhisperSpeechToText() : 
+      new WebSpeechToText();
     this.inner = inner;
     this.unsubs = [
       inner.onTranscript((t) => this.transcripts.emit(t)),

@@ -90,3 +90,57 @@ async def stream(ws: WebSocket) -> None:
         await ws.close()
     except RuntimeError:
         pass  # the browser already went away
+
+
+@router.websocket("/whisper")
+async def whisper_stream(ws: WebSocket) -> None:
+    """Local offline Whisper STT. Receives raw PCM chunks and streams text back."""
+    await ws.accept()
+    await ws.send_json({"type": "ready"})
+    
+    from app.services.whisper_local import transcribe_audio
+    
+    audio_buffer = bytearray()
+    silence_chunks = 0
+    SILENCE_THRESHOLD = 500  # Adjust based on microphone volume
+    MAX_SILENCE_CHUNKS = 15  # ~1.2 seconds of silence (80ms * 15)
+    
+    try:
+        while True:
+            message = await ws.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+            
+            if message.get("bytes") is not None:
+                chunk = message["bytes"]
+                audio_buffer.extend(chunk)
+                
+                # Check energy to detect silence
+                import numpy as np
+                samples = np.frombuffer(chunk, dtype=np.int16)
+                energy = np.sqrt(np.mean(samples.astype(np.float32)**2))
+                
+                if energy < SILENCE_THRESHOLD:
+                    silence_chunks += 1
+                else:
+                    silence_chunks = 0
+                    
+                # If we've hit enough silence AND we have audio, transcribe it!
+                if silence_chunks >= MAX_SILENCE_CHUNKS and len(audio_buffer) > 16000 * 0.5 * 2: # At least 0.5s of audio
+                    pcm_data = bytes(audio_buffer)
+                    audio_buffer.clear()
+                    silence_chunks = 0
+                    
+                    # Send an interim status so the UI knows it's thinking
+                    await ws.send_json({"type": "status", "message": "transcribing..."})
+                    
+                    text = await transcribe_audio(pcm_data)
+                    if text and any(c.isalpha() for c in text): # Ignore blank or noise-only
+                        await ws.send_json({"type": "transcript", "text": text, "final": True})
+                        
+    except Exception as e:
+        log.error(f"Whisper STT error: {e}")
+        try:
+            await ws.close()
+        except:
+            pass
