@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Point } from '../../contracts';
-import { estimateGaze, headPoseFromMatrix, mouthAsymmetry } from './faceMath';
+import { estimateGaze, headPoseFromMatrix, irisMetrics, mouthAsymmetry } from './faceMath';
 
 /** 478 dummy points, with the ones the maths uses set explicitly. */
 function face(overrides: Record<number, Point>): Point[] {
@@ -59,5 +59,39 @@ describe('headPoseFromMatrix', () => {
     expect(pose.yaw).toBeCloseTo(0);
     expect(pose.pitch).toBeCloseTo(0);
     expect(pose.roll).toBeCloseTo(0);
+  });
+});
+
+describe('irisMetrics', () => {
+  /** Two eyes, each 0.1 wide and 0.04 tall, with the irises at the given offsets from centre. */
+  function eyes(irisDx: number, irisDy: number) {
+    const pts = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5 }));
+    const setEye = (o: number, i: number, t: number, b: number, iris: number, cx: number) => {
+      pts[o] = { x: cx - 0.05, y: 0.4 }; // outer/inner order does not matter for the maths
+      pts[i] = { x: cx + 0.05, y: 0.4 };
+      pts[t] = { x: cx, y: 0.38 };
+      pts[b] = { x: cx, y: 0.42 };
+      pts[iris] = { x: cx + irisDx, y: 0.4 + irisDy };
+    };
+    setEye(33, 133, 159, 145, 468, 0.4);
+    setEye(263, 362, 386, 374, 473, 0.6);
+    return pts;
+  }
+
+  it('is zero when the irises are centred in the eyes', () => {
+    const m = irisMetrics(eyes(0, 0));
+    expect(m.irisX).toBeCloseTo(0);
+    expect(m.irisY).toBeCloseTo(0);
+  });
+
+  it('measures displacement in eye-widths, for both axes', () => {
+    const m = irisMetrics(eyes(0.02, 0.01)); // 0.02 / 0.1 = 0.2 eye-widths right; 0.1 down
+    expect(m.irisX).toBeCloseTo(0.2);
+    expect(m.irisY).toBeCloseTo(0.1);
+    expect(irisMetrics(eyes(-0.02, -0.01)).irisX).toBeCloseTo(-0.2);
+  });
+
+  it('returns zeros when the result has no iris landmarks', () => {
+    expect(irisMetrics(eyes(0.02, 0).slice(0, 468))).toEqual({ irisX: 0, irisY: 0 });
   });
 });

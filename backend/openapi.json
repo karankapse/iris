@@ -1,6 +1,41 @@
 {
   "components": {
     "schemas": {
+      "Body_clone_voice_api_voice_clone_post": {
+        "properties": {
+          "duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "user_id": {
+            "default": "local-user",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "file"
+        ],
+        "title": "Body_clone_voice_api_voice_clone_post",
+        "type": "object"
+      },
       "ConversationTurn": {
         "properties": {
           "speaker": {
@@ -32,6 +67,7 @@
                 "neutral",
                 "happy",
                 "sad",
+                "excited",
                 "joking",
                 "serious"
               ],
@@ -116,6 +152,7 @@
               "neutral",
               "happy",
               "sad",
+              "excited",
               "joking",
               "serious"
             ],
@@ -195,6 +232,7 @@
               "neutral",
               "happy",
               "sad",
+              "excited",
               "joking",
               "serious"
             ],
@@ -273,6 +311,48 @@
         "title": "SamplesRequest",
         "type": "object"
       },
+      "SpeakRequest": {
+        "properties": {
+          "emotion": {
+            "default": "neutral",
+            "enum": [
+              "neutral",
+              "happy",
+              "sad",
+              "excited",
+              "joking",
+              "serious"
+            ],
+            "title": "Emotion",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "user_id": {
+            "default": "local-user",
+            "title": "User Id",
+            "type": "string"
+          },
+          "voice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Id"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "SpeakRequest",
+        "type": "object"
+      },
       "Suggestion": {
         "properties": {
           "id": {
@@ -290,6 +370,7 @@
               "neutral",
               "happy",
               "sad",
+              "excited",
               "joking",
               "serious"
             ],
@@ -322,6 +403,7 @@
                   "neutral",
                   "happy",
                   "sad",
+                  "excited",
                   "joking",
                   "serious"
                 ],
@@ -333,6 +415,37 @@
             ],
             "description": "The user's persistent mood setting, if any",
             "title": "Mood"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserProfile"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who the user is, so replies feel personal"
+          },
+          "reaction": {
+            "anyOf": [
+              {
+                "enum": [
+                  "neutral",
+                  "happy",
+                  "sad",
+                  "excited",
+                  "joking",
+                  "serious"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The user's immediate emotional reaction / facial expression to what was said",
+            "title": "Reaction"
           }
         },
         "required": [
@@ -368,6 +481,49 @@
           "user_id"
         ],
         "title": "TrainRequest",
+        "type": "object"
+      },
+      "UserProfile": {
+        "description": "Optional info that makes suggestions feel personal, plus the quick-access phrases.",
+        "properties": {
+          "common_needs": {
+            "description": "e.g. \"water\", \"pillow\"",
+            "items": {
+              "type": "string"
+            },
+            "title": "Common Needs",
+            "type": "array"
+          },
+          "interests": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Interests",
+            "type": "array"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "phrases": {
+            "description": "Quick-access phrases",
+            "items": {
+              "type": "string"
+            },
+            "title": "Phrases",
+            "type": "array"
+          },
+          "relationships": {
+            "description": "e.g. \"daughter Maya\"",
+            "items": {
+              "type": "string"
+            },
+            "title": "Relationships",
+            "type": "array"
+          }
+        },
+        "title": "UserProfile",
         "type": "object"
       },
       "ValidationError": {
@@ -408,6 +564,48 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "VoiceProfileResponse": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          },
+          "voice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Id"
+          }
+        },
+        "required": [
+          "user_id",
+          "voice_id",
+          "name",
+          "configured"
+        ],
+        "title": "VoiceProfileResponse",
         "type": "object"
       }
     }
@@ -607,6 +805,99 @@
         "summary": "Health"
       }
     },
+    "/api/profile/{user_id}": {
+      "get": {
+        "description": "The saved profile, or an empty one with the default quick phrases.",
+        "operationId": "get_profile_api_profile__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Profile",
+        "tags": [
+          "profile"
+        ]
+      },
+      "put": {
+        "operationId": "put_profile_api_profile__user_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Profile",
+        "tags": [
+          "profile"
+        ]
+      }
+    },
     "/api/suggestions": {
       "post": {
         "operationId": "suggestions_api_suggestions_post",
@@ -645,6 +936,130 @@
         "summary": "Suggestions",
         "tags": [
           "conversation"
+        ]
+      }
+    },
+    "/api/voice/clone": {
+      "post": {
+        "operationId": "clone_voice_api_voice_clone_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_clone_voice_api_voice_clone_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Clone Voice Api Voice Clone Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clone Voice",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/voice/profile/{user_id}": {
+      "get": {
+        "operationId": "get_profile_api_voice_profile__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Profile",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/voice/speak": {
+      "post": {
+        "operationId": "speak_api_voice_speak_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Speak",
+        "tags": [
+          "voice"
         ]
       }
     }

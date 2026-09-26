@@ -1,26 +1,16 @@
-"""Asks an LLM for 3-4 short suggested replies, as structured JSON.
+"""Asks Claude for 3-4 short suggested replies, as structured JSON.
 
-LLM_PROVIDER picks the backend: anthropic (default), ollama, or mock.
-
-Claude: we use the SDK's `messages.parse()` with a Pydantic model: the API is constrained to
-return JSON matching the schema, and the SDK validates it for us.
-
-Ollama: we call its native chat endpoint with `format` set to the same Pydantic model's JSON
-schema, so the output is constrained to valid replies and tones, then validate it. Any failure
-(Ollama not running, bad JSON) falls back to canned replies.
+We use the SDK's `messages.parse()` with a Pydantic model: the API is constrained to return
+JSON matching the schema, and the SDK validates it for us.
 """
 
-import logging
 import uuid
-from typing import Literal
 
 import anthropic
-import httpx
-from pydantic import BaseModel, ValidationError
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import BaseModel
 
-from app.config import REPO_ROOT, Settings
-from app.schemas import ConversationTurn, Emotion, Suggestion
+from app.config import Settings
+from app.schemas import ConversationTurn, Emotion, Suggestion, UserProfile
 from app.services.llm_mock import mock_suggestions
 
 SYSTEM_PROMPT = """\
@@ -34,31 +24,19 @@ Write 3 or 4 possible replies the person might want to say next, in the first pe
 an emotional response), so one of them is likely right.
 - Match the way a real person would talk. No emojis.
 - For each reply choose the emotional tone it is best spoken with: one of neutral, happy, \
-sad, joking, serious.
-- If the person has a current mood setting, lean the replies toward it, but still offer \
-at least one clear yes/no style option."""
-
-
-logger = logging.getLogger(__name__)
-
-OLLAMA_URL = "http://localhost:11434/api/chat"
-
-# Small local models need the JSON shape spelled out; Claude gets it from the schema instead.
-OLLAMA_JSON_INSTRUCTIONS = """
-
-Respond with ONLY a JSON object of this exact shape, nothing else:
-{"replies": [{"text": "<reply>", "tone": "<neutral|happy|sad|joking|serious>"}]}"""
-
-
-class _ProviderSettings(BaseSettings):
-    """LLM provider selection, read from the environment / repo-root `.env` like `Settings`."""
-
-    model_config = SettingsConfigDict(
-        env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
-    )
-
-    llm_provider: Literal["anthropic", "ollama", "mock"] = "anthropic"
-    ollama_model: str = "llama3.2:3b"
+sad, excited, joking, serious.
+- CONNOTATION AND EMOTIONAL REACTION: Critically analyze the connotation of what the partner \
+just said (e.g., celebration, sharing good/bad news, question, distress, teasing, greeting) \
+in combination with the user's active emotional reaction / facial expression (e.g., happy, \
+sad, joking, serious, excited).
+- For example, if the partner shares good news or says "you got a job" and the user's reaction \
+is happy or excited, provide enthusiastic replies celebrating the news (e.g. "Congrats that's \
+awesome!", "I'm so thrilled!", "Thank you so much!").
+- If the user's reaction is serious, offer grounded, clarifying, or earnest replies.
+- If the user's reaction is sad, offer vulnerable, empathetic, or somber replies.
+- If the user's reaction is joking, offer playful, teasing, or humorous replies.
+- If the person has a current mood setting or reaction, lean the replies toward it, but still \
+offer at least one clear, easy direct option."""
 
 
 class _Draft(BaseModel):
@@ -70,54 +48,57 @@ class _Drafts(BaseModel):
     replies: list[_Draft]
 
 
-def _format_history(history: list[ConversationTurn], mood: Emotion | None) -> str:
+def _format_profile(profile: UserProfile | None) -> str:
+    """A few lines about the user, so replies sound like them (empty if nothing is filled in)."""
+    if profile is None:
+        return ""
+    parts = []
+    if profile.name:
+        parts.append(f"My name is {profile.name}.")
+    if profile.relationships:
+        parts.append("People in my life: " + "; ".join(profile.relationships) + ".")
+    if profile.interests:
+        parts.append("My interests: " + ", ".join(profile.interests) + ".")
+    if profile.common_needs:
+        parts.append("Things I often need: " + ", ".join(profile.common_needs) + ".")
+    return ("About me: " + " ".join(parts) + "\n\n") if parts else ""
+
+
+def _format_history(
+    history: list[ConversationTurn],
+    mood: Emotion | None,
+    profile: UserProfile | None = None,
+    reaction: Emotion | None = None,
+) -> str:
     lines = [f"{'Partner' if t.speaker == 'partner' else 'Me'}: {t.text}" for t in history]
-    mood_line = f"My current mood setting: {mood}." if mood else "I have no mood setting."
+    context = []
+    if reaction:
+        context.append(f"My detected emotional reaction to what was just said: {reaction}.")
+    if mood:
+        context.append(f"My persistent mood setting: {mood}.")
+    if not context:
+        context.append("I have no specific mood or reaction detected (neutral).")
+
+    context_str = " ".join(context)
     return (
-        "Conversation so far:\n" + "\n".join(lines) + f"\n\n{mood_line}\nSuggest my next replies."
+        _format_profile(profile)
+        + "Conversation so far:\n"
+        + "\n".join(lines)
+        + f"\n\n{context_str}\n"
+        + "Use the connotation of what the partner said and my emotional reaction "
+        + "to suggest my next replies."
     )
 
 
-def _ollama_suggestions(
-    model: str, history: list[ConversationTurn], mood: Emotion | None
-) -> list[Suggestion]:
-    try:
-        response = httpx.post(
-            OLLAMA_URL,
-            json={
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT + OLLAMA_JSON_INSTRUCTIONS},
-                    {"role": "user", "content": _format_history(history, mood)},
-                ],
-                # Constrains generation to this schema, so small models can't invent tones.
-                "format": _Drafts.model_json_schema(),
-                "stream": False,
-            },
-            timeout=60.0,
-        )
-        response.raise_for_status()
-        content = response.json()["message"]["content"]
-        drafts = [d for d in _Drafts.model_validate_json(content).replies if d.text.strip()][:4]
-    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, ValidationError):
-        logger.exception("Ollama suggestions failed; falling back to canned replies")
-        return mock_suggestions(history)
-    if not drafts:
-        return mock_suggestions(history)
-    return [Suggestion(id=str(uuid.uuid4()), text=d.text, tone=d.tone) for d in drafts]
-
-
 def generate_suggestions(
-    settings: Settings, history: list[ConversationTurn], mood: Emotion | None
+    settings: Settings,
+    history: list[ConversationTurn],
+    mood: Emotion | None,
+    profile: UserProfile | None = None,
+    reaction: Emotion | None = None,
 ) -> list[Suggestion]:
-    provider = _ProviderSettings()
-    if provider.llm_provider == "mock":
-        return mock_suggestions(history)
-    if provider.llm_provider == "ollama" and not settings.mock_llm:
-        return _ollama_suggestions(provider.ollama_model, history, mood)
-
     if settings.use_mock_llm:
-        return mock_suggestions(history)
+        return mock_suggestions(history, mood=mood, reaction=reaction)
 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     response = client.messages.parse(
@@ -127,7 +108,12 @@ def generate_suggestions(
         # (If you switch ANTHROPIC_MODEL to a model that always thinks, remove this line.)
         thinking={"type": "disabled"},
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": _format_history(history, mood)}],
+        messages=[
+            {
+                "role": "user",
+                "content": _format_history(history, mood, profile, reaction),
+            }
+        ],
         output_format=_Drafts,
     )
     drafts = response.parsed_output.replies[:4]  # the UI never shows more than 4 options

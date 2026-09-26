@@ -8,6 +8,8 @@ export default defineConfig({
   envDir: '..',
   server: {
     port: 5173,
+    // shared/ (one folder up) holds data used by both the frontend and the backend.
+    fs: { allow: ['..'] },
     // Forward /api/* to the FastAPI backend so the browser only talks to one origin.
     // `ws: true` also forwards the speech-to-text WebSocket.
     proxy: { '/api': { target: 'http://localhost:8000', ws: true } },

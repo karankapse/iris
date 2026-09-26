@@ -9,7 +9,12 @@ def _samples(label, rows, source="calibration"):
 
 def test_health_reports_mock_mode(client):
     body = client.get("/api/health").json()
-    assert body == {"ok": True, "mock_llm": True, "stt_configured": False}
+    assert body == {
+        "ok": True,
+        "mock_llm": True,
+        "stt_configured": False,
+        "voice_configured": False,
+    }
 
 
 def test_suggestions_are_3_or_4_and_valid(client):
@@ -26,6 +31,37 @@ def test_suggestions_are_3_or_4_and_valid(client):
 def test_suggestions_reject_unknown_tone_in_mood(client):
     res = client.post("/api/suggestions", json={"history": [], "mood": "furious"})
     assert res.status_code == 422
+
+
+def test_suggestions_with_connotation_and_reaction_happy(client):
+    res = client.post(
+        "/api/suggestions",
+        json={
+            "history": [{"speaker": "partner", "text": "you got a job"}],
+            "reaction": "happy",
+        },
+    )
+    assert res.status_code == 200
+    items = res.json()["suggestions"]
+    assert 3 <= len(items) <= 4
+    texts = [s["text"] for s in items]
+    assert any("congrats" in t.lower() or "awesome" in t.lower() for t in texts)
+    # The celebratory replies should be marked with happy tone
+    assert items[0]["tone"] == "happy"
+
+
+def test_suggestions_with_connotation_and_reaction_serious(client):
+    res = client.post(
+        "/api/suggestions",
+        json={
+            "history": [{"speaker": "partner", "text": "you got a job"}],
+            "reaction": "serious",
+        },
+    )
+    assert res.status_code == 200
+    items = res.json()["suggestions"]
+    assert items[0]["tone"] == "serious"
+    assert "serious" in items[0]["text"].lower()
 
 
 def _train(client):
@@ -108,3 +144,42 @@ def test_positive_feedback_becomes_training_sample_negative_does_not(client):
     )
     assert partner.status_code == 201
     assert partner.json()["added_training_sample"] is False
+
+
+def test_excited_is_an_accepted_tone(client):
+    res = client.post("/api/suggestions", json={"history": [], "mood": "excited"})
+    assert res.status_code == 200
+
+
+def test_profile_defaults_then_saves_and_trims(client):
+    default = client.get("/api/profile/u1").json()
+    assert default["name"] == ""
+    assert "I need help" in default["phrases"]  # the shared default phrases
+
+    saved = client.put(
+        "/api/profile/u1",
+        json={
+            "name": "  Sam  ",
+            "relationships": ["daughter Maya", "  ", "friend Leo"],
+            "interests": ["chess"],
+            "common_needs": ["water"],
+            "phrases": ["Hello there", ""],
+        },
+    ).json()
+    assert saved["name"] == "Sam"
+    assert saved["relationships"] == ["daughter Maya", "friend Leo"]  # blanks dropped
+    assert saved["phrases"] == ["Hello there"]
+    assert client.get("/api/profile/u1").json() == saved  # persisted
+
+
+def test_suggestion_prompt_includes_the_profile():
+    from app.schemas import ConversationTurn, UserProfile
+    from app.services.llm import _format_history
+
+    text = _format_history(
+        [ConversationTurn(speaker="partner", text="Hi")],
+        "happy",
+        UserProfile(name="Sam", relationships=["daughter Maya"], interests=["chess"]),
+    )
+    assert "My name is Sam." in text and "daughter Maya" in text and "chess" in text
+    assert "About me" not in _format_history([], None, UserProfile())  # empty profile adds nothing

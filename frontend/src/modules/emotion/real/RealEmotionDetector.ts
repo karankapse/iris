@@ -13,6 +13,8 @@ import { bestGuess, predictProbabilities } from './predict';
 /** How quickly the guess reacts. Smaller = smoother but slower (0.15 is ~half a second at 30 fps). */
 const SMOOTHING = 0.15;
 const MAX_SAMPLES_PER_RECORDING = 30;
+/** After this many new "yes, the tone was right" examples, retrain the personal model automatically. */
+export const RETRAIN_AFTER = 5;
 
 /**
  * Per-user emotion detector: face features in, {emotion, confidence} out.
@@ -25,6 +27,7 @@ export class RealEmotionDetector implements EmotionDetector {
   private model: ApiEmotionModel | null = null;
   private features: number[] | null = null;
   private smoothed: Partial<Record<Emotion, number>> = {};
+  private newSamplesSinceTraining = 0;
 
   constructor() {
     // Use a previously trained model if there is one. Ignore failures (backend may be off).
@@ -69,10 +72,8 @@ export class RealEmotionDetector implements EmotionDetector {
     this.smoothed = {};
   }
 
-  private newFeedbackCount = 0;
-
   async addFeedback(fb: ToneFeedback) {
-    const res = await api.feedback({
+    const result = await api.feedback({
       user_id: USER_ID,
       utterance_id: fb.utteranceId,
       reply_text: fb.replyText,
@@ -83,20 +84,12 @@ export class RealEmotionDetector implements EmotionDetector {
       features: fb.features ?? null,
     });
 
-    // Option 3: Continuous Emotion Retraining
-    // Silently re-train the model after we accumulate a batch of positive feedback
-    // so the user's emotion model improves naturally as they use the app.
-    if (res.added_training_sample) {
-      this.newFeedbackCount++;
-      if (this.newFeedbackCount >= 3) {
-        this.newFeedbackCount = 0;
-        try {
-          await this.train();
-          console.log('[emotion] Model automatically retrained from feedback.');
-        } catch (e) {
-          console.warn('[emotion] Auto-retraining failed:', e);
-        }
-      }
+    // Learning: confirmed tones became training examples on the backend. Every few, retrain, so
+    // the model keeps adapting to this person. (Retraining fails harmlessly until there are two
+    // different emotions to learn from.)
+    if (result.added_training_sample && ++this.newSamplesSinceTraining >= RETRAIN_AFTER) {
+      this.newSamplesSinceTraining = 0;
+      await this.train().catch((e) => console.info('[emotion] retrain skipped:', e?.message ?? e));
     }
   }
 }
