@@ -311,6 +311,35 @@
         "title": "SamplesRequest",
         "type": "object"
       },
+      "SelectVoiceRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "user_id": {
+            "default": "local-user",
+            "title": "User Id",
+            "type": "string"
+          },
+          "voice_id": {
+            "title": "Voice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice_id"
+        ],
+        "title": "SelectVoiceRequest",
+        "type": "object"
+      },
       "SpeakRequest": {
         "properties": {
           "emotion": {
@@ -566,6 +595,29 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VoiceItem": {
+        "properties": {
+          "is_default": {
+            "default": false,
+            "title": "Is Default",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "voice_id": {
+            "title": "Voice Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "voice_id",
+          "name"
+        ],
+        "title": "VoiceItem",
+        "type": "object"
+      },
       "VoiceProfileResponse": {
         "properties": {
           "configured": {
@@ -597,6 +649,14 @@
               }
             ],
             "title": "Voice Id"
+          },
+          "voices": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/VoiceItem"
+            },
+            "title": "Voices",
+            "type": "array"
           }
         },
         "required": [
@@ -1019,6 +1079,47 @@
           }
         },
         "summary": "Get Profile",
+        "tags": [
+          "voice"
+        ]
+      }
+    },
+    "/api/voice/select": {
+      "post": {
+        "operationId": "select_voice_api_voice_select_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelectVoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoiceProfileResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Voice",
         "tags": [
           "voice"
         ]

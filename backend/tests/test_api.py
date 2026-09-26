@@ -25,7 +25,9 @@ def test_suggestions_are_3_or_4_and_valid(client):
     assert res.status_code == 200
     items = res.json()["suggestions"]
     assert 3 <= len(items) <= 4
-    assert all(s["tone"] in {"neutral", "happy", "sad", "joking", "serious"} for s in items)
+    assert all(
+        s["tone"] in {"neutral", "happy", "sad", "excited", "joking", "serious"} for s in items
+    )
 
 
 def test_suggestions_reject_unknown_tone_in_mood(client):
