@@ -1,3 +1,7 @@
+import re
+
+import pytest
+
 from app.services.auth import hash_password, verify_password
 
 ACCOUNT = {"email": "Sam@Example.com", "password": "correct horse", "name": "Sam"}
@@ -100,3 +104,70 @@ def test_change_password_signs_out_other_devices(client):
     assert client.get("/api/auth/me", headers=bearer(other)).status_code == 401  # others signed out
     login = {"email": "sam@example.com", "password": "brand new pw"}
     assert client.post("/api/auth/login", json=login).status_code == 200
+
+
+# ---- emails ---------------------------------------------------------------------------------
+
+
+@pytest.fixture
+def outbox(monkeypatch):
+    """Capture emails instead of sending them."""
+    sent = []
+    monkeypatch.setattr(
+        "app.services.email.send_email",
+        lambda settings, to, subject, body: sent.append(
+            {"to": to, "subject": subject, "body": body}
+        ),
+    )
+    return sent
+
+
+def test_signup_sends_a_welcome_email(client, outbox):
+    client.post("/api/auth/signup", json=ACCOUNT)
+    assert [m["to"] for m in outbox] == ["sam@example.com"]
+    assert "Welcome" in outbox[0]["subject"]
+    assert "correct horse" not in outbox[0]["body"]  # never email a password
+
+
+def test_password_change_sends_a_notice(client, outbox):
+    token = client.post("/api/auth/signup", json=ACCOUNT).json()["token"]
+    client.post(
+        "/api/auth/password",
+        json={"current_password": "correct horse", "new_password": "brand new pw"},
+        headers=bearer(token),
+    )
+    assert outbox[-1]["subject"] == "Your Iris password was changed"
+
+
+def test_forgot_password_emails_a_one_time_link_that_works_once(client, outbox):
+    old = client.post("/api/auth/signup", json=ACCOUNT).json()["token"]
+    assert client.post("/api/auth/forgot", json={"email": "SAM@example.com"}).status_code == 204
+    body = outbox[-1]["body"]
+    token = re.search(r"reset-password\?token=(\S+)", body).group(1)
+
+    res = client.post("/api/auth/reset", json={"token": token, "new_password": "fresh password"})
+    assert res.status_code == 200 and res.json()["user"]["email"] == "sam@example.com"
+    assert client.get("/api/auth/me", headers=bearer(old)).status_code == 401  # old sessions gone
+    login = {"email": "sam@example.com", "password": "fresh password"}
+    assert client.post("/api/auth/login", json=login).status_code == 200
+    again = client.post("/api/auth/reset", json={"token": token, "new_password": "another one"})
+    assert again.status_code == 400  # one use only
+
+
+def test_forgot_password_does_not_reveal_unknown_emails(client, outbox):
+    assert client.post("/api/auth/forgot", json={"email": "nobody@x.com"}).status_code == 204
+    assert outbox == []
+
+
+def test_bad_reset_token_is_rejected(client):
+    res = client.post("/api/auth/reset", json={"token": "made-up", "new_password": "whatever12"})
+    assert res.status_code == 400
+
+
+def test_without_smtp_the_email_is_logged_not_lost(caplog):
+    from app.config import Settings
+    from app.services.email import send_email
+
+    with caplog.at_level("WARNING", logger="iris.email"):
+        assert send_email(Settings(smtp_host=""), "a@b.c", "Hello", "Body text") is False
+    assert "SMTP not configured" in caplog.text and "Body text" in caplog.text

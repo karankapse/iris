@@ -125,3 +125,20 @@ export async function changePassword(currentPassword: string, newPassword: strin
     new_password: newPassword,
   });
 }
+
+/** Emails a reset link (if the account exists: the answer is the same either way). */
+export async function forgotPassword(email: string) {
+  const res = await fetch('/api/auth/forgot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error(`Request failed (${res.status})`);
+}
+
+/** Sets a new password from an emailed link, and signs in. */
+export async function resetPassword(token: string, newPassword: string): Promise<User> {
+  const r = await post('/api/auth/reset', { token, new_password: newPassword });
+  setSession({ token: r.token, user: r.user });
+  return r.user;
+}

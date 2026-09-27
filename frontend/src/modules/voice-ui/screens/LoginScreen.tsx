@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { login, signup } from '../../../core/auth';
+import { forgotPassword, login, signup } from '../../../core/auth';
 
 /**
  * Log in / create an account. Usually filled in by a caregiver (typing isn't possible with the
@@ -7,7 +7,10 @@ import { login, signup } from '../../../core/auth';
  * model are saved under it.
  */
 export function LoginScreen({ onDone }: { onDone: () => void }) {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(() =>
+    new URLSearchParams(location.search).get('forgot') === '1' ? 'forgot' : 'login',
+  );
+  const [sent, setSent] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -19,6 +22,11 @@ export function LoginScreen({ onDone }: { onDone: () => void }) {
     setBusy(true);
     setError(null);
     try {
+      if (mode === 'forgot') {
+        await forgotPassword(email);
+        setSent(true);
+        return;
+      }
       if (mode === 'signup') await signup(email, password, name);
       else await login(email, password);
       onDone();
@@ -83,24 +91,53 @@ export function LoginScreen({ onDone }: { onDone: () => void }) {
             autoComplete="email"
           />
         </label>
-        <label className="field">
-          <strong>Password</strong>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={mode === 'signup' ? 8 : undefined}
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-          />
-          {mode === 'signup' && <span className="help">At least 8 characters.</span>}
-        </label>
+        {mode !== 'forgot' && (
+          <label className="field">
+            <strong>Password</strong>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={mode === 'signup' ? 8 : undefined}
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            />
+            {mode === 'signup' && <span className="help">At least 8 characters.</span>}
+          </label>
+        )}
+
+        {mode === 'forgot' && (
+          <p className="muted">
+            Enter the account&apos;s email and we&apos;ll send a link to choose a new password.
+          </p>
+        )}
+        {sent && (
+          <p className="msg">
+            If that email has an account, a reset link is on its way. Check the inbox (and spam).
+          </p>
+        )}
 
         {error && <p className="msg error">{error}</p>}
 
         <button className="login-submit" type="submit" disabled={busy}>
-          {busy ? 'One moment…' : mode === 'signup' ? 'Create account' : 'Log in'}
+          {busy
+            ? 'One moment…'
+            : mode === 'signup'
+              ? 'Create account'
+              : mode === 'forgot'
+                ? 'Send reset link'
+                : 'Log in'}
         </button>
+        {mode === 'login' && (
+          <button type="button" className="link-button" onClick={() => setMode('forgot')}>
+            Forgot password?
+          </button>
+        )}
+        {mode === 'forgot' && (
+          <button type="button" className="link-button" onClick={() => setMode('login')}>
+            ← Back to log in
+          </button>
+        )}
       </form>
     </main>
   );

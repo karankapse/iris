@@ -11,6 +11,7 @@ import {
   SettingsPage,
 } from '../modules/voice-ui/screens/pages';
 import { PartnerView } from '../modules/voice-ui/screens/PartnerView';
+import { ResetPasswordScreen } from '../modules/voice-ui/screens/ResetPasswordScreen';
 import { ToneTester } from '../modules/voice-ui/screens/ToneTester';
 import { AppProvider } from './AppContext';
 
@@ -35,6 +36,7 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
+        <Route path="/reset-password" element={<ResetPasswordScreen />} />
         {/* the partner's second window: open to anyone, it only mirrors the main window */}
         <Route path="/partner" element={<PartnerView />} />
         <Route

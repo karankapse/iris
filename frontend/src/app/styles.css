@@ -1495,3 +1495,13 @@ kbd {
     padding: 16px;
   }
 }
+.link-button {
+  background: none;
+  border: 0;
+  color: #9fd1ff;
+  cursor: pointer;
+  font-size: 0.95rem;
+  text-align: center;
+  text-decoration: underline;
+  padding: 4px;
+}

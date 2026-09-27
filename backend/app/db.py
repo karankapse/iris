@@ -10,6 +10,12 @@ from contextlib import closing
 from pathlib import Path
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS password_resets (
+    token_hash TEXT PRIMARY KEY,   -- sha256 of the emailed token
+    user_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,           -- random id; used as user_id everywhere else
     email TEXT NOT NULL UNIQUE,    -- stored lowercase
@@ -280,3 +286,27 @@ class Database:
                 "DELETE FROM sessions WHERE user_id = ? AND token_hash != ?",
                 (user_id, keep_token_hash),
             )
+
+    def add_password_reset(self, token_hash: str, user_id: str, expires_at: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
+                (token_hash, user_id, expires_at),
+            )
+
+    def use_password_reset(self, token_hash: str, now: str) -> str | None:
+        """The user id if the token is valid (unused, not expired); marks it used. Else None."""
+        with closing(self._connect()) as conn, conn:
+            row = conn.execute(
+                "SELECT user_id FROM password_resets WHERE token_hash = ? AND used = 0"
+                " AND expires_at > ?",
+                (token_hash, now),
+            ).fetchone()
+            if not row:
+                return None
+            conn.execute("UPDATE password_resets SET used = 1 WHERE token_hash = ?", (token_hash,))
+            return row["user_id"]
+
+    def delete_all_sessions(self, user_id: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))

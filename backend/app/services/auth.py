@@ -12,6 +12,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 SESSION_DAYS = 30
+RESET_MINUTES = 30
 _SCRYPT = {"n": 2**14, "r": 8, "p": 1, "dklen": 32}
 
 
@@ -50,3 +51,7 @@ def expiry_iso() -> str:
 
 def new_user_id() -> str:
     return "u_" + secrets.token_hex(8)
+
+
+def reset_expiry_iso() -> str:
+    return (datetime.now(UTC) + timedelta(minutes=RESET_MINUTES)).isoformat()
