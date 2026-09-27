@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Log every raw event from Muse (transcripts included). For debugging the protocol only.
     stt_debug: bool = False
 
+    # --- ElevenLabs Voice Cloning & Expressive Emotional TTS (/api/voice/*) ---
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id: str = "CwhRBWXzGAHq8TQ4Fs17"
+    elevenlabs_model: str = "eleven_multilingual_v2"
+
     @property
     def use_mock_llm(self) -> bool:
         return self.mock_llm or not self.anthropic_api_key

@@ -89,6 +89,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/profile/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Profile
+         * @description The saved profile, or an empty one with the default quick phrases.
+         */
+        get: operations["get_profile_api_profile__user_id__get"];
+        /** Put Profile */
+        put: operations["put_profile_api_profile__user_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/suggestions": {
         parameters: {
             query?: never;
@@ -106,10 +127,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/voice/clone": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Clone Voice */
+        post: operations["clone_voice_api_voice_clone_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/voice/profile/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Profile */
+        get: operations["get_profile_api_voice_profile__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/voice/select": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Select Voice */
+        post: operations["select_voice_api_voice_select_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/voice/speak": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Speak */
+        post: operations["speak_api_voice_speak_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_clone_voice_api_voice_clone_post */
+        Body_clone_voice_api_voice_clone_post: {
+            /** Duration */
+            duration?: number | null;
+            /** File */
+            file: string;
+            /** Name */
+            name: string;
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+        };
         /** ConversationTurn */
         ConversationTurn: {
             /**
@@ -130,17 +233,25 @@ export interface components {
          *         probabilities = softmax(logits)
          */
         EmotionModel: {
-            /** Classes */
-            classes: ("neutral" | "happy" | "sad" | "joking" | "serious")[];
             /**
-             * Coef
-             * @description shape: [len(classes)][len(feature_names)]
+             * Accuracy
+             * @description Cross-validated accuracy (0.0 to 1.0), or None if not enough data to measure.
              */
-            coef: number[][];
+            accuracy?: number | null;
+            /** Classes */
+            classes: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious")[];
+            /**
+             * Coefs
+             * @description Weight matrices for each layer
+             */
+            coefs: number[][][];
             /** Feature Names */
             feature_names: string[];
-            /** Intercept */
-            intercept: number[];
+            /**
+             * Intercepts
+             * @description Bias vectors for each layer
+             */
+            intercepts: number[][];
             /** Means */
             means: number[];
             /** N Samples */
@@ -161,7 +272,7 @@ export interface components {
              * Label
              * @enum {string}
              */
-            label: "neutral" | "happy" | "sad" | "joking" | "serious";
+            label: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
             /**
              * Source
              * @default calibration
@@ -192,7 +303,7 @@ export interface components {
              * Spoken Tone
              * @enum {string}
              */
-            spoken_tone: "neutral" | "happy" | "sad" | "joking" | "serious";
+            spoken_tone: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
             /** User Id */
             user_id: string;
             /**
@@ -217,6 +328,36 @@ export interface components {
             /** User Id */
             user_id: string;
         };
+        /** SelectVoiceRequest */
+        SelectVoiceRequest: {
+            /** Name */
+            name?: string | null;
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+            /** Voice Id */
+            voice_id: string;
+        };
+        /** SpeakRequest */
+        SpeakRequest: {
+            /**
+             * Emotion
+             * @default neutral
+             * @enum {string}
+             */
+            emotion: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
+            /** Text */
+            text: string;
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+            /** Voice Id */
+            voice_id?: string | null;
+        };
         /** Suggestion */
         Suggestion: {
             /** Id */
@@ -231,7 +372,7 @@ export interface components {
              * @description The emotional tone this reply is best spoken with
              * @enum {string}
              */
-            tone: "neutral" | "happy" | "sad" | "joking" | "serious";
+            tone: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
         };
         /** SuggestionsRequest */
         SuggestionsRequest: {
@@ -244,7 +385,14 @@ export interface components {
              * Mood
              * @description The user's persistent mood setting, if any
              */
-            mood?: ("neutral" | "happy" | "sad" | "joking" | "serious") | null;
+            mood?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /** @description Who the user is, so replies feel personal */
+            profile?: components["schemas"]["UserProfile"] | null;
+            /**
+             * Reaction
+             * @description The user's immediate emotional reaction / facial expression to what was said
+             */
+            reaction?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
         };
         /** SuggestionsResponse */
         SuggestionsResponse: {
@@ -255,6 +403,34 @@ export interface components {
         TrainRequest: {
             /** User Id */
             user_id: string;
+        };
+        /**
+         * UserProfile
+         * @description Optional info that makes suggestions feel personal, plus the quick-access phrases.
+         */
+        UserProfile: {
+            /**
+             * Common Needs
+             * @description e.g. "water", "pillow"
+             */
+            common_needs?: string[];
+            /** Interests */
+            interests?: string[];
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /**
+             * Phrases
+             * @description Quick-access phrases
+             */
+            phrases?: string[];
+            /**
+             * Relationships
+             * @description e.g. "daughter Maya"
+             */
+            relationships?: string[];
         };
         /** ValidationError */
         ValidationError: {
@@ -268,6 +444,34 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** VoiceItem */
+        VoiceItem: {
+            /**
+             * Is Default
+             * @default false
+             */
+            is_default: boolean;
+            /** Name */
+            name: string;
+            /** Voice Id */
+            voice_id: string;
+        };
+        /** VoiceProfileResponse */
+        VoiceProfileResponse: {
+            /** Configured */
+            configured: boolean;
+            /** Name */
+            name: string | null;
+            /** User Id */
+            user_id: string;
+            /** Voice Id */
+            voice_id: string | null;
+            /**
+             * Voices
+             * @default []
+             */
+            voices: components["schemas"]["VoiceItem"][];
         };
     };
     responses: never;
@@ -434,6 +638,72 @@ export interface operations {
             };
         };
     };
+    get_profile_api_profile__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_profile_api_profile__user_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserProfile"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserProfile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     suggestions_api_suggestions_post: {
         parameters: {
             query?: never;
@@ -454,6 +724,138 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuggestionsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    clone_voice_api_voice_clone_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_clone_voice_api_voice_clone_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_profile_api_voice_profile__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    select_voice_api_voice_select_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SelectVoiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VoiceProfileResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    speak_api_voice_speak_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SpeakRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

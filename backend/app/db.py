@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS emotion_models (
     model TEXT NOT NULL,           -- JSON of EmotionModel
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS profiles (
+    user_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,            -- JSON of UserProfile
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
@@ -33,6 +38,20 @@ CREATE TABLE IF NOT EXISTS feedback (
     user_tone_ok INTEGER,          -- NULL / 0 / 1
     partner_reaction TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS voice_profiles (
+    user_id TEXT PRIMARY KEY,
+    voice_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS voices (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    voice_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, voice_id)
 );
 """
 
@@ -132,3 +151,59 @@ class Database:
                 "SELECT COUNT(*) AS n FROM feedback WHERE user_id = ?", (user_id,)
             ).fetchone()
             return row["n"]
+
+    # ---- voice profiles & voices --------------------------------------------
+    def set_voice_profile(self, user_id: str, voice_id: str, name: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO voice_profiles (user_id, voice_id, name) VALUES (?, ?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET voice_id = excluded.voice_id,"
+                " name = excluded.name, updated_at = CURRENT_TIMESTAMP",
+                (user_id, voice_id, name),
+            )
+            conn.execute(
+                "INSERT INTO voices (user_id, voice_id, name) VALUES (?, ?, ?)"
+                " ON CONFLICT(user_id, voice_id) DO UPDATE SET name = excluded.name",
+                (user_id, voice_id, name),
+            )
+
+    def get_voice_profile(self, user_id: str) -> dict | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT user_id, voice_id, name FROM voice_profiles WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_voices(self, user_id: str) -> list[dict]:
+        with closing(self._connect()) as conn, conn:
+            # Sync any legacy voice in voice_profiles to voices
+            active = conn.execute(
+                "SELECT voice_id, name FROM voice_profiles WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+            if active:
+                conn.execute(
+                    "INSERT OR IGNORE INTO voices (user_id, voice_id, name) VALUES (?, ?, ?)",
+                    (user_id, active["voice_id"], active["name"]),
+                )
+            rows = conn.execute(
+                "SELECT voice_id, name FROM voices WHERE user_id = ? ORDER BY id ASC",
+                (user_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ---- profile -------------------------------------------------------------
+    def save_profile(self, user_id: str, profile_json: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO profiles (user_id, data) VALUES (?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET data = excluded.data,"
+                " updated_at = CURRENT_TIMESTAMP",
+                (user_id, profile_json),
+            )
+
+    def get_profile(self, user_id: str) -> str | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute("SELECT data FROM profiles WHERE user_id = ?", (user_id,)).fetchone()
+            return row["data"] if row else None

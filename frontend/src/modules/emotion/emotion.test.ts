@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { api } from '../../core/api';
+import { RETRAIN_AFTER, RealEmotionDetector } from './real/RealEmotionDetector';
 import type { FaceFrame } from '../../contracts';
 import type { ApiEmotionModel } from '../../core/api';
 import { extractFeatures, FEATURE_NAMES, subsample } from './features';
@@ -49,11 +51,13 @@ const model: ApiEmotionModel = {
   classes: ['happy', 'serious'],
   means: [0.5, 0.5],
   scales: [0.5, 0.5],
-  coef: [
-    [2, -2],
-    [-2, 2],
+  coefs: [
+    [
+      [2, -2],
+      [-2, 2],
+    ],
   ],
-  intercept: [0, 0],
+  intercepts: [[0, 0]],
   n_samples: 10,
 };
 
@@ -67,5 +71,51 @@ describe('predictProbabilities', () => {
 
   it('treats missing features as 0 instead of crashing', () => {
     expect(() => predictProbabilities(model, {})).not.toThrow();
+  });
+});
+
+describe('automatic retraining from feedback', () => {
+  const feedback = (n: number) => ({
+    utteranceId: `u${n}`,
+    replyText: 'hi',
+    spokenTone: 'happy' as const,
+    userToneOk: true,
+    features: [0.5],
+  });
+
+  it(`retrains after ${RETRAIN_AFTER} confirmed examples, not before`, async () => {
+    vi.spyOn(api, 'getModel').mockResolvedValue(null);
+    vi.spyOn(api, 'feedback').mockResolvedValue({ stored: true, added_training_sample: true });
+    const train = vi.spyOn(api, 'train').mockResolvedValue(model);
+    const detector = new RealEmotionDetector();
+
+    for (let i = 1; i < RETRAIN_AFTER; i++) await detector.addFeedback(feedback(i));
+    expect(train).not.toHaveBeenCalled();
+    await detector.addFeedback(feedback(RETRAIN_AFTER));
+    expect(train).toHaveBeenCalledTimes(1);
+    vi.restoreAllMocks();
+  });
+
+  it('feedback that did not become a training example does not count toward retraining', async () => {
+    vi.spyOn(api, 'getModel').mockResolvedValue(null);
+    vi.spyOn(api, 'feedback').mockResolvedValue({ stored: true, added_training_sample: false });
+    const train = vi.spyOn(api, 'train').mockResolvedValue(model);
+    const detector = new RealEmotionDetector();
+    for (let i = 0; i < RETRAIN_AFTER * 2; i++) await detector.addFeedback(feedback(i));
+    expect(train).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it('a failed retrain (e.g. only one emotion so far) does not break the app', async () => {
+    vi.spyOn(api, 'getModel').mockResolvedValue(null);
+    vi.spyOn(api, 'feedback').mockResolvedValue({ stored: true, added_training_sample: true });
+    vi.spyOn(api, 'train').mockRejectedValue(
+      new Error('Need examples of at least 2 different emotions'),
+    );
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const detector = new RealEmotionDetector();
+    for (let i = 0; i < RETRAIN_AFTER; i++) await detector.addFeedback(feedback(i));
+    expect(info).toHaveBeenCalled();
+    vi.restoreAllMocks();
   });
 });

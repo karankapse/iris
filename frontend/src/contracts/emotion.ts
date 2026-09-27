@@ -4,7 +4,7 @@
 import type { FaceFrame } from './face';
 
 /** Keep in sync with `Emotion` in backend/app/schemas/common.py (CI checks this). */
-export const EMOTIONS = ['neutral', 'happy', 'sad', 'joking', 'serious'] as const;
+export const EMOTIONS = ['neutral', 'happy', 'sad', 'excited', 'joking', 'serious'] as const;
 export type Emotion = (typeof EMOTIONS)[number];
 
 export interface EmotionEstimate {
@@ -43,4 +43,7 @@ export interface EmotionDetector {
 
   // --- learning: called after each spoken reply ---
   addFeedback(feedback: ToneFeedback): Promise<void>;
+
+  /** Info about the currently loaded personalized model (if trained). */
+  readonly modelStats?: { nSamples: number; accuracy: number | null } | null;
 }

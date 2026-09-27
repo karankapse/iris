@@ -1,4 +1,4 @@
-import type { Emotion, TtsProvider } from '../../../contracts';
+import type { Emotion, SpeakOptions, TtsProvider } from '../../../contracts';
 import { EMOTION_PROFILES } from './emotionProfiles';
 
 /**
@@ -7,7 +7,7 @@ import { EMOTION_PROFILES } from './emotionProfiles';
  * hear the difference between tones and to build the whole app around.
  */
 export class BrowserTts implements TtsProvider {
-  speak(text: string, emotion: Emotion): Promise<void> {
+  speak(text: string, emotion: Emotion, options: SpeakOptions = {}): Promise<void> {
     return new Promise((resolve) => {
       if (!('speechSynthesis' in window)) {
         console.warn('[tts] speechSynthesis is not available in this browser');
@@ -17,7 +17,8 @@ export class BrowserTts implements TtsProvider {
       window.speechSynthesis.cancel(); // never overlap two replies
       const profile = EMOTION_PROFILES[emotion];
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = profile.rate;
+      // The user's speed setting scales the tone's own rate (limits of speechSynthesis: 0.1 to 10).
+      utterance.rate = Math.min(10, Math.max(0.1, profile.rate * (options.speed ?? 1)));
       utterance.pitch = profile.pitch;
       utterance.volume = profile.volume;
       // Resolve on both normal end and errors (cancel() triggers an 'interrupted' error).
