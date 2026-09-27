@@ -24,6 +24,15 @@ import {
   type Zone,
 } from './corners';
 import { GazeStepper } from './gaze';
+import {
+  DEFAULT_GLANCE,
+  GlanceStepper,
+  glanceFromSamples,
+  glanceValue,
+  loadGlance,
+  saveGlance,
+  type GlanceTuning,
+} from './glance';
 import { nearestZone, saveCentroids, ScreenZoneTracker, type GazeCentroids } from './screenZones';
 import {
   loadTuning,
@@ -184,6 +193,11 @@ export class RealEyeInput implements EyeInput {
 
   private unsubscribe: (() => void) | null = null;
   private mode: EyeMode = 'full';
+  // glance mode
+  private glanceTuning: GlanceTuning = loadGlance() ?? DEFAULT_GLANCE;
+  private glance = new GlanceStepper(this.glanceTuning);
+  /** When the highlight last moved (dwell counts from here); null = set on the next frame. */
+  private glanceMovedAt: number | null = null;
   private optionCount = 0;
   private highlighted: number | null = null;
   private lastProgress = 0;
@@ -231,8 +245,18 @@ export class RealEyeInput implements EyeInput {
     this.stepper.reset();
     this.armed = false; // no dwell-select on a fresh screen until the gaze has rested at the centre
     this.dwellZone = null;
+    this.glance.reset();
+    this.glanceMovedAt = null;
     const index =
-      this.mode === 'full' ? this.optionAt(this.currentZone) : optionCount > 0 ? 0 : null;
+      this.mode === 'full'
+        ? this.optionAt(this.currentZone)
+        : this.mode === 'glance'
+          ? optionCount > 0
+            ? Math.floor((optionCount - 1) / 2) // start in the middle
+            : null
+          : optionCount > 0
+            ? 0
+            : null;
     this.setHighlight(index, 0);
   }
 
@@ -270,7 +294,13 @@ export class RealEyeInput implements EyeInput {
     return {
       region: this.mode === 'full' ? this.currentZone : null,
       calibrated:
-        this.mode !== 'full' ? true : this.gaze ? screenCalibrated() : this.savedModel !== null,
+        this.mode === 'glance'
+          ? loadGlance() !== null
+          : this.mode !== 'full'
+            ? true
+            : this.gaze
+              ? screenCalibrated()
+              : this.savedModel !== null,
       accuracy: this.accuracy,
     };
   }
@@ -293,6 +323,8 @@ export class RealEyeInput implements EyeInput {
       this.corners.reset();
       this.dwellZone = null;
       this.armed = false;
+      this.glanceMovedAt = null;
+      this.glance.reset();
     }
     this.lastFrameAt = frame.t;
 
@@ -302,7 +334,9 @@ export class RealEyeInput implements EyeInput {
     // Eyes roll while closing and opening, so freeze gaze around blinks.
     this.settling = this.blink.closed || frame.t - this.blinkEndedAt < this.tuning.settleMs;
 
-    if (this.mode === 'full') {
+    if (this.mode === 'glance') {
+      this.onFrameGlance(frame, outcome, progress);
+    } else if (this.mode === 'full') {
       // With screen gaze, zones come from onGaze(); here only the blink can act on the current zone.
       // Preferred: the iris-based classifier trained on this person's calibration (MediaPipe sees
       // the eyes far more precisely than WebGazer's eye crops). WebGazer is only the fallback.
@@ -315,6 +349,36 @@ export class RealEyeInput implements EyeInput {
 
     // holding the eyes closed cancels; so does a double blink, if the user turned that on
     if (outcome === 'cancel' || outcome === 'double') this.emitter.emit({ type: 'cancel' });
+  }
+
+  /**
+   * GLANCE mode: a glance left/right moves the highlight one option; staying on an option for the
+   * dwell time (7 s by default) selects it, and so does a deliberate blink.
+   */
+  private onFrameGlance(frame: FaceFrame, outcome: BlinkOutcome, blinkProgress: number) {
+    const t = frame.t;
+    if (this.glanceMovedAt === null) this.glanceMovedAt = t;
+    let index = this.highlighted;
+
+    const step = this.glance.update(t, glanceValue(frame, this.glanceTuning.signal), this.settling);
+    if (step !== 0 && this.optionCount > 0 && index !== null) {
+      const next = Math.max(0, Math.min(this.optionCount - 1, index + step));
+      if (next !== index) {
+        index = next;
+        this.glanceMovedAt = t; // moving restarts the countdown
+      }
+    }
+
+    let dwell = 0;
+    if (index !== null && !this.settling) {
+      dwell = Math.min(1, (t - this.glanceMovedAt) / this.tuning.dwellMs);
+    }
+    if (index !== null && (outcome === 'select' || dwell >= 1)) {
+      this.select(index);
+      this.glanceMovedAt = t; // (the screen usually changes; if not, count again from now)
+      dwell = 0;
+    }
+    this.setHighlight(index, Math.max(blinkProgress, dwell));
   }
 
   /** A screen-gaze estimate (WebGazer or the mouse): decide which box it is in. */
@@ -412,6 +476,7 @@ export class RealEyeInput implements EyeInput {
   // ---- calibration ---------------------------------------------------------------------
   async calibrate(onStep?: (step: CalibrationStep) => void): Promise<string[]> {
     if (this.collector || this.calibrating) throw new Error('Calibration is already running.');
+    if (this.mode === 'glance') return this.calibrateGlance(onStep);
     if (this.gaze && this.mode === 'full') return this.calibrateScreen(onStep);
 
     const steps = this.mode === 'full' ? FULL_STEPS : VERTICAL_STEPS;
@@ -687,6 +752,86 @@ export class RealEyeInput implements EyeInput {
       this.armed = false;
     }
     for (const w of warnings) console.warn('[eye calibration]', w);
+    return warnings;
+  }
+
+  // ---- calibration for GLANCE mode: straight, left, right, eyes closed (~11 s) ------------------
+  private async calibrateGlance(onStep?: (step: CalibrationStep) => void): Promise<string[]> {
+    const steps = [
+      { key: 'center', target: 'center', prompt: 'Look straight at the middle', seconds: 3 },
+      {
+        key: 'left',
+        target: 'left',
+        prompt: 'Glance LEFT (just your eyes) and hold',
+        seconds: 2.5,
+      },
+      {
+        key: 'right',
+        target: 'right',
+        prompt: 'Glance RIGHT (just your eyes) and hold',
+        seconds: 2.5,
+      },
+      {
+        key: 'closed',
+        target: 'closed',
+        prompt: 'Close your eyes gently and keep them closed',
+        seconds: 2.5,
+      },
+    ] as const;
+    const frames: Record<string, FaceFrame[]> = {};
+    this.calibrating = true;
+    try {
+      for (const [i, step] of steps.entries()) {
+        onStep?.({
+          target: step.target,
+          prompt: step.prompt,
+          seconds: step.seconds,
+          index: i + 1,
+          total: steps.length,
+        });
+        const collected: FaceFrame[] = [];
+        const startedAt = performance.now();
+        this.collector = (f) => {
+          if (f.t - startedAt >= CALIBRATION_REACTION_MS) collected.push(f);
+        };
+        await new Promise((r) => setTimeout(r, step.seconds * 1000));
+        this.collector = null;
+        if (collected.length < MIN_CALIBRATION_FRAMES) {
+          throw new Error(
+            `I couldn't see the face during "${step.prompt}". Check the camera and lighting.`,
+          );
+        }
+        frames[step.key] = collected;
+      }
+    } finally {
+      this.collector = null;
+      this.calibrating = false;
+    }
+
+    const { tuning, warnings } = glanceFromSamples(
+      { center: frames.center, left: frames.left, right: frames.right },
+      this.glanceTuning,
+    );
+    console.info('[glance calibration]', JSON.stringify(tuning));
+    this.glanceTuning = tuning;
+    this.glance.setTuning(tuning);
+    saveGlance(tuning);
+
+    // blink thresholds from the same session
+    const open = median(frames.center.map(blinkScore));
+    const closed = median(frames.closed.map(blinkScore));
+    if (closed - open >= 0.25) {
+      this.tuning = {
+        ...this.tuning,
+        blinkClose: open + (closed - open) * 0.6,
+        blinkOpen: open + (closed - open) * 0.35,
+      };
+      this.blink.setTuning(this.tuning);
+      saveTuning(this.tuning);
+    } else {
+      warnings.push('Closed eyes were hard to tell apart from open eyes.');
+    }
+    this.glanceMovedAt = null;
     return warnings;
   }
 }

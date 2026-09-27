@@ -300,9 +300,9 @@ export function SetupPanel({
             ) : (
               <>
                 <p>
-                  Each column lights up in turn: look at the words at the bottom of it. Then look at
-                  the middle (resting), close your eyes briefly, and a short accuracy check. About
-                  40 seconds. Keep your head still.
+                  About 11 seconds: look straight, glance LEFT, glance RIGHT (just the eyes, head
+                  still), then close your eyes briefly. This learns how far this person&apos;s eyes
+                  move. (In &quot;Look at an option&quot; mode each column lights up instead.)
                 </p>
                 <button onClick={calibrateEyes} disabled={busy !== null}>
                   Calibrate eyes

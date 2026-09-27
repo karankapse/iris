@@ -22,7 +22,7 @@ export function MainScreen({ services }: { services: Services }) {
   // Not calibrated yet? Open the setup straight away: eye control is guesswork without it.
   const needsCalibration =
     services.usesCamera &&
-    view.eyeMode === 'full' &&
+    view.eyeMode !== 'vertical' &&
     services.eyeInput.status?.().calibrated === false;
   const [showSetup, setShowSetup] = useState(needsCalibration);
   const [firstRun] = useState(needsCalibration);
@@ -111,7 +111,7 @@ export function MainScreen({ services }: { services: Services }) {
   return (
     <>
       {showDot && services.gaze && <GazeDot services={services} />}
-      {eyeMode === 'full' ? (
+      {eyeMode !== 'vertical' ? (
         <ColumnLayout
           orchestrator={orchestrator}
           view={view}

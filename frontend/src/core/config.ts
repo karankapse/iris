@@ -21,14 +21,15 @@ export const flags = {
     (import.meta.env.VITE_STT_PROVIDER as 'mock' | 'auto' | 'muse' | 'webspeech' | undefined) ??
     'mock',
   /**
-   * How "where on the screen am I looking" is measured (real eye input only):
-   *   'webgazer'  WebGazer learns your gaze from calibration dots (default)
-   *   'mediapipe' the older approach: a classifier over MediaPipe face signals
+   * How "where on the screen am I looking" is measured, for "Look at an option" mode.
+   * (The default glance mode reads eye movement directly and needs none of these.)
+   *   'mediapipe' a per-person classifier over MediaPipe's iris/eye signals (default)
+   *   'webgazer'  WebGazer learns your gaze from calibration dots (a second camera stream)
    *   'mouse'     the mouse pointer stands in for the gaze (development, no camera needed)
    */
   gazeEngine:
     (import.meta.env.VITE_GAZE_ENGINE as 'webgazer' | 'mediapipe' | 'mouse' | undefined) ??
-    'webgazer',
+    'mediapipe',
   mockConversation: isMock(import.meta.env.VITE_MOCK_CONVERSATION),
   /** 'cloned' = ElevenLabs with BrowserTts fallback (default), 'browser' = speechSynthesis only, 'silent' = no sound. */
   tts:

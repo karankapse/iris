@@ -23,7 +23,7 @@ export interface View {
   profile: UserProfile;
 }
 
-const STORAGE = { mood: 'iris.mood', eyeMode: 'iris.eyeMode', profile: 'iris.profile' };
+const STORAGE = { mood: 'iris.mood', eyeMode: 'iris.eyeMode.v2', profile: 'iris.profile' };
 
 const EMPTY_PROFILE: UserProfile = {
   name: '',
@@ -88,7 +88,7 @@ export class Orchestrator {
       highlight: null,
       dwell: 0,
       stt: { state: 'off', engine: '' },
-      eyeMode: load(STORAGE.eyeMode, ['full', 'vertical'] as const) ?? 'full',
+      eyeMode: load(STORAGE.eyeMode, ['glance', 'full', 'vertical'] as const) ?? 'glance',
     };
   }
 
