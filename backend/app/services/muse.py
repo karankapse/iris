@@ -61,16 +61,19 @@ def normalize_event(raw: str | bytes, debug: bool = False) -> dict | None:
         log.info("muse event: %s", event)
 
     kind = event.get("type")
+    # In ENDPOINTING mode Muse ends each sentence with "speechComplete", which carries the whole
+    # transcript. That is the partner's finished turn, so it is what triggers reply suggestions.
+    # (Its own `final: true` transcript only arrives when the stream ends, and is empty.)
+    if kind == "speechComplete":
+        text = str(event.get("transcript") or "").strip()
+        # My fix: Even if text is empty, send final=True so the frontend can fallback to interim
+        return {"type": "transcript", "text": text, "final": True}
     if kind == "transcript":
         text = str(event.get("transcript") or "").strip()
         if not text:
             return None
-        return {"type": "transcript", "text": text, "final": bool(event.get("final"))}
-    if kind == "speechComplete":
-        # In ENDPOINTING mode Muse delivers the finished sentence here (its own "final"
-        # transcript event can arrive empty), so this is the one that ends a turn.
-        text = str(event.get("transcript") or "").strip()
-        return {"type": "transcript", "text": text, "final": True}
+        # partial words as they arrive (finals come from speechComplete above)
+        return {"type": "transcript", "text": text, "final": False}
     if kind == "error":
         return {"type": "error", "message": str(event.get("message") or "Muse error")}
     # The handshake acknowledgement has a sessionId and no "type" field.

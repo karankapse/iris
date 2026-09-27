@@ -20,13 +20,19 @@ export function MainScreen({ services }: { services: Services }) {
   const { orchestrator, view } = useOrchestrator(services);
   const { machine, eyeMode, stt } = view;
   const [draft, setDraft] = useState('');
-  const [showSetup, setShowSetup] = useState(false);
+  // Not calibrated yet? Open the setup straight away: eye control is guesswork without it.
+  const needsCalibration =
+    services.usesCamera &&
+    view.eyeMode === 'full' &&
+    services.eyeInput.status?.().calibrated === false;
+  const [showSetup, setShowSetup] = useState(needsCalibration);
+  const [firstRun] = useState(needsCalibration);
   const [showMenu, setShowMenu] = useState(false);
   const [showDot, setShowDot] = useState(() => {
     try {
-      return localStorage.getItem('iris.showGazeDot') !== '0';
+      return localStorage.getItem('iris.showGazeDot.v2') === '1'; // off by default: the box lights up instead
     } catch {
-      return true;
+      return false;
     }
   });
   // Debug overlay (Alt+D) and tuning panel (Alt+T): remembered across reloads.
@@ -61,7 +67,7 @@ export function MainScreen({ services }: { services: Services }) {
   const toggleDot = (on: boolean) => {
     setShowDot(on);
     try {
-      localStorage.setItem('iris.showGazeDot', on ? '1' : '0');
+      localStorage.setItem('iris.showGazeDot.v2', on ? '1' : '0');
     } catch {
       /* ignore */
     }
@@ -214,6 +220,7 @@ export function MainScreen({ services }: { services: Services }) {
           services={services}
           orchestrator={orchestrator}
           onClose={() => setShowSetup(false)}
+          firstRun={firstRun}
         />
       )}
     </>

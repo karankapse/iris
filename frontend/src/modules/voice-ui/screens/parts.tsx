@@ -23,7 +23,7 @@ export function PartnerSaid({ machine }: { machine: State }) {
   // (unless the reader has scrolled up to read something earlier).
   const box = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
-  const text = `${machine.interim}|${machine.partnerText}|${machine.heldPartner}`;
+  const text = `${machine.interim}|${machine.partnerText}`;
   useEffect(() => {
     const el = box.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
@@ -44,7 +44,7 @@ export function PartnerSaid({ machine }: { machine: State }) {
             {/* busy choosing a reply: keep what they're answering; newer speech waits below */}
             <p>{machine.partnerText || '—'}</p>
             {/* only finished sentences, not live words, so it doesn't keep growing on screen */}
-            {machine.heldPartner && <p className="also-said">Also said: {machine.heldPartner}</p>}
+            
           </>
         )}
       </div>

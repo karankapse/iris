@@ -39,10 +39,13 @@ export function SetupPanel({
   services,
   orchestrator,
   onClose,
+  firstRun = false,
 }: {
   services: Services;
   orchestrator: Orchestrator;
   onClose: () => void;
+  /** Opened automatically because the eyes have never been calibrated. */
+  firstRun?: boolean;
 }) {
   const { eyeInput, emotion, faceTracker, mocks } = services;
   const [busy, setBusy] = useState<string | null>(null);
@@ -250,6 +253,10 @@ export function SetupPanel({
     <>
       {step && (
         <div className="calib-overlay" role="dialog" aria-label="Eye calibration">
+          {/* light up the whole area to look at: a column, or the rest area */}
+          {['left', 'middle', 'right', 'center'].includes(step.target) && (
+            <div className={`calib-area calib-area-${step.target}`} />
+          )}
           {step.target !== 'closed' && (
             <div
               className="calib-dot"
@@ -280,14 +287,21 @@ export function SetupPanel({
           {message && <p className={message.error ? 'msg error' : 'msg'}>{message.text}</p>}
 
           <section>
+            {firstRun && (
+              <p className="msg">
+                Welcome! Before starting, calibrate the eyes so Iris knows where the person is
+                looking. A caregiver can press the button below.
+              </p>
+            )}
             <h3>1. Eyes</h3>
             {mocks.eye ? (
               <p>Eye input is the keyboard mock (VITE_MOCK_EYE=1): nothing to calibrate.</p>
             ) : (
               <>
                 <p>
-                  The person looks straight, up, down, then closes their eyes. Takes about 12
-                  seconds.
+                  Each column lights up in turn: look at the words at the bottom of it. Then look at
+                  the middle (resting), close your eyes briefly, and a short accuracy check. About
+                  40 seconds. Keep your head still.
                 </p>
                 <button onClick={calibrateEyes} disabled={busy !== null}>
                   Calibrate eyes
