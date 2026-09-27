@@ -373,10 +373,10 @@ describe('RealEyeInput (full mode, MediaPipe gaze: columns + dwell + blink)', ()
 
   it('dwell: holding the gaze on a column fills the bar and then selects that option', () => {
     const h = ready();
-    h.play(800, LOOK.right);
+    h.play(1200, LOOK.right);
     expect(Math.max(...h.highlights().map((e) => e.dwellProgress))).toBeGreaterThan(0.2);
     expect(selects(h)).toEqual([]); // not yet
-    h.play(1200, LOOK.right);
+    h.play(1800, LOOK.right); // dwell is 2.5 s by default
     expect(selects(h)).toEqual([{ type: 'select', optionIndex: 2 }]);
   });
 
@@ -412,12 +412,12 @@ describe('RealEyeInput (full mode, MediaPipe gaze: columns + dwell + blink)', ()
 
   it('after a selection the same gaze does NOT select again until you look back at the rest area', () => {
     const h = ready();
-    h.play(2300, LOOK.left); // dwell completes once...
+    h.play(3300, LOOK.left); // dwell completes once...
     expect(selects(h)).toHaveLength(1);
-    h.play(3000, LOOK.left); // ...and continuing to stare does nothing more
+    h.play(4000, LOOK.left); // ...and continuing to stare does nothing more
     expect(selects(h)).toHaveLength(1);
     h.play(500, LOOK.rest); // back to rest: re-armed
-    h.play(2300, LOOK.left);
+    h.play(3300, LOOK.left);
     expect(selects(h)).toHaveLength(2);
   });
 
@@ -425,10 +425,10 @@ describe('RealEyeInput (full mode, MediaPipe gaze: columns + dwell + blink)', ()
     const h = ready();
     h.play(500, LOOK.right);
     h.eye.setOptionCount(3); // screen changed while the person is still looking right
-    h.play(3000, LOOK.right);
+    h.play(4000, LOOK.right);
     expect(selects(h)).toEqual([]);
     h.play(500, LOOK.rest);
-    h.play(2300, LOOK.right);
+    h.play(3300, LOOK.right);
     expect(selects(h)).toEqual([{ type: 'select', optionIndex: 2 }]);
   });
 
@@ -520,7 +520,7 @@ describe('RealEyeInput (screen gaze: which box on the screen is the gaze in?)', 
   it('selects by dwell (look and keep looking), and only once', () => {
     const h = setupGaze();
     h.play(600, spots.mid);
-    h.play(2500, spots.middle);
+    h.play(3300, spots.middle);
     expect(h.selects()).toEqual([{ type: 'select', optionIndex: 1 }]);
   });
 
@@ -612,5 +612,49 @@ describe('RealEyeInput.configure (user settings)', () => {
     play(1000, 0.9);
     play(300, 0);
     expect(events.filter((e) => e.type === 'select').length).toBe(1);
+  });
+});
+
+describe('iris classifier beats WebGazer once calibrated', () => {
+  it('uses the eyes (MediaPipe iris) to pick the column even if WebGazer says otherwise', async () => {
+    localStorage.clear();
+    const { trainCornerModel, saveCornerModel } = await import('./corners');
+    // what the eyes look like at each area: [gazeX, gazeY, irisX, irisY, yaw, pitch]
+    const at = {
+      center: [0, -0.3, 0, -0.05, 0, 0],
+      left: [-0.5, 0.5, 0.15, 0.08, 0, 0],
+      middle: [0, 0.5, 0, 0.08, 0, 0],
+      right: [0.5, 0.5, -0.15, 0.08, 0, 0],
+    };
+    const samples = Object.fromEntries(
+      Object.entries(at).map(([z, v]) => [
+        z,
+        Array.from({ length: 20 }, (_, i) => v.map((x) => x + (i % 5) * 0.004)),
+      ]),
+    ) as Record<'center' | 'left' | 'middle' | 'right', number[][]>;
+    saveCornerModel(trainCornerModel(samples)!.model);
+
+    const tracker = new FakeTracker();
+    const gaze = new FakeGaze();
+    const eye = new RealEyeInput(tracker, gaze);
+    const events: EyeEvent[] = [];
+    eye.on((e) => events.push(e));
+    eye.start({ mode: 'full', optionCount: 3 });
+    const frameAt = (t: number, v: number[]): FaceFrame => ({
+      ...face(t),
+      gaze: { x: v[0], y: v[1] },
+      metrics: { irisX: v[2], irisY: v[3] },
+    });
+    let t = 1000;
+    for (; t < 1600; t += 33) tracker.emit(frameAt(t, at.center));
+    // eyes look LEFT, but WebGazer reports the middle of the screen (the bug the user saw)
+    for (; t < 2200; t += 33) {
+      tracker.emit(frameAt(t, at.left));
+      gaze.emit({ x: window.innerWidth * 0.5, y: window.innerHeight * 0.8, t });
+    }
+    const lit = events.filter(
+      (e): e is Extract<EyeEvent, { type: 'highlight' }> => e.type === 'highlight',
+    );
+    expect(lit.at(-1)?.optionIndex).toBe(0); // left column
   });
 });

@@ -8,7 +8,7 @@ export interface Settings extends EyeSettings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  dwellMs: 1500,
+  dwellMs: 2500, // long enough to read the reply before it is chosen
   blinkMs: 500,
   steadinessMs: 150,
   doubleBlinkBack: false,
@@ -46,7 +46,7 @@ export function normalizeSettings(input: Partial<Settings> | null | undefined): 
   };
 }
 
-const KEY = 'iris.settings.v1';
+const KEY = 'iris.settings.v2';
 
 export function loadSettings(): Settings {
   try {

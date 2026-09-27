@@ -39,10 +39,13 @@ export function SetupPanel({
   services,
   orchestrator,
   onClose,
+  firstRun = false,
 }: {
   services: Services;
   orchestrator: Orchestrator;
   onClose: () => void;
+  /** Opened automatically because the eyes have never been calibrated. */
+  firstRun?: boolean;
 }) {
   const { eyeInput, emotion, faceTracker, mocks } = services;
   const [busy, setBusy] = useState<string | null>(null);
@@ -146,6 +149,10 @@ export function SetupPanel({
   const train = () =>
     run('train', async () => {
       await emotion.train();
+      const stats = emotion.modelStats;
+      if (stats?.accuracy) {
+        return `Trained on ${stats.nSamples} samples. Model accuracy: ${Math.round(stats.accuracy * 100)}%!`;
+      }
       return 'Trained! Your emotion model is now used to suggest tones.';
     });
 
@@ -246,6 +253,10 @@ export function SetupPanel({
     <>
       {step && (
         <div className="calib-overlay" role="dialog" aria-label="Eye calibration">
+          {/* light up the whole area to look at: a column, or the rest area */}
+          {['left', 'middle', 'right', 'center'].includes(step.target) && (
+            <div className={`calib-area calib-area-${step.target}`} />
+          )}
           {step.target !== 'closed' && (
             <div
               className="calib-dot"
@@ -276,14 +287,21 @@ export function SetupPanel({
           {message && <p className={message.error ? 'msg error' : 'msg'}>{message.text}</p>}
 
           <section>
+            {firstRun && (
+              <p className="msg">
+                Welcome! Before starting, calibrate the eyes so Iris knows where the person is
+                looking. A caregiver can press the button below.
+              </p>
+            )}
             <h3>1. Eyes</h3>
             {mocks.eye ? (
               <p>Eye input is the keyboard mock (VITE_MOCK_EYE=1): nothing to calibrate.</p>
             ) : (
               <>
                 <p>
-                  The person looks straight, up, down, then closes their eyes. Takes about 12
-                  seconds.
+                  Each column lights up in turn: look at the words at the bottom of it. Then look at
+                  the middle (resting), close your eyes briefly, and a short accuracy check. About
+                  40 seconds. Keep your head still.
                 </p>
                 <button onClick={calibrateEyes} disabled={busy !== null}>
                   Calibrate eyes
@@ -317,9 +335,20 @@ export function SetupPanel({
                   ))}
                 </ul>
                 {countdown && <p className="prompt">{countdown}</p>}
-                <button onClick={train} disabled={busy !== null}>
-                  Train my emotion model
-                </button>
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}
+                >
+                  <button onClick={train} disabled={busy !== null}>
+                    Train my emotion model
+                  </button>
+                  {emotion.modelStats && (
+                    <span className="stats">
+                      <strong>Current model:</strong> {emotion.modelStats.nSamples} samples
+                      {emotion.modelStats.accuracy &&
+                        `, ${Math.round(emotion.modelStats.accuracy * 100)}% accurate`}
+                    </span>
+                  )}
+                </div>
               </>
             )}
           </section>

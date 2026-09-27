@@ -29,6 +29,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "mock_llm": settings.use_mock_llm,
             "stt_configured": bool(settings.model_api_key),
             "voice_configured": bool(settings.elevenlabs_api_key),
+            "whisper_available": True,
         }
 
     app.include_router(conversation.router)

@@ -33,23 +33,11 @@ function createStt(provider: typeof flags.stt): SpeechToText {
   return new MockSpeechToText();
 }
 
-/** Gaze learning during use (see eye-input/real/onlineLearning.ts). */
-export interface GazeLearning {
-  /** The app is acting on the eye selection that just happened (e.g. speaking a reply). */
-  hold(now: number): void;
-  /** ...and it was right (e.g. spoken to the end): learn from it. */
-  confirm(now: number): number;
-  /** ...or it was stopped / undone: never learn from it. */
-  discard(): void;
-}
-
 export interface Services {
   faceTracker: FaceTracker;
   /** Where on the screen the person looks (WebGazer or mouse). null = not used. */
   gaze: ScreenGaze | null;
   eyeInput: EyeInput;
-  /** Learning from confirmed eye selections (real eye input with screen gaze only). */
-  gazeLearning?: GazeLearning | null;
   emotion: EmotionDetector;
   stt: SpeechToText;
   conversation: ConversationService;
@@ -90,7 +78,6 @@ export function createServices(): Services {
     faceTracker,
     gaze,
     eyeInput,
-    gazeLearning: eyeInput instanceof RealEyeInput ? eyeInput.learning : null,
     emotion: mockEmotion ?? new RealEmotionDetector(),
     stt: createStt(flags.stt),
     conversation: new HistoryConversationService(

@@ -5,8 +5,6 @@ import { useOrchestrator } from '../../../app/useOrchestrator';
 import { CameraPreview } from './CameraPreview';
 import { ColumnLayout } from './ColumnLayout';
 import { DevPanel } from './DevPanel';
-import { EyeTuningPanel } from './EyeTuningPanel';
-import { GazeDebugOverlay } from './GazeDebugOverlay';
 import { GazeDot } from './GazeDot';
 import { MicPanel } from './MicPanel';
 import { MoodBar } from './MoodBar';
@@ -20,30 +18,21 @@ export function MainScreen({ services }: { services: Services }) {
   const { orchestrator, view } = useOrchestrator(services);
   const { machine, eyeMode, stt } = view;
   const [draft, setDraft] = useState('');
-  const [showSetup, setShowSetup] = useState(false);
+  // Not calibrated yet? Open the setup straight away: eye control is guesswork without it.
+  const needsCalibration =
+    services.usesCamera &&
+    view.eyeMode === 'full' &&
+    services.eyeInput.status?.().calibrated === false;
+  const [showSetup, setShowSetup] = useState(needsCalibration);
+  const [firstRun] = useState(needsCalibration);
   const [showMenu, setShowMenu] = useState(false);
   const [showDot, setShowDot] = useState(() => {
     try {
-      return localStorage.getItem('iris.showGazeDot') !== '0';
+      return localStorage.getItem('iris.showGazeDot.v2') === '1'; // off by default: the box lights up instead
     } catch {
-      return true;
+      return false;
     }
   });
-  // Debug overlay (Alt+D) and tuning panel (Alt+T): remembered across reloads.
-  const [showDebug, setShowDebug] = useStoredFlag('iris.showGazeDebug');
-  const [showTuning, setShowTuning] = useStoredFlag('iris.showEyeTuning');
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!e.altKey) return;
-      if (e.code === 'KeyD') setShowDebug((v) => !v);
-      else if (e.code === 'KeyT') setShowTuning((v) => !v);
-      else return;
-      e.preventDefault();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [setShowDebug, setShowTuning]);
-
   // While the menu drawer is open the eyes can't choose options behind it. Only on open/close
   // (never on first render), and not while the setup screen is open: it pauses the eyes itself.
   const menuPaused = useRef(false);
@@ -61,7 +50,7 @@ export function MainScreen({ services }: { services: Services }) {
   const toggleDot = (on: boolean) => {
     setShowDot(on);
     try {
-      localStorage.setItem('iris.showGazeDot', on ? '1' : '0');
+      localStorage.setItem('iris.showGazeDot.v2', on ? '1' : '0');
     } catch {
       /* ignore */
     }
@@ -104,26 +93,6 @@ export function MainScreen({ services }: { services: Services }) {
           show the red gaze dot
         </label>
       )}
-      {services.usesCamera && (
-        <>
-          <label className="dot-toggle">
-            <input
-              type="checkbox"
-              checked={showDebug}
-              onChange={(e) => setShowDebug(e.target.checked)}
-            />{' '}
-            show the gaze debug overlay (Alt+D)
-          </label>
-          <label className="dot-toggle">
-            <input
-              type="checkbox"
-              checked={showTuning}
-              onChange={(e) => setShowTuning(e.target.checked)}
-            />{' '}
-            show the eye tuning panel (Alt+T)
-          </label>
-        </>
-      )}
       <MoodBar
         mood={machine.mood}
         eyeMode={eyeMode}
@@ -155,15 +124,6 @@ export function MainScreen({ services }: { services: Services }) {
   return (
     <>
       {showDot && services.gaze && <GazeDot services={services} />}
-      {showDebug && <GazeDebugOverlay services={services} />}
-      {showTuning && (
-        <EyeTuningPanel
-          services={services}
-          orchestrator={orchestrator}
-          settings={view.settings}
-          onClose={() => setShowTuning(false)}
-        />
-      )}
       {eyeMode === 'full' ? (
         <ColumnLayout
           orchestrator={orchestrator}
@@ -228,27 +188,9 @@ export function MainScreen({ services }: { services: Services }) {
           services={services}
           orchestrator={orchestrator}
           onClose={() => setShowSetup(false)}
+          firstRun={firstRun}
         />
       )}
     </>
   );
-}
-
-/** A boolean remembered in localStorage (per-viewer convenience; works without storage too). */
-function useStoredFlag(key: string) {
-  const [on, setOn] = useState(() => {
-    try {
-      return localStorage.getItem(key) === '1';
-    } catch {
-      return false;
-    }
-  });
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, on ? '1' : '0');
-    } catch {
-      /* ignore */
-    }
-  }, [key, on]);
-  return [on, setOn] as const;
 }

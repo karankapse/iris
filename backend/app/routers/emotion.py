@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import ValidationError
 
 from app.deps import DbDep
 from app.schemas import EmotionModel, SamplesRequest, TrainRequest
@@ -33,4 +34,9 @@ def get_model(user_id: str, db: DbDep) -> EmotionModel:
     stored = db.get_model(user_id)
     if stored is None:
         raise HTTPException(404, "No trained model for this user yet")
-    return EmotionModel.model_validate_json(stored)
+    try:
+        return EmotionModel.model_validate_json(stored)
+    except ValidationError as e:
+        # Saved by an older version of Iris (e.g. before the switch to a neural network).
+        # The samples are still stored, so the user just needs to retrain.
+        raise HTTPException(404, "The saved model is from an older version: please retrain") from e

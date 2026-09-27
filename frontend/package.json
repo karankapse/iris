@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:types": "openapi-typescript ../backend/openapi.json -o src/shared/api.generated.ts",
-    "setup:mediapipe": "node scripts/setup-mediapipe.mjs"
+    "setup:mediapipe": "node scripts/setup-mediapipe.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",

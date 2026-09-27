@@ -61,6 +61,18 @@
       "EmotionModel": {
         "description": "A trained logistic-regression model, exported so the browser can run it locally.\n\nPrediction in the browser:\n    x_scaled = (x - means) / scales\n    logits[c] = sum_j(coef[c][j] * x_scaled[j]) + intercept[c]\n    probabilities = softmax(logits)",
         "properties": {
+          "accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cross-validated accuracy (0.0 to 1.0), or None if not enough data to measure.",
+            "title": "Accuracy"
+          },
           "classes": {
             "items": {
               "enum": [
@@ -76,15 +88,18 @@
             "title": "Classes",
             "type": "array"
           },
-          "coef": {
-            "description": "shape: [len(classes)][len(feature_names)]",
+          "coefs": {
+            "description": "Weight matrices for each layer",
             "items": {
               "items": {
-                "type": "number"
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
               },
               "type": "array"
             },
-            "title": "Coef",
+            "title": "Coefs",
             "type": "array"
           },
           "feature_names": {
@@ -94,11 +109,15 @@
             "title": "Feature Names",
             "type": "array"
           },
-          "intercept": {
+          "intercepts": {
+            "description": "Bias vectors for each layer",
             "items": {
-              "type": "number"
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
             },
-            "title": "Intercept",
+            "title": "Intercepts",
             "type": "array"
           },
           "means": {
@@ -130,8 +149,8 @@
           "classes",
           "means",
           "scales",
-          "coef",
-          "intercept",
+          "coefs",
+          "intercepts",
           "n_samples"
         ],
         "title": "EmotionModel",
