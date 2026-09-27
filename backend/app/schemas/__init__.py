@@ -5,12 +5,26 @@ Do not edit the generated file by hand.
 """
 
 from .common import Emotion, Speaker
-from .conversation import ConversationTurn, Suggestion, SuggestionsRequest, SuggestionsResponse
+from .conversation import (
+    ConversationEmotion,
+    ConversationTurn,
+    ExpandRequest,
+    FaceReaction,
+    RelatedRequest,
+    RelatedResponse,
+    Suggestion,
+    SuggestionsRequest,
+    SuggestionsResponse,
+)
 from .emotion import EmotionModel, EmotionSample, SamplesRequest, TrainRequest
 from .feedback import FeedbackRequest
+from .memory import ExchangeLog, MemoryEntry, MemoryResponse
+from .profile import UserProfile, default_phrases
 
 __all__ = [
+    "ConversationEmotion",
     "ConversationTurn",
+    "FaceReaction",
     "Emotion",
     "EmotionModel",
     "EmotionSample",
@@ -21,4 +35,12 @@ __all__ = [
     "SuggestionsRequest",
     "SuggestionsResponse",
     "TrainRequest",
+    "UserProfile",
+    "ExpandRequest",
+    "RelatedRequest",
+    "RelatedResponse",
+    "ExchangeLog",
+    "MemoryEntry",
+    "MemoryResponse",
+    "default_phrases",
 ]

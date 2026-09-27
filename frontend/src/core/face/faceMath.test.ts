@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Point } from '../../contracts';
-import { estimateGaze, headPoseFromMatrix, mouthAsymmetry } from './faceMath';
+import {
+  estimateGaze,
+  eyeAspectRatio,
+  headPoseFromMatrix,
+  irisMetrics,
+  mouthAsymmetry,
+} from './faceMath';
 
 /** 478 dummy points, with the ones the maths uses set explicitly. */
 function face(overrides: Record<number, Point>): Point[] {
@@ -59,5 +65,106 @@ describe('headPoseFromMatrix', () => {
     expect(pose.yaw).toBeCloseTo(0);
     expect(pose.pitch).toBeCloseTo(0);
     expect(pose.roll).toBeCloseTo(0);
+  });
+});
+
+describe('irisMetrics', () => {
+  /** Two eyes, each 0.1 wide and 0.04 tall, with the irises at the given offsets from centre. */
+  function eyes(irisDx: number, irisDy: number) {
+    const pts = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5 }));
+    const setEye = (o: number, i: number, t: number, b: number, iris: number, cx: number) => {
+      pts[o] = { x: cx - 0.05, y: 0.4 }; // outer/inner order does not matter for the maths
+      pts[i] = { x: cx + 0.05, y: 0.4 };
+      pts[t] = { x: cx, y: 0.38 };
+      pts[b] = { x: cx, y: 0.42 };
+      pts[iris] = { x: cx + irisDx, y: 0.4 + irisDy };
+    };
+    setEye(33, 133, 159, 145, 468, 0.4);
+    setEye(263, 362, 386, 374, 473, 0.6);
+    return pts;
+  }
+
+  it('is zero when the irises are centred in the eyes', () => {
+    const m = irisMetrics(eyes(0, 0));
+    expect(m.irisX).toBeCloseTo(0);
+    expect(m.irisY).toBeCloseTo(0);
+  });
+
+  it('measures displacement in eye-widths, for both axes', () => {
+    const m = irisMetrics(eyes(0.02, 0.01)); // 0.02 / 0.1 = 0.2 eye-widths right; 0.1 down
+    expect(m.irisX).toBeCloseTo(0.2);
+    expect(m.irisY).toBeCloseTo(0.1);
+    expect(irisMetrics(eyes(-0.02, -0.01)).irisX).toBeCloseTo(-0.2);
+  });
+
+  it('returns zeros when the result has no iris landmarks', () => {
+    expect(irisMetrics(eyes(0.02, 0).slice(0, 468))).toEqual({ irisX: 0, irisY: 0 });
+  });
+});
+
+describe('irisMetrics with a tilted head (roll)', () => {
+  /** One eye pair rotated by `deg` around the image centre, irises shifted along each eye. */
+  function tilted(deg: number, along: number) {
+    const pts = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5 }));
+    const r = (deg * Math.PI) / 180;
+    const rot = (x: number, y: number) => ({
+      x: 0.5 + (x - 0.5) * Math.cos(r) - (y - 0.5) * Math.sin(r),
+      y: 0.5 + (x - 0.5) * Math.sin(r) + (y - 0.5) * Math.cos(r),
+    });
+    const setEye = (a: number, b: number, iris: number, cx: number) => {
+      pts[a] = rot(cx - 0.05, 0.4);
+      pts[b] = rot(cx + 0.05, 0.4);
+      pts[iris] = rot(cx + along, 0.4);
+    };
+    setEye(33, 133, 468, 0.4);
+    setEye(362, 263, 473, 0.6);
+    return pts;
+  }
+
+  it('gives the same numbers whether or not the head is tilted', () => {
+    const level = irisMetrics(tilted(0, 0.02));
+    const tilt = irisMetrics(tilted(20, 0.02));
+    expect(tilt.irisX).toBeCloseTo(level.irisX);
+    expect(tilt.irisY).toBeCloseTo(level.irisY);
+    expect(level.irisX).toBeCloseTo(0.2);
+  });
+
+  it('is the same at any distance from the camera (scale)', () => {
+    const near = tilted(0, 0.02);
+    const far = near.map((p) => ({ x: 0.5 + (p.x - 0.5) * 0.5, y: 0.5 + (p.y - 0.5) * 0.5 }));
+    expect(irisMetrics(far).irisX).toBeCloseTo(irisMetrics(near).irisX);
+  });
+});
+
+describe('eyeAspectRatio', () => {
+  /** Both eyes 0.1 wide with the lids `open` apart. */
+  function eyes(open: number) {
+    const pts = Array.from({ length: 478 }, () => ({ x: 0.5, y: 0.5 }));
+    const setEye = ([p1, p2, p3, p4, p5, p6]: number[], cx: number) => {
+      pts[p1] = { x: cx - 0.05, y: 0.4 };
+      pts[p4] = { x: cx + 0.05, y: 0.4 };
+      pts[p2] = { x: cx - 0.02, y: 0.4 - open / 2 };
+      pts[p3] = { x: cx + 0.02, y: 0.4 - open / 2 };
+      pts[p6] = { x: cx - 0.02, y: 0.4 + open / 2 };
+      pts[p5] = { x: cx + 0.02, y: 0.4 + open / 2 };
+    };
+    setEye([33, 160, 158, 133, 153, 144], 0.4);
+    setEye([362, 385, 387, 263, 373, 380], 0.6);
+    return pts;
+  }
+
+  it('is lid opening over eye width', () => {
+    expect(eyeAspectRatio(eyes(0.03))).toBeCloseTo(0.3);
+    expect(eyeAspectRatio(eyes(0.005))).toBeCloseTo(0.05);
+  });
+
+  it('corrects for a wide camera image', () => {
+    // in a 16:9 image the same eye spans fewer "x units": the aspect puts it back
+    const wide = eyes(0.03).map((p) => ({ x: 0.5 + (p.x - 0.5) / (16 / 9), y: p.y }));
+    expect(eyeAspectRatio(wide, 16 / 9)).toBeCloseTo(0.3);
+  });
+
+  it('is 0 without landmarks', () => {
+    expect(eyeAspectRatio([])).toBe(0);
   });
 });

@@ -14,16 +14,25 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "gen:types": "openapi-typescript ../backend/openapi.json -o src/shared/api.generated.ts",
-    "setup:mediapipe": "node scripts/setup-mediapipe.mjs"
+    "setup:mediapipe": "node scripts/setup-mediapipe.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.48.0",
+    "postcss": "^8.5.28",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "react-router-dom": "^7.18.4"
+    "react-router-dom": "^7.18.4",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^4.3.3",
+    "webgazer": "^3.5.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",

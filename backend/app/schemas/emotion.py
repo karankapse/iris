@@ -35,6 +35,14 @@ class EmotionModel(BaseModel):
     classes: list[Emotion]
     means: list[float]
     scales: list[float]
-    coef: list[list[float]] = Field(description="shape: [len(classes)][len(feature_names)]")
-    intercept: list[float]
+    coefs: list[list[list[float]]] = Field(description="Weight matrices for each layer")
+    intercepts: list[list[float]] = Field(description="Bias vectors for each layer")
     n_samples: int
+    # How good it is, measured on whole recordings the model did NOT train on.
+    accuracy: float | None = Field(
+        default=None, description="Average per-emotion accuracy on held-out recordings"
+    )
+    per_class_accuracy: dict[Emotion, float] = Field(default_factory=dict)
+    advice: list[str] = Field(
+        default_factory=list, description='e.g. "sad needs more examples (record it again)"'
+    )

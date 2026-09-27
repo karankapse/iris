@@ -41,14 +41,18 @@ Read [docs/architecture.md](docs/architecture.md) for the full picture.
 
 ## Status: work in progress
 
-Working: real camera face tracking (MediaPipe) with a live preview, eye control by blinks and
-up/down gaze, calibration, Muse speech-to-text through the backend, emotion detection with a
-per-user model, tone confirmation, emotional TTS, and the partner view.
+Working: real camera face tracking with a zoomed live preview, eye control (options in the four
+screen corners, chosen by looking + dwell or a blink, or up/down + blink in vertical-only mode),
+calibration with an accuracy check, speech-to-text (Meta Muse, or Chrome's as a fallback), Claude
+suggestions that use a profile of the user, **quick-access phrases**, an **eye-controlled
+keyboard**, **mood chosen by eye**, emotion detection with a per-user model that **retrains itself**
+from feedback, tone confirmation, emotional TTS in six tones (incl. excited), the partner view with a
+"typing…" indicator, a **tone tester** page (`/tone-tester`), and **adjustable settings** (dwell time,
+blink length, gaze steadiness, speech speed, double-blink).
 
-**Not finished yet** (see the open issues): the on-screen layout for the four gaze regions
-(top/right/bottom/left) and dwell selection in that mode, the eye-controlled keyboard, choosing
-the mood by eye, camera zoom to the face, and automatic retraining. Until the layout lands the
-app defaults to **vertical-only** eye mode (look up/down to move, blink to select).
+**Not built / not verified yet:** LiveKit + Cartesia voice and LiveKit speech-to-text (see
+[docs/architecture.md](docs/architecture.md)); the real Muse and Claude calls have never run with real keys;
+eye control has been tried on one face. Word prediction on the eye keyboard is a possible next step.
 
 ## Setup
 
@@ -72,17 +76,34 @@ VITE_MOCK_EMOTION=1      # pick the "detected" emotion in the Dev Panel
 VITE_STT_PROVIDER=mock   # type what the partner says in the Dev Panel
 ```
 
-## How to control it with your eyes (vertical-only mode, the current default)
+## How to control it with your eyes
+
+Gaze tracking uses **[WebGazer](https://github.com/brownhci/WebGazer)**: it learns, from *your* calibration,
+where on the screen you are looking, and a **red dot** shows what it thinks (toggle it in the Menu).
+
+**Calibrate first** (click **Calibrate**, about 40 seconds): dots appear around the screen and you look at
+each one. No clicking is needed (the app trains it for you), so it works for people who can't use a mouse.
+Then close your eyes for a moment (learns your blink), then a short **accuracy check** tells you what
+percentage of readings landed in the right box. Keep your head still and the room well lit.
+
+Up to four options are shown in the **four corners** of the screen (a 2×2 grid, reading order):
 
 | Do this | What happens |
 |---|---|
-| Look **up** or **down** and hold | the highlight moves through the options |
-| **Blink deliberately** (about 0.5 s) | selects the highlighted option |
+| Look at a corner | that option lights up |
+| Keep looking (about 1.5 s) | a bar fills, then the option is selected (**dwell**) |
+| **Blink deliberately** (about 0.5 s) while looking at it | selects it right away |
+| Look at the middle (face / "Partner said") | rest: nothing is selected |
 | Keep your **eyes closed** (about 1.5 s) | cancel / go back |
 
-Natural blinks are ignored. Iris never speaks until you confirm the tone.
-With the keyboard mock (`VITE_MOCK_EYE=1`): <kbd>↑</kbd>/<kbd>↓</kbd> move, <kbd>Space</kbd> or
-<kbd>1</kbd>–<kbd>4</kbd> select, <kbd>Enter</kbd> confirm, <kbd>Esc</kbd> cancel.
+Natural blinks are ignored, and after a selection you must look back at the middle before the next
+dwell can complete. Iris never speaks until you confirm the tone.
+
+**Vertical-only mode** (tick "vertical-only eyes" in the Menu) is for people who can only move their
+eyes up and down: options are stacked, look up/down to move the highlight, and blink to select.
+
+With the keyboard mock (`VITE_MOCK_EYE=1`): arrow keys move, <kbd>Space</kbd> or <kbd>1</kbd>–<kbd>4</kbd>
+select, <kbd>Enter</kbd> confirm, <kbd>Esc</kbd> cancel.
 
 ## Microphone: speech-to-text with Meta Muse Voice Transcribe
 
@@ -102,13 +123,20 @@ The browser never sees your API key: it streams microphone audio to our backend
 Cost is $3.00 per 1,000 audio minutes. The connection is only open while the app is.
 If Meta rejects the handshake, see `MUSE_BEARER_PREFIX` and `STT_DEBUG` in `.env.example`.
 
+## Licensing note: WebGazer is GPL-3.0
+
+WebGazer is licensed **GPL-3.0-or-later** and is no longer maintained (it still works). If Iris is
+distributed with it, Iris should itself be released under a GPL-compatible license. This repository
+does not have a `LICENSE` file yet: the team should decide on one. To avoid the dependency, set
+`VITE_GAZE_ENGINE=mediapipe` (the older classifier over MediaPipe face signals).
+
 ## Mock or real, per module
 
 Each module is chosen in `.env` (`.env.example` defaults to real):
 
 | Setting | Real | Mock | Status of the real one |
 |---|---|---|---|
-| `VITE_MOCK_EYE` | `0`: webcam gaze + blinks (`RealEyeInput`) | `1`: keyboard | works in vertical mode; four-region layout not drawn yet; never tested on many faces |
+| `VITE_MOCK_EYE` | `0`: webcam gaze + blinks (`RealEyeInput`) | `1`: keyboard | gaze via WebGazer (`VITE_GAZE_ENGINE=webgazer`, default), `mediapipe`, or `mouse` (the pointer stands in for the eyes, for testing without a camera); tried on one face |
 | `VITE_MOCK_EMOTION` | `0`: face features + per-user model | `1`: Dev Panel | works after calibration; no auto-retraining yet |
 | `VITE_STT_PROVIDER` | `muse` (needs `MODEL_API_KEY`) or `webspeech` (Chrome; audio goes to Google) | `mock` | Muse verified only against a fake server, not the real API |
 | `VITE_MOCK_CONVERSATION` | `0`: backend + Claude (canned replies without an Anthropic key) | `1` | Claude call never tested with a real key |
@@ -143,6 +171,15 @@ backend/app/
   services/       Claude client, canned mock, emotion trainer
 docs/             architecture notes
 ```
+
+## Optional: pre-commit checks
+
+```bash
+uv tool install pre-commit && pre-commit install
+```
+
+Runs Ruff, Prettier and ESLint before each commit (CI runs them on every PR regardless).
+A demo script for presenting the app is in [docs/demo-script.md](docs/demo-script.md).
 
 ## Contributing
 

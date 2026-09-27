@@ -9,7 +9,13 @@ def _samples(label, rows, source="calibration"):
 
 def test_health_reports_mock_mode(client):
     body = client.get("/api/health").json()
-    assert body == {"ok": True, "mock_llm": True, "stt_configured": False}
+    body.pop("whisper_available", None)  # depends on the machine (local Whisper installed or not)
+    assert body == {
+        "ok": True,
+        "mock_llm": True,
+        "stt_configured": False,
+        "voice_configured": False,
+    }
 
 
 def test_suggestions_are_3_or_4_and_valid(client):
@@ -20,12 +26,45 @@ def test_suggestions_are_3_or_4_and_valid(client):
     assert res.status_code == 200
     items = res.json()["suggestions"]
     assert 3 <= len(items) <= 4
-    assert all(s["tone"] in {"neutral", "happy", "sad", "joking", "serious"} for s in items)
+    assert all(
+        s["tone"] in {"neutral", "happy", "sad", "excited", "joking", "serious"} for s in items
+    )
 
 
 def test_suggestions_reject_unknown_tone_in_mood(client):
     res = client.post("/api/suggestions", json={"history": [], "mood": "furious"})
     assert res.status_code == 422
+
+
+def test_suggestions_with_connotation_and_reaction_happy(client):
+    res = client.post(
+        "/api/suggestions",
+        json={
+            "history": [{"speaker": "partner", "text": "you got a job"}],
+            "reaction": "happy",
+        },
+    )
+    assert res.status_code == 200
+    items = res.json()["suggestions"]
+    assert 3 <= len(items) <= 4
+    texts = [s["text"] for s in items]
+    assert any("congrats" in t.lower() or "awesome" in t.lower() for t in texts)
+    # The celebratory replies should be marked with happy tone
+    assert items[0]["tone"] == "happy"
+
+
+def test_suggestions_with_connotation_and_reaction_serious(client):
+    res = client.post(
+        "/api/suggestions",
+        json={
+            "history": [{"speaker": "partner", "text": "you got a job"}],
+            "reaction": "serious",
+        },
+    )
+    assert res.status_code == 200
+    items = res.json()["suggestions"]
+    assert items[0]["tone"] == "serious"
+    assert "serious" in items[0]["text"].lower()
 
 
 def _train(client):
@@ -45,19 +84,20 @@ def test_train_returns_exportable_model_that_predicts_correctly(client):
     assert res.status_code == 200
     m = res.json()
 
-    # Re-implement the browser's prediction to prove the exported weights are usable.
+    # Re-implement the browser's prediction (frontend/src/modules/emotion/real/predict.ts) to prove
+    # the exported network is usable: standardise, then each layer is W^T x + b, with ReLU on
+    # hidden layers and softmax at the end.
     def predict(x):
-        scaled = [(v - mu) / s for v, mu, s in zip(x, m["means"], m["scales"], strict=True)]
-        logits = [
-            sum(w * v for w, v in zip(row, scaled, strict=True)) + b
-            for row, b in zip(m["coef"], m["intercept"], strict=True)
-        ]
-        exps = [math.exp(z - max(logits)) for z in logits]
+        a = [(v - mu) / s for v, mu, s in zip(x, m["means"], m["scales"], strict=True)]
+        for i, (W, b) in enumerate(zip(m["coefs"], m["intercepts"], strict=True)):
+            z = [b[o] + sum(a[j] * W[j][o] for j in range(len(a))) for o in range(len(b))]
+            a = z if i == len(m["coefs"]) - 1 else [max(0.0, v) for v in z]
+        exps = [math.exp(v - max(a)) for v in a]
         probs = [e / sum(exps) for e in exps]
         return m["classes"][probs.index(max(probs))]
 
     assert m["classes"] == ["happy", "serious"]
-    assert len(m["coef"]) == 2 and len(m["coef"][0]) == 3  # binary case expanded to 2 rows
+    assert len(m["intercepts"][-1]) == 2  # binary case expanded to 2 outputs (one per class)
     assert predict([0.9, 0.0, 0.0]) == "happy"
     assert predict([0.0, 0.9, 0.9]) == "serious"
 
@@ -108,3 +148,51 @@ def test_positive_feedback_becomes_training_sample_negative_does_not(client):
     )
     assert partner.status_code == 201
     assert partner.json()["added_training_sample"] is False
+
+
+def test_excited_is_an_accepted_tone(client):
+    res = client.post("/api/suggestions", json={"history": [], "mood": "excited"})
+    assert res.status_code == 200
+
+
+def test_profile_defaults_then_saves_and_trims(client):
+    default = client.get("/api/profile/u1").json()
+    assert default["name"] == ""
+    assert "I need help" in default["phrases"]  # the shared default phrases
+
+    saved = client.put(
+        "/api/profile/u1",
+        json={
+            "name": "  Sam  ",
+            "relationships": ["daughter Maya", "  ", "friend Leo"],
+            "interests": ["chess"],
+            "common_needs": ["water"],
+            "phrases": ["Hello there", ""],
+        },
+    ).json()
+    assert saved["name"] == "Sam"
+    assert saved["relationships"] == ["daughter Maya", "friend Leo"]  # blanks dropped
+    assert saved["phrases"] == ["Hello there"]
+    assert client.get("/api/profile/u1").json() == saved  # persisted
+
+
+def test_suggestion_prompt_includes_the_profile():
+    from app.schemas import ConversationTurn, UserProfile
+    from app.services.llm import _format_history
+
+    text = _format_history(
+        [ConversationTurn(speaker="partner", text="Hi")],
+        "happy",
+        UserProfile(name="Sam", relationships=["daughter Maya"], interests=["chess"]),
+    )
+    assert "My name is Sam." in text and "daughter Maya" in text and "chess" in text
+    assert "About me" not in _format_history([], None, UserProfile())  # empty profile adds nothing
+
+
+def test_a_model_saved_by_an_older_version_counts_as_not_trained(client):
+    # e.g. the logistic-regression format used before the neural network
+    old = '{"user_id": "u9", "feature_names": ["a"], "classes": ["happy", "sad"], "coef": [[1]]}'
+    client.app.state.db.save_model("u9", old)
+    res = client.get("/api/emotion/model/u9")
+    assert res.status_code == 404  # not a 500: the app just treats it as "please retrain"
+    assert "retrain" in res.json()["detail"]

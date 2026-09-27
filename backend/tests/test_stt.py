@@ -34,11 +34,7 @@ class FakeMuse:
             if isinstance(message, bytes):
                 self.audio_bytes += len(message)
                 ws.send(json.dumps({"type": "transcript", "transcript": "are", "final": False}))
-                ws.send(
-                    json.dumps(
-                        {"type": "transcript", "transcript": "are you hungry", "final": True}
-                    )
-                )
+                ws.send(json.dumps({"type": "speechComplete", "transcript": "are you hungry"}))
                 ws.send(json.dumps({"type": "speaker", "label": "A", "turnId": 1}))  # ignored
             elif json.loads(message).get("type") == "endStream":
                 self.got_end_stream.set()
@@ -107,9 +103,19 @@ def test_health_reports_whether_stt_is_configured(client, tmp_path):
 
 
 class TestNormalizeEvent:
-    def test_transcripts(self):
+    def test_partials_are_never_final(self):
         raw = json.dumps({"type": "transcript", "transcript": " hi there ", "final": True})
-        assert normalize_event(raw) == {"type": "transcript", "text": "hi there", "final": True}
+        assert normalize_event(raw) == {"type": "transcript", "text": "hi there", "final": False}
+
+    def test_speech_complete_is_the_finished_sentence(self):
+        raw = json.dumps(
+            {"type": "speechComplete", "turnId": 0, "transcript": "Are you hungry? I made pasta"}
+        )
+        assert normalize_event(raw) == {
+            "type": "transcript",
+            "text": "Are you hungry? I made pasta",
+            "final": True,
+        }
 
     def test_ack_has_session_id_and_no_type(self):
         assert normalize_event(json.dumps({"sessionId": "abc"})) == {"type": "ready"}

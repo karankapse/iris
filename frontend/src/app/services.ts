@@ -1,5 +1,6 @@
 import type {
   ConversationService,
+  ScreenGaze,
   EmotionDetector,
   EyeInput,
   FaceTracker,
@@ -7,12 +8,16 @@ import type {
   TtsProvider,
 } from '../contracts';
 import { flags } from '../core/config';
+import { FilteredGaze } from '../core/gaze/FilteredGaze';
+import { MouseGaze } from '../core/gaze/MouseGaze';
+import { WebGazerGaze } from '../core/gaze/WebGazerGaze';
 import { MediaPipeFaceTracker } from '../core/face/MediaPipeFaceTracker';
 import { MockFaceTracker } from '../core/face/MockFaceTracker';
 import {
   apiSuggestions,
   cannedSuggestions,
   HistoryConversationService,
+  AutoSpeechToText,
   MockSpeechToText,
   MuseSpeechToText,
   WebSpeechToText,
@@ -22,14 +27,29 @@ import { MockEyeInput, RealEyeInput } from '../modules/eye-input';
 import { createTts } from '../modules/voice-ui/tts';
 
 function createStt(provider: typeof flags.stt): SpeechToText {
+  if (provider === 'auto') return new AutoSpeechToText();
   if (provider === 'muse') return new MuseSpeechToText();
   if (provider === 'webspeech') return new WebSpeechToText();
   return new MockSpeechToText();
 }
 
+/** Gaze learning during use (see eye-input/real/onlineLearning.ts). */
+export interface GazeLearning {
+  /** The app is acting on the eye selection that just happened (e.g. speaking a reply). */
+  hold(now: number): void;
+  /** ...and it was right (e.g. spoken to the end): learn from it. */
+  confirm(now: number): number;
+  /** ...or it was stopped / undone: never learn from it. */
+  discard(): void;
+}
+
 export interface Services {
   faceTracker: FaceTracker;
+  /** Where on the screen the person looks (WebGazer or mouse). null = not used. */
+  gaze: ScreenGaze | null;
   eyeInput: EyeInput;
+  /** Learning from confirmed eye selections (real eye input with screen gaze only). */
+  gazeLearning?: GazeLearning | null;
   emotion: EmotionDetector;
   stt: SpeechToText;
   conversation: ConversationService;
@@ -37,6 +57,8 @@ export interface Services {
   /** Set only when the matching module is a mock, so the Dev Panel can drive it. */
   /** True when a real module reads the camera (so the preview/calibration UI makes sense). */
   usesCamera: boolean;
+  /** True when a real microphone engine is in use (so the mic indicator makes sense). */
+  usesMic: boolean;
   mocks: { emotion: MockEmotionDetector | null; eye: boolean };
 }
 
@@ -51,9 +73,24 @@ export function createServices(): Services {
 
   const mockEmotion = flags.mockEmotion ? new MockEmotionDetector() : null;
 
+  const rawGaze: ScreenGaze | null = flags.mockEye
+    ? null
+    : flags.gazeEngine === 'webgazer'
+      ? new WebGazerGaze()
+      : flags.gazeEngine === 'mouse'
+        ? new MouseGaze()
+        : null;
+  // Head-pose compensation + One Euro smoothing on top of whichever tracker is used; it is still
+  // a ScreenGaze, so everything downstream (eye input, gaze dot) gets the cleaned-up points.
+  const gaze = rawGaze ? new FilteredGaze(rawGaze) : null;
+  if (gaze) faceTracker.onFrame((frame) => gaze.onFaceFrame(frame));
+
+  const eyeInput = flags.mockEye ? new MockEyeInput() : new RealEyeInput(faceTracker, gaze);
   return {
     faceTracker,
-    eyeInput: flags.mockEye ? new MockEyeInput() : new RealEyeInput(faceTracker),
+    gaze,
+    eyeInput,
+    gazeLearning: eyeInput instanceof RealEyeInput ? eyeInput.learning : null,
     emotion: mockEmotion ?? new RealEmotionDetector(),
     stt: createStt(flags.stt),
     conversation: new HistoryConversationService(
@@ -61,6 +98,7 @@ export function createServices(): Services {
     ),
     tts: createTts(flags.tts),
     usesCamera: needsCamera,
+    usesMic: flags.stt !== 'mock',
     mocks: { emotion: mockEmotion, eye: flags.mockEye },
   };
 }

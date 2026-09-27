@@ -1,121 +1,123 @@
-import { useState } from 'react';
-import { getOptions } from '../../../app/machine';
-import type { Phase } from '../../../app/machine';
-import type { Services } from '../../../app/services';
-import { useOrchestrator } from '../../../app/useOrchestrator';
-import { DevPanel } from './DevPanel';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useApp } from '../../../app/AppContext';
+import { NavDrawer, NavLinks } from './AppShell';
 import { CameraPreview } from './CameraPreview';
-import { MoodBar } from './MoodBar';
-import { OptionList } from './OptionList';
-import { SetupPanel } from './SetupPanel';
+import { EyeTuningPanel } from './EyeTuningPanel';
+import { GazeDebugOverlay } from './GazeDebugOverlay';
+import { GazeDot } from './GazeDot';
+import { StackLayout } from './StackLayout';
+import { V0ColumnLayout } from './v0/V0ColumnLayout';
 
-const STATUS: Record<Phase, string> = {
-  listening: 'Listening…',
-  suggesting: 'Thinking of replies…',
-  selectReply: 'Choose a reply',
-  typing: 'Type a reply',
-  confirmTone: 'Speak it in this tone?',
-  pickTone: 'Choose a different tone',
-  speaking: 'Speaking…',
-  feedback: 'Was the tone right?',
-};
-
-/** The main user screen. Everything the user sees is large and high-contrast on purpose. */
-export function MainScreen({ services }: { services: Services }) {
-  const { orchestrator, view } = useOrchestrator(services);
-  const { machine, highlight, dwell, eyeMode } = view;
+/**
+ * The Talk page: full screen, just the conversation. Everything else (calibration, settings,
+ * profile, account) lives on its own page, reached from the Menu.
+ */
+export function MainScreen() {
+  const { services, orchestrator, view } = useApp();
+  const navigate = useNavigate();
+  const { eyeMode } = view;
   const [draft, setDraft] = useState('');
-  const [showSetup, setShowSetup] = useState(false);
-  const options = getOptions(machine);
+  const [showMenu, setShowMenu] = useState(false);
+  const showDot = (() => {
+    try {
+      return localStorage.getItem('iris.showGazeDot.v2') === '1';
+    } catch {
+      return false;
+    }
+  })();
+  // Debug overlay (Alt+D) and tuning panel (Alt+T): remembered across reloads.
+  const [showDebug, setShowDebug] = useStoredFlag('iris.showGazeDebug');
+  const [showTuning, setShowTuning] = useStoredFlag('iris.showEyeTuning');
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey) return;
+      if (e.code === 'KeyD') setShowDebug((v) => !v);
+      else if (e.code === 'KeyT') setShowTuning((v) => !v);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setShowDebug, setShowTuning]);
+
+  // While the menu drawer or the tuning panel is open, the eyes can't choose options behind it.
+  useEffect(() => {
+    orchestrator.setSuspended(showMenu, 'menu');
+    return () => orchestrator.setSuspended(false, 'menu');
+  }, [orchestrator, showMenu]);
+  useEffect(() => {
+    orchestrator.setSuspended(showTuning, 'tuning');
+    return () => orchestrator.setSuspended(false, 'tuning');
+  }, [orchestrator, showTuning]);
 
   const pick = (optionIndex: number) =>
     orchestrator.dispatch({ type: 'eye', event: { type: 'select', optionIndex } });
 
   return (
-    <main className="screen">
-      <header className="topbar">
-        <div className="partner-said">
-          <span className="label">Partner said</span>
-          <p>{machine.interim || machine.partnerText || '—'}</p>
-        </div>
-        <div className="topbtns">
-          <button className="linkbtn" onClick={() => setShowSetup(true)}>
-            Set up / calibrate
-          </button>
-          <button
-            className="linkbtn"
-            onClick={() => window.open('/partner', 'iris-partner', 'width=900,height=700')}
-          >
-            Open partner view ↗
-          </button>
-        </div>
-      </header>
-
-      {machine.error && (
-        <div className="error" role="alert">
-          {machine.error}
-          <button onClick={() => orchestrator.dispatch({ type: 'dismiss_error' })}>Dismiss</button>
-        </div>
-      )}
-
-      <section className="stage">
-        <h1 className="status">{STATUS[machine.phase]}</h1>
-
-        {['confirmTone', 'pickTone', 'speaking'].includes(machine.phase) && machine.reply && (
-          <>
-            <p className="reply">“{machine.reply.text}”</p>
-            {machine.tone && <p className="tone">Tone: {machine.tone}</p>}
-          </>
-        )}
-
-        {machine.phase === 'typing' ? (
-          <form
-            className="typing"
-            onSubmit={(e) => {
-              e.preventDefault();
-              orchestrator.dispatch({ type: 'custom_reply', text: draft });
-              setDraft('');
-            }}
-          >
-            {/* TODO(Voice & UI): replace with the eye-controlled keyboard (starter issue). */}
-            <input
-              autoFocus
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Caregiver can type here for now"
-            />
-            <button type="submit">Use this reply</button>
-            <button
-              type="button"
-              onClick={() => orchestrator.dispatch({ type: 'eye', event: { type: 'cancel' } })}
-            >
-              Back
-            </button>
-          </form>
-        ) : (
-          <OptionList options={options} highlight={highlight} dwell={dwell} onPick={pick} />
-        )}
-      </section>
-
-      {services.usesCamera && <CameraPreview services={services} />}
-
-      <MoodBar
-        mood={machine.mood}
-        eyeMode={eyeMode}
-        onMood={(m) => orchestrator.setMood(m)}
-        onEyeMode={(m) => orchestrator.setEyeMode(m)}
-      />
-      <DevPanel
-        mocks={services.mocks}
-        onPartnerText={(text) => orchestrator.dispatch({ type: 'partner_final', text })}
-      />
-      {showSetup && (
-        <SetupPanel
+    <>
+      {showDot && services.gaze && <GazeDot services={services} />}
+      {showDebug && <GazeDebugOverlay services={services} />}
+      {showTuning && (
+        <EyeTuningPanel
           services={services}
           orchestrator={orchestrator}
-          onClose={() => setShowSetup(false)}
+          settings={view.settings}
+          onClose={() => setShowTuning(false)}
         />
       )}
-    </main>
+      {eyeMode !== 'vertical' ? (
+        <V0ColumnLayout
+          orchestrator={orchestrator}
+          view={view}
+          services={services}
+          draft={draft}
+          setDraft={setDraft}
+          onPick={pick}
+          camera={
+            services.usesCamera ? (
+              <CameraPreview services={services} showReadout={false} />
+            ) : (
+              // no camera in use (keyboard mock): a simple face stands in for the live view
+              <div className="face-placeholder" aria-hidden="true">
+                <span />
+                <span />
+              </div>
+            )
+          }
+          onCalibrate={services.usesCamera ? () => navigate('/calibrate') : undefined}
+          onOpenMenu={() => setShowMenu(true)}
+        />
+      ) : (
+        <StackLayout
+          orchestrator={orchestrator}
+          view={view}
+          draft={draft}
+          setDraft={setDraft}
+          onPick={pick}
+          topButtons={<NavLinks />}
+        />
+      )}
+
+      {showMenu && <NavDrawer onClose={() => setShowMenu(false)} />}
+    </>
   );
+}
+
+function useStoredFlag(key: string) {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(key) === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, on ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [key, on]);
+  return [on, setOn] as const;
 }
