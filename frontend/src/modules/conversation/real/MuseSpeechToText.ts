@@ -1,6 +1,7 @@
 import type { SpeechToText, SttStatus, Transcript } from '../../../contracts';
 import { createEmitter } from '../../../core/emitter';
 import { PcmChunker, WORKLET_SOURCE } from './audio';
+import { wsUrl } from '../../../core/config';
 
 /** Messages from our backend relay (see backend/app/services/muse.py, normalize_event). */
 type RelayMessage =
@@ -113,8 +114,7 @@ export class MuseSpeechToText implements SpeechToText {
 
   // ---- WebSocket to our backend ------------------------------------------------
   private connect() {
-    const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${scheme}://${location.host}/api/stt/stream`);
+    const ws = new WebSocket(wsUrl('/api/stt/stream'));
     this.socket = ws;
 
     ws.onmessage = (e) => {

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run setup:mediapipe && npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://RAILWAY_BACKEND_URL/api/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
