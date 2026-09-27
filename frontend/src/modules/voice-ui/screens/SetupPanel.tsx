@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { getUserId } from '../../../core/auth';
 import { EMOTIONS, TARGET_POSITION } from '../../../contracts';
 import type { CalibrationStep, Emotion, FaceFrame } from '../../../contracts';
 import type { Orchestrator } from '../../../app/Orchestrator';
@@ -68,7 +69,7 @@ export function SetupPanel({
     orchestrator.setSuspended(true);
 
     // Fetch existing voice profile
-    fetch('/api/voice/profile/local-user')
+    fetch(`/api/voice/profile/${getUserId()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data: VoiceProfile | null) => {
         if (mounted.current && data) {
@@ -182,7 +183,7 @@ export function SetupPanel({
       const res = await fetch('/api/voice/select', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: 'local-user', voice_id: voiceId }),
+        body: JSON.stringify({ user_id: getUserId(), voice_id: voiceId }),
       });
       if (!res.ok) {
         throw new Error('Failed to switch voice');
@@ -206,7 +207,7 @@ export function SetupPanel({
       const form = new FormData();
       const name = voiceName.trim() || 'My Voice';
       form.append('name', name);
-      form.append('user_id', 'local-user');
+      form.append('user_id', getUserId());
       form.append('file', selectedFile);
       if (audioDuration !== null) {
         form.append('duration', String(audioDuration));
@@ -222,7 +223,7 @@ export function SetupPanel({
         throw new Error(err.detail || 'Voice cloning failed');
       }
 
-      const profRes = await fetch('/api/voice/profile/local-user');
+      const profRes = await fetch(`/api/voice/profile/${getUserId()}`);
       if (profRes.ok) {
         const data: VoiceProfile = await profRes.json();
         setVoiceProfile(data);

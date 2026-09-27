@@ -10,6 +10,19 @@ from contextlib import closing
 from pathlib import Path
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,           -- random id; used as user_id everywhere else
+    email TEXT NOT NULL UNIQUE,    -- stored lowercase
+    name TEXT NOT NULL,
+    password_hash TEXT NOT NULL,   -- scrypt, see app/services/auth.py (never the password itself)
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,   -- sha256 of the login token (the token itself is never stored)
+    user_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS emotion_samples (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
@@ -207,3 +220,45 @@ class Database:
         with closing(self._connect()) as conn:
             row = conn.execute("SELECT data FROM profiles WHERE user_id = ?", (user_id,)).fetchone()
             return row["data"] if row else None
+
+    # ---- accounts ------------------------------------------------------------
+    def create_user(self, user_id: str, email: str, name: str, password_hash: str) -> bool:
+        """False if the email is already registered."""
+        try:
+            with closing(self._connect()) as conn, conn:
+                conn.execute(
+                    "INSERT INTO users (id, email, name, password_hash) VALUES (?, ?, ?, ?)",
+                    (user_id, email, name, password_hash),
+                )
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def get_user_by_email(self, email: str) -> dict | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+            return dict(row) if row else None
+
+    def get_user(self, user_id: str) -> dict | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+            return dict(row) if row else None
+
+    def add_session(self, token_hash: str, user_id: str, expires_at: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
+                (token_hash, user_id, expires_at),
+            )
+
+    def get_session_user(self, token_hash: str, now: str) -> str | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT user_id FROM sessions WHERE token_hash = ? AND expires_at > ?",
+                (token_hash, now),
+            ).fetchone()
+            return row["user_id"] if row else None
+
+    def delete_session(self, token_hash: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))

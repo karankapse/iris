@@ -1,7 +1,7 @@
 import { EMOTIONS } from '../contracts';
 import type { Emotion, EyeMode, SttStatus, UserProfile } from '../contracts';
 import { api } from '../core/api';
-import { USER_ID } from '../core/config';
+import { getUserId } from '../core/auth';
 import { createEmitter } from '../core/emitter';
 import { getOptions, initialState, reduce, type Effect, type Event, type State } from './machine';
 import { DEFAULT_PHRASES } from './phrases';
@@ -210,7 +210,7 @@ export class Orchestrator {
 
   private async loadProfile() {
     try {
-      this.applyProfile(await api.getProfile(USER_ID));
+      this.applyProfile(await api.getProfile(getUserId()));
     } catch {
       /* backend off: keep the cached profile */
     }
@@ -226,7 +226,7 @@ export class Orchestrator {
   async saveProfile(profile: UserProfile) {
     this.applyProfile(profile);
     try {
-      this.applyProfile(await api.putProfile(USER_ID, profile));
+      this.applyProfile(await api.putProfile(getUserId(), profile));
     } catch {
       this.dispatch({
         type: 'error',

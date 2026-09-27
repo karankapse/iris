@@ -6,7 +6,7 @@ import type {
   ToneFeedback,
 } from '../../../contracts';
 import { api, type ApiEmotionModel } from '../../../core/api';
-import { USER_ID } from '../../../core/config';
+import { getUserId } from '../../../core/auth';
 import { extractFeatures, FEATURE_NAMES, subsample } from '../features';
 import { bestGuess, predictProbabilities } from './predict';
 
@@ -32,7 +32,7 @@ export class RealEmotionDetector implements EmotionDetector {
   constructor() {
     // Use a previously trained model if there is one. Ignore failures (backend may be off).
     api
-      .getModel(USER_ID)
+      .getModel(getUserId())
       .then((m) => (this.model = m))
       .catch(() => undefined);
   }
@@ -61,20 +61,20 @@ export class RealEmotionDetector implements EmotionDetector {
   async recordSample(label: Emotion, frames: FaceFrame[]) {
     const chosen = subsample(frames, MAX_SAMPLES_PER_RECORDING);
     await api.addSamples({
-      user_id: USER_ID,
+      user_id: getUserId(),
       feature_names: [...FEATURE_NAMES],
       samples: chosen.map((f) => ({ label, features: extractFeatures(f), source: 'calibration' })),
     });
   }
 
   async train() {
-    this.model = await api.train(USER_ID);
+    this.model = await api.train(getUserId());
     this.smoothed = {};
   }
 
   async addFeedback(fb: ToneFeedback) {
     const result = await api.feedback({
-      user_id: USER_ID,
+      user_id: getUserId(),
       utterance_id: fb.utteranceId,
       reply_text: fb.replyText,
       spoken_tone: fb.spokenTone,

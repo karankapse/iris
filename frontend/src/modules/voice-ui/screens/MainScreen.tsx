@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { getSession, logout } from '../../../core/auth';
 import type { Emotion } from '../../../contracts';
 import type { Services } from '../../../app/services';
 import { useOrchestrator } from '../../../app/useOrchestrator';
@@ -164,6 +165,19 @@ export function MainScreen({ services }: { services: Services }) {
               <button onClick={() => setShowMenu(false)}>Close</button>
             </header>
             <div className="drawer-buttons">{actionButtons}</div>
+            <div className="account-row">
+              <span>
+                Logged in as <strong>{getSession()?.user.name}</strong> ({getSession()?.user.email})
+              </span>
+              <button
+                onClick={async () => {
+                  await logout();
+                  location.assign('/'); // back to the login screen, with a fresh app
+                }}
+              >
+                Log out
+              </button>
+            </div>
             {panels}
           </aside>
         </div>

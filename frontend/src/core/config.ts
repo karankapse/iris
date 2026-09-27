@@ -1,6 +1,3 @@
-/** Single local user for now. Later this could come from a profile picker. */
-export const USER_ID = 'local-user';
-
 /** Every screen shows exactly this many options (the last is always "Other…"). */
 export const MAX_OPTIONS = 3;
 

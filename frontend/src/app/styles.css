@@ -1216,3 +1216,102 @@ kbd {
   background: rgba(217, 94, 156, 0.15);
   border-color: #d95e9c;
 }
+
+/* --- login ---------------------------------------------------------------------------------- */
+.login-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: radial-gradient(1200px 600px at 50% 0%, #1c2a4f 0%, #0b1024 60%);
+}
+.login-card {
+  width: min(440px, 100%);
+  background: var(--panel);
+  border: 2px solid #30363d;
+  border-radius: 22px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.login-brand {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.login-brand h1 {
+  margin: 0;
+  font-size: 2.2rem;
+}
+.login-brand p {
+  margin: 0;
+  color: var(--muted);
+}
+.face-placeholder.small {
+  width: 72px;
+  background: #fff;
+}
+.login-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+}
+.login-tabs button {
+  border: 0;
+  border-radius: 9px;
+  padding: 10px;
+  font-size: 1rem;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.login-tabs button.active {
+  background: #d95e9c;
+  color: #16102a;
+  font-weight: 600;
+}
+.login-card .field input {
+  font-size: 1.05rem;
+  padding: 10px 12px;
+}
+.login-submit {
+  margin-top: 4px;
+  font-size: 1.15rem;
+  padding: 12px;
+  border-radius: 12px;
+  border: 0;
+  background: #74bcf0;
+  color: #0b1024;
+  font-weight: 700;
+  cursor: pointer;
+}
+.login-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--muted);
+}
+.account-row button {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 0;
+  cursor: pointer;
+}

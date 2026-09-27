@@ -2,6 +2,7 @@
 // `src/shared/api.generated.ts` (regenerate with `make gen-types`). Do not hand-write payload types.
 import type { Emotion, UserProfile } from '../contracts';
 import type { components } from '../shared/api.generated';
+import { authHeader } from './auth';
 
 type Schemas = components['schemas'];
 export type ApiSuggestion = Schemas['Suggestion'];
@@ -29,7 +30,7 @@ async function request<T>(
 ): Promise<T> {
   const res = await fetch(path, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...authHeader() },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
