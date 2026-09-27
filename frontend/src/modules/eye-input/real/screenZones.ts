@@ -48,6 +48,7 @@ export class ScreenZoneTracker {
   private candidate: Zone = 'center';
   private candidateSince = 0;
   private smoother = new FeatureSmoother();
+  private smooth = true;
 
   constructor(
     private holdMs: number,
@@ -58,12 +59,17 @@ export class ScreenZoneTracker {
     this.holdMs = holdMs;
   }
 
+  /** Turn the built-in smoothing off when the points are already filtered (FilteredGaze). */
+  setSmoothing(on: boolean) {
+    this.smooth = on;
+  }
+
   /** `suppress`: eyes are closing/opening, so the gaze numbers are unreliable: keep the last zone. */
   update(t: number, point: { x: number; y: number } | null, suppress: boolean): Zone {
     if (suppress || !point) return this.current;
 
     const vp = this.viewport();
-    const [x, y] = this.smoother.push([point.x, point.y]);
+    const [x, y] = this.smooth ? this.smoother.push([point.x, point.y]) : [point.x, point.y];
     const stillInCurrent = inside(this.current, x, y, vp, STICKY_X * vp.w, STICKY_Y * vp.h);
     const target = stillInCurrent ? this.current : zoneAt(x, y, vp);
 

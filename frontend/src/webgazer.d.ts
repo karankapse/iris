@@ -4,7 +4,10 @@ interface WebGazerApi {
   params: { faceMeshSolutionPath: string; saveDataAcrossSessions: boolean };
   setRegression(name: string): WebGazerApi;
   setGazeListener(
-    listener: (data: { x: number; y: number } | null, elapsedMs: number) => void,
+    listener: (
+      data: { x: number; y: number; eyeFeatures?: unknown } | null,
+      elapsedMs: number,
+    ) => void,
   ): WebGazerApi;
   clearGazeListener(): WebGazerApi;
   saveDataAcrossSessions(save: boolean): WebGazerApi;
@@ -24,6 +27,10 @@ interface WebGazerApi {
   /** Forget everything learned (memory and saved data). */
   clearData(): Promise<void>;
   getTracker(): { init(): Promise<unknown> };
+  /** Helpers; getEyeFeats turns the eye patches of a frame into WebGazer's 120 features. */
+  util?: { getEyeFeats?(eyes: unknown): number[] };
+  /** The regression models (internal objects: see WebGazerGaze.widenMemory). */
+  getRegression(): unknown[];
 }
 
 interface Window {
