@@ -26,7 +26,7 @@ export default defineConfig({
       VITE_MOCK_EMOTION: '1',
       VITE_STT_PROVIDER: 'mock',
       VITE_MOCK_CONVERSATION: '1',
-      VITE_TTS_PROVIDER: 'silent'
-    }
+      VITE_TTS_PROVIDER: 'silent',
+    },
   },
 });
