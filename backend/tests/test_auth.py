@@ -281,3 +281,10 @@ def test_without_email_confirmation_accounts_work_right_away(client, outbox, mon
     assert res.json()["needs_verification"] is False
     assert outbox == []  # nothing to confirm
     assert client.post("/api/auth/login", json=LOGIN).status_code == 200
+
+
+def test_empty_settings_fall_back_to_defaults(monkeypatch):
+    from app.config import Settings
+
+    monkeypatch.setenv("SMTP_PORT", "")  # an empty variable on the host must not crash startup
+    assert Settings().smtp_port == 587
