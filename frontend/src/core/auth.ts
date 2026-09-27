@@ -42,7 +42,17 @@ export function authHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function post(path: string, body: unknown): Promise<AuthResponse> {
+/** An error from the auth API, with its HTTP status (403 = email not confirmed, 429 = locked). */
+export class AuthError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
+
+async function post<T = AuthResponse>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -57,15 +67,30 @@ async function post(path: string, body: unknown): Promise<AuthResponse> {
           .map((d: { loc?: string[]; msg: string }) => `${d.loc?.at(-1) ?? ''}: ${d.msg}`)
           .join('. ')
       : detail;
-    throw new Error(message || `Request failed (${res.status})`);
+    throw new AuthError(message || `Request failed (${res.status})`, res.status);
   }
-  return data as AuthResponse;
+  return data as T;
 }
 
-export async function signup(email: string, password: string, name: string): Promise<User> {
-  const r = await post('/api/auth/signup', { email, password, name });
+/** Creates the account and emails a confirmation link. Not signed in until the link is clicked. */
+export async function signup(email: string, password: string, name: string): Promise<string> {
+  const r = await post<{ email: string }>('/api/auth/signup', { email, password, name });
+  return r.email;
+}
+
+/** The emailed confirmation link: confirms the address and signs in. */
+export async function verifyEmail(token: string): Promise<User> {
+  const r = await post('/api/auth/verify', { token });
   setSession({ token: r.token, user: r.user });
   return r.user;
+}
+
+export async function resendConfirmation(email: string) {
+  await fetch('/api/auth/resend-verification', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
 }
 
 export async function login(email: string, password: string): Promise<User> {

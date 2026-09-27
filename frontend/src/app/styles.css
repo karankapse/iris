@@ -1516,3 +1516,27 @@ kbd {
   background: #4a2a2a;
   color: #9da7b3;
 }
+.center {
+  text-align: center;
+}
+.login-card h2 {
+  margin: 0;
+}
+.inbox-icon {
+  font-size: 3rem;
+  text-align: center;
+}
+.login-submit.secondary {
+  background: transparent;
+  color: #9fd1ff;
+  border: 2px solid #3b5b85;
+}
+a.login-submit {
+  display: block;
+  text-decoration: none;
+}
+.show-pw {
+  color: var(--muted);
+  font-size: 0.95rem;
+  align-items: center;
+}

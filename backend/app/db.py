@@ -21,7 +21,18 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT NOT NULL UNIQUE,    -- stored lowercase
     name TEXT NOT NULL,
     password_hash TEXT NOT NULL,   -- scrypt, see app/services/auth.py (never the password itself)
+    email_verified INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS email_verifications (
+    token_hash TEXT PRIMARY KEY,   -- sha256 of the emailed token
+    user_id TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS login_failures (
+    email TEXT NOT NULL,
+    failed_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,   -- sha256 of the login token (the token itself is never stored)
@@ -83,6 +94,13 @@ class Database:
         # ":memory:" gives a fresh DB per connection, so tests use a temp file instead.
         with self._connect() as conn:
             conn.executescript(SCHEMA)
+            # Upgrade older databases: accounts made before email confirmation existed count as
+            # confirmed (new accounts are inserted as unconfirmed explicitly).
+            cols = [c[1] for c in conn.execute("PRAGMA table_info(users)")]
+            if "email_verified" not in cols:
+                conn.execute(
+                    "ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1"
+                )
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)
@@ -233,7 +251,8 @@ class Database:
         try:
             with closing(self._connect()) as conn, conn:
                 conn.execute(
-                    "INSERT INTO users (id, email, name, password_hash) VALUES (?, ?, ?, ?)",
+                    "INSERT INTO users (id, email, name, password_hash, email_verified)"
+                    " VALUES (?, ?, ?, ?, 0)",
                     (user_id, email, name, password_hash),
                 )
             return True
@@ -315,6 +334,7 @@ class Database:
     USER_TABLES = (
         "sessions",
         "password_resets",
+        "email_verifications",
         "emotion_samples",
         "emotion_models",
         "profiles",
@@ -328,9 +348,59 @@ class Database:
         with closing(self._connect()) as conn, conn:
             for table in self.USER_TABLES:
                 conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
+            conn.execute(
+                "DELETE FROM login_failures WHERE email = (SELECT email FROM users WHERE id = ?)",
+                (user_id,),
+            )
             conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
 
     def list_users(self) -> list[dict]:
         with closing(self._connect()) as conn:
             rows = conn.execute("SELECT id, email, name, created_at FROM users ORDER BY created_at")
             return [dict(r) for r in rows]
+
+    # ---- email confirmation ----------------------------------------------------------
+    def add_verification(self, token_hash: str, user_id: str, expires_at: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO email_verifications (token_hash, user_id, expires_at)"
+                " VALUES (?, ?, ?)",
+                (token_hash, user_id, expires_at),
+            )
+
+    def use_verification(self, token_hash: str, now: str) -> str | None:
+        with closing(self._connect()) as conn, conn:
+            row = conn.execute(
+                "SELECT user_id FROM email_verifications WHERE token_hash = ? AND used = 0"
+                " AND expires_at > ?",
+                (token_hash, now),
+            ).fetchone()
+            if not row:
+                return None
+            conn.execute(
+                "UPDATE email_verifications SET used = 1 WHERE token_hash = ?", (token_hash,)
+            )
+            return row["user_id"]
+
+    def set_verified(self, user_id: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
+
+    # ---- brute-force protection ---------------------------------------------------------
+    def record_login_failure(self, email: str, now: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO login_failures (email, failed_at) VALUES (?, ?)", (email, now)
+            )
+
+    def count_login_failures(self, email: str, since: str) -> int:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM login_failures WHERE email = ? AND failed_at > ?",
+                (email, since),
+            ).fetchone()
+            return row["n"]
+
+    def clear_login_failures(self, email: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute("DELETE FROM login_failures WHERE email = ?", (email,))

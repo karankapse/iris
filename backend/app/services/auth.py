@@ -13,6 +13,10 @@ from datetime import UTC, datetime, timedelta
 
 SESSION_DAYS = 30
 RESET_MINUTES = 30
+VERIFY_HOURS = 24
+# brute-force protection: this many wrong passwords within LOCK_MINUTES locks the email
+MAX_FAILED_LOGINS = 5
+LOCK_MINUTES = 15
 _SCRYPT = {"n": 2**14, "r": 8, "p": 1, "dklen": 32}
 
 
@@ -55,3 +59,11 @@ def new_user_id() -> str:
 
 def reset_expiry_iso() -> str:
     return (datetime.now(UTC) + timedelta(minutes=RESET_MINUTES)).isoformat()
+
+
+def verify_expiry_iso() -> str:
+    return (datetime.now(UTC) + timedelta(hours=VERIFY_HOURS)).isoformat()
+
+
+def lock_window_start_iso() -> str:
+    return (datetime.now(UTC) - timedelta(minutes=LOCK_MINUTES)).isoformat()

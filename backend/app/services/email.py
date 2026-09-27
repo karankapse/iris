@@ -1,20 +1,31 @@
-"""Sending email over SMTP (standard library only).
+"""Sending email over SMTP (standard library only), as branded HTML with a plain-text fallback.
 
 No SMTP server configured (the default in development)? The email is written to the backend log
 instead, so every flow can still be tested; nothing is lost silently.
 """
 
+import html as html_lib
 import logging
 import smtplib
 from email.message import EmailMessage
+from email.utils import make_msgid
 
 from app.config import Settings
 
 log = logging.getLogger("iris.email")
 
+# (subject, plain text, html)
+Email = tuple[str, str, str]
 
-def send_email(settings: Settings, to: str, subject: str, body: str) -> bool:
+
+def send_email(
+    settings: Settings, to: str, subject: str, body: str, html: str | None = None
+) -> bool:
     """True if handed to the SMTP server. Never raises: a failed email must not break sign-up."""
+    return deliver(settings, to, subject, body, html)
+
+
+def deliver(settings: Settings, to: str, subject: str, body: str, html: str | None = None) -> bool:
     if not settings.smtp_host:
         log.warning("[email not sent: SMTP not configured] to=%s subject=%s\n%s", to, subject, body)
         return False
@@ -22,7 +33,10 @@ def send_email(settings: Settings, to: str, subject: str, body: str) -> bool:
     msg["From"] = settings.email_from or settings.smtp_user
     msg["To"] = to
     msg["Subject"] = subject
+    msg["Message-ID"] = make_msgid(domain="iris.app")  # unique: mail apps don't merge them
     msg.set_content(body)
+    if html:
+        msg.add_alternative(html, subtype="html")
     try:
         with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as smtp:
             smtp.starttls()
@@ -36,41 +50,120 @@ def send_email(settings: Settings, to: str, subject: str, body: str) -> bool:
         return False
 
 
-# ---- the messages ---------------------------------------------------------------------------
+# ---- the branded layout -------------------------------------------------------------------
 
 
-def welcome(name: str, app_url: str) -> tuple[str, str]:
+def _layout(title: str, paragraphs: list[str], button: tuple[str, str] | None, footer: str) -> str:
+    """A simple, email-client-safe card: pink header, text, one big button."""
+    esc = html_lib.escape
+    body = "".join(
+        f'<p style="margin:0 0 14px;font-size:16px;line-height:1.5;color:#1f2330">{esc(p)}</p>'
+        for p in paragraphs
+    )
+    btn = ""
+    if button:
+        label, url = button
+        btn = (
+            f'<p style="margin:24px 0"><a href="{esc(url)}" style="background:#d95e9c;color:#fff;'
+            "text-decoration:none;font-weight:700;padding:14px 26px;border-radius:12px;"
+            f'display:inline-block;font-size:16px">{esc(label)}</a></p>'
+            '<p style="margin:0 0 14px;font-size:13px;color:#6b7280">Button not working? '
+            f'Copy this link:<br><a href="{esc(url)}" style="color:#6b7280">{esc(url)}</a></p>'
+        )
     return (
-        "Welcome to Iris",
-        f"Hi,\n\nAn Iris account was created for {name}.\n\n"
-        f"Next step: sign in and calibrate the eyes (about 11 seconds) so Iris knows how "
-        f"{name}'s eyes move:\n{app_url}/calibrate\n\n"
-        "If you didn't create this account, you can ignore this email.\n\n- Iris",
+        '<!doctype html><html><body style="margin:0;background:#f3f4f8;padding:24px 12px;'
+        'font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">'
+        '<table role="presentation" width="100%" cellspacing="0" cellpadding="0">'
+        '<tr><td align="center">'
+        '<table role="presentation" width="100%" style="max-width:520px;background:#fff;'
+        'border-radius:18px;overflow:hidden" cellspacing="0" cellpadding="0">'
+        '<tr><td style="background:#0b1024;padding:22px 28px">'
+        '<span style="display:inline-block;width:30px;height:30px;border-radius:50%;'
+        'background:#fff;vertical-align:middle"></span>'
+        '<span style="color:#fff;font-size:22px;font-weight:700;vertical-align:middle;'
+        'margin-left:10px">Iris</span></td></tr>'
+        '<tr><td style="padding:28px">'
+        '<h1 style="margin:0 0 16px;font-size:22px;color:#0b1024">'
+        f"{esc(title)}</h1>{body}{btn}</td></tr>"
+        f'<tr><td style="padding:16px 28px;background:#fafafb;font-size:12px;color:#9ca3af">'
+        f"{esc(footer)}</td></tr></table></td></tr></table></body></html>"
     )
 
 
-def password_changed(name: str, app_url: str) -> tuple[str, str]:
-    return (
+def _make(subject: str, title: str, paragraphs: list[str], button, footer: str) -> Email:
+    text = "\n\n".join([title, *paragraphs]) + (f"\n\n{button[0]}: {button[1]}" if button else "")
+    return subject, f"{text}\n\n{footer}\n\n- Iris", _layout(title, paragraphs, button, footer)
+
+
+# ---- the messages -------------------------------------------------------------------------
+
+IGNORE = "If you didn't ask for this, you can ignore this email."
+
+
+def confirm_email(name: str, link: str, hours: int) -> Email:
+    return _make(
+        "Confirm your email for Iris",
+        f"Welcome to Iris, {name}!",
+        [
+            "Iris lets people speak with their eyes, in a voice that carries how they feel.",
+            f"Confirm this email address to finish creating the account. The link works for "
+            f"{hours} hours.",
+        ],
+        ("Confirm email", link),
+        IGNORE,
+    )
+
+
+def welcome(name: str, app_url: str) -> Email:
+    return _make(
+        "You're all set with Iris",
+        "Your account is ready",
+        [
+            f"{name}'s Iris account is confirmed.",
+            "Next step: calibrate the eyes (about 11 seconds) so Iris learns how they move.",
+        ],
+        ("Open Iris", f"{app_url}/calibrate"),
+        "You're receiving this because an Iris account was created with this email.",
+    )
+
+
+def password_changed(name: str, app_url: str) -> Email:
+    return _make(
         "Your Iris password was changed",
-        f"Hi,\n\nThe password for {name}'s Iris account was just changed, and other devices were "
-        "signed out.\n\nIf this wasn't you, reset your password now:\n"
-        f"{app_url}/login?forgot=1\n\n- Iris",
+        "Password changed",
+        [
+            f"The password for {name}'s Iris account was just changed, and other devices were "
+            "signed out.",
+            "If this wasn't you, reset your password right away.",
+        ],
+        ("Reset password", f"{app_url}/login?forgot=1"),
+        "Security notice for your Iris account.",
     )
 
 
-def password_reset(name: str, link: str, minutes: int) -> tuple[str, str]:
-    return (
+def password_reset(name: str, link: str, minutes: int) -> Email:
+    return _make(
         "Reset your Iris password",
-        f"Hi,\n\nSomeone asked to reset the password for {name}'s Iris account.\n\n"
-        f"Choose a new password here (the link works once, for {minutes} minutes):\n{link}\n\n"
-        "If this wasn't you, ignore this email: the password stays the same.\n\n- Iris",
+        "Reset your password",
+        [
+            f"Someone asked to reset the password for {name}'s Iris account.",
+            f"Choose a new password with the button below. The link works once, for {minutes} "
+            "minutes.",
+        ],
+        ("Choose a new password", link),
+        IGNORE + " Your password stays the same.",
     )
 
 
-def account_deleted(name: str) -> tuple[str, str]:
-    return (
+def account_deleted(name: str) -> Email:
+    return _make(
         "Your Iris account was deleted",
-        f"Hi,\n\n{name}'s Iris account and all of its data (calibration, emotion model, profile "
-        "and voices) were permanently deleted.\n\n"
-        "If this wasn't you, reply to this email.\n\n- Iris",
+        "Account deleted",
+        [
+            f"{name}'s Iris account and all of its data (calibration, emotion model, profile and "
+            "voices) were permanently deleted.",
+            "If this wasn't you, reply to this email.",
+        ],
+        None,
+        "This is the last email you'll get about this account.",
     )

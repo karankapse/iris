@@ -43,3 +43,18 @@ class ResetPasswordRequest(BaseModel):
 
 class DeleteAccountRequest(BaseModel):
     password: str = Field(description="Confirms it's really the account owner")
+
+
+class SignupResponse(BaseModel):
+    email: str
+    needs_verification: bool = Field(
+        default=True, description="A confirmation link was emailed; sign-in works after clicking it"
+    )
+
+
+class TokenRequest(BaseModel):
+    token: str
+
+
+class EmailRequest(BaseModel):
+    email: str

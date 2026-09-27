@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+import app.services.email as email_module
 from app.config import Settings
 from app.main import create_app
 
@@ -21,3 +22,17 @@ def client(tmp_path, monkeypatch):
     )
     with TestClient(create_app(settings)) as c:
         yield c
+
+
+@pytest.fixture(autouse=True)
+def outbox(monkeypatch):
+    """Every test: emails are captured here, never sent (and SMTP is switched off as a backstop)."""
+    sent: list[dict] = []
+    monkeypatch.setenv("SMTP_HOST", "")
+
+    def fake_send(settings, to, subject, body, html=None):
+        sent.append({"to": to, "subject": subject, "body": body, "html": html})
+        return True
+
+    monkeypatch.setattr(email_module, "send_email", fake_send)
+    return sent

@@ -13,6 +13,7 @@ import {
 import { PartnerView } from '../modules/voice-ui/screens/PartnerView';
 import { ResetPasswordScreen } from '../modules/voice-ui/screens/ResetPasswordScreen';
 import { ToneTester } from '../modules/voice-ui/screens/ToneTester';
+import { VerifyEmailScreen } from '../modules/voice-ui/screens/VerifyEmailScreen';
 import { AppProvider } from './AppContext';
 
 /** Signed-in pages only. Not signed in (or the session expired) -> the login page. */
@@ -37,6 +38,7 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginRoute />} />
         <Route path="/reset-password" element={<ResetPasswordScreen />} />
+        <Route path="/verify-email" element={<VerifyEmailScreen />} />
         {/* the partner's second window: open to anyone, it only mirrors the main window */}
         <Route path="/partner" element={<PartnerView />} />
         <Route
