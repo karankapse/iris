@@ -310,3 +310,27 @@ class Database:
     def delete_all_sessions(self, user_id: str) -> None:
         with closing(self._connect()) as conn, conn:
             conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+
+    # Every table that holds something belonging to a user (keep in sync when adding tables).
+    USER_TABLES = (
+        "sessions",
+        "password_resets",
+        "emotion_samples",
+        "emotion_models",
+        "profiles",
+        "feedback",
+        "voice_profiles",
+        "voices",
+    )
+
+    def delete_user_everything(self, user_id: str) -> None:
+        """Delete the account AND all its data (calibration, emotion model, profile, voices)."""
+        with closing(self._connect()) as conn, conn:
+            for table in self.USER_TABLES:
+                conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
+            conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
+    def list_users(self) -> list[dict]:
+        with closing(self._connect()) as conn:
+            rows = conn.execute("SELECT id, email, name, created_at FROM users ORDER BY created_at")
+            return [dict(r) for r in rows]

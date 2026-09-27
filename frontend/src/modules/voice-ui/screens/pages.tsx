@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../../../app/AppContext';
 import type { Emotion } from '../../../contracts';
-import { changePassword, getSession, updateName } from '../../../core/auth';
+import { changePassword, deleteAccount, getSession, updateName } from '../../../core/auth';
 import { signOut } from './AppShell';
 import { CameraPreview } from './CameraPreview';
 import { DevPanel } from './DevPanel';
@@ -110,6 +110,8 @@ export function AccountPage() {
   const [next, setNext] = useState('');
   const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deletePw, setDeletePw] = useState('');
+  const [confirmText, setConfirmText] = useState('');
 
   async function run(job: () => Promise<string>) {
     setBusy(true);
@@ -189,6 +191,45 @@ export function AccountPage() {
           </label>
           <button type="submit" disabled={busy}>
             Change password
+          </button>
+        </form>
+
+        <form
+          className="panel danger"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void run(async () => {
+              await deleteAccount(deletePw);
+              location.assign('/login');
+              return 'Account deleted.';
+            });
+          }}
+        >
+          <h3>Delete account</h3>
+          <p className="muted">
+            Permanently deletes this account and everything saved for it: calibration, emotion
+            model, profile, quick phrases and cloned voices. This can&apos;t be undone.
+          </p>
+          <label className="field">
+            <strong>Password</strong>
+            <input
+              type="password"
+              value={deletePw}
+              onChange={(e) => setDeletePw(e.target.value)}
+              required
+              autoComplete="current-password"
+            />
+          </label>
+          <label className="field">
+            <strong>Type DELETE to confirm</strong>
+            <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
+          </label>
+          <button
+            type="submit"
+            className="danger-button"
+            disabled={busy || confirmText !== 'DELETE'}
+          >
+            Delete account permanently
           </button>
         </form>
 

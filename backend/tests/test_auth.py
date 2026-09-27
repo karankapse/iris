@@ -171,3 +171,37 @@ def test_without_smtp_the_email_is_logged_not_lost(caplog):
     with caplog.at_level("WARNING", logger="iris.email"):
         assert send_email(Settings(smtp_host=""), "a@b.c", "Hello", "Body text") is False
     assert "SMTP not configured" in caplog.text and "Body text" in caplog.text
+
+
+def test_delete_account_removes_the_account_and_all_its_data(client, outbox):
+    body = client.post("/api/auth/signup", json=ACCOUNT).json()
+    token, user_id = body["token"], body["user"]["id"]
+    client.put(f"/api/profile/{user_id}", json={"name": "Sam", "phrases": ["hi"]})
+
+    wrong = client.request(
+        "DELETE", "/api/auth/me", json={"password": "nope"}, headers=bearer(token)
+    )
+    assert wrong.status_code == 401
+
+    ok = client.request(
+        "DELETE", "/api/auth/me", json={"password": "correct horse"}, headers=bearer(token)
+    )
+    assert ok.status_code == 204
+    assert client.get("/api/auth/me", headers=bearer(token)).status_code == 401  # signed out
+    login = {"email": "sam@example.com", "password": "correct horse"}
+    assert client.post("/api/auth/login", json=login).status_code == 401  # account gone
+    assert client.get(f"/api/profile/{user_id}").json()["name"] == ""  # data gone too
+    assert outbox[-1]["subject"] == "Your Iris account was deleted"
+    assert client.post("/api/auth/signup", json=ACCOUNT).status_code == 201  # email reusable
+
+
+def test_user_tables_cover_every_table_with_a_user_id(client):
+    db = client.app.state.db
+    with db._connect() as conn:
+        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
+        with_user = {
+            t
+            for t in tables
+            if any(c[1] == "user_id" for c in conn.execute(f"PRAGMA table_info({t})"))
+        }
+    assert with_user == set(db.USER_TABLES)  # a new per-user table must be added to USER_TABLES

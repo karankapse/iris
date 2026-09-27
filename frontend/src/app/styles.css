@@ -1505,3 +1505,14 @@ kbd {
   text-decoration: underline;
   padding: 4px;
 }
+.panel.danger {
+  border: 2px solid #5a2323;
+}
+.danger-button {
+  background: #b62324;
+  color: #fff;
+}
+.danger-button:disabled {
+  background: #4a2a2a;
+  color: #9da7b3;
+}

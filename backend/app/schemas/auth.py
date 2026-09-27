@@ -39,3 +39,7 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str = Field(min_length=8, max_length=200)
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str = Field(description="Confirms it's really the account owner")

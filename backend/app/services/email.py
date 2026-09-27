@@ -65,3 +65,12 @@ def password_reset(name: str, link: str, minutes: int) -> tuple[str, str]:
         f"Choose a new password here (the link works once, for {minutes} minutes):\n{link}\n\n"
         "If this wasn't you, ignore this email: the password stays the same.\n\n- Iris",
     )
+
+
+def account_deleted(name: str) -> tuple[str, str]:
+    return (
+        "Your Iris account was deleted",
+        f"Hi,\n\n{name}'s Iris account and all of its data (calibration, emotion model, profile "
+        "and voices) were permanently deleted.\n\n"
+        "If this wasn't you, reply to this email.\n\n- Iris",
+    )

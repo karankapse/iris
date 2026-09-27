@@ -10,6 +10,7 @@ from app.deps import DbDep
 from app.schemas.auth import (
     AuthResponse,
     ChangePasswordRequest,
+    DeleteAccountRequest,
     ForgotPasswordRequest,
     LoginRequest,
     ResetPasswordRequest,
@@ -149,3 +150,14 @@ def reset_password(req: ResetPasswordRequest, db: DbDep) -> AuthResponse:
     db.update_user(user["id"], password_hash=auth.hash_password(req.new_password))
     db.delete_all_sessions(user["id"])  # sign out everywhere, then sign in here
     return _start_session(db, user)
+
+
+@router.delete("/me", status_code=204)
+def delete_account(
+    req: DeleteAccountRequest, user: CurrentUser, db: DbDep, background: BackgroundTasks
+) -> None:
+    """Permanently delete the signed-in account and everything stored for it."""
+    if not auth.verify_password(req.password, user["password_hash"]):
+        raise HTTPException(401, "Password is wrong")
+    db.delete_user_everything(user["id"])
+    _email(background, user["email"], *email_msgs.account_deleted(user["name"]))

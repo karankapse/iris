@@ -142,3 +142,9 @@ export async function resetPassword(token: string, newPassword: string): Promise
   setSession({ token: r.token, user: r.user });
   return r.user;
 }
+
+/** Permanently deletes the signed-in account and all its data. */
+export async function deleteAccount(password: string) {
+  await send('DELETE', '/api/auth/me', { password });
+  setSession(null);
+}
