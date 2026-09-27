@@ -5,6 +5,11 @@ import type { EyeSettings } from '../contracts';
 export interface Settings extends EyeSettings {
   /** Speech speed multiplier (1 = the tone's normal speed). */
   speechSpeed: number;
+  /**
+   * Remember conversations (what was said, how the user felt, what they replied) on this
+   * computer, so suggestions learn how this person feels about each topic.
+   */
+  rememberConversations: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -13,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   steadinessMs: 150,
   doubleBlinkBack: false,
   speechSpeed: 1,
+  rememberConversations: true,
 };
 
 /** [min, max, step] for the sliders, also used to clamp anything loaded from storage. */
@@ -43,6 +49,7 @@ export function normalizeSettings(input: Partial<Settings> | null | undefined): 
       SETTING_LIMITS.speechSpeed,
     ),
     doubleBlinkBack: s.doubleBlinkBack === true,
+    rememberConversations: s.rememberConversations !== false,
   };
 }
 

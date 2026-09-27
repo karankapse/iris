@@ -15,9 +15,15 @@
 // performs, so what is shown and what happens can never disagree (see `getEntries`).
 // ============================================================================
 import { EMOTIONS } from '../contracts';
-import type { Emotion, EmotionEstimate, EyeEvent, Suggestion } from '../contracts';
+import type {
+  ConversationEmotion,
+  Emotion,
+  EmotionEstimate,
+  EyeEvent,
+  Suggestion,
+} from '../contracts';
 import { MAX_OPTIONS } from '../core/config';
-import { applySymbol, DONE, keyboardEntries } from './keyboard';
+import { applySymbol, DONE, keyboardEntries, LETTERS } from './keyboard';
 import { DEFAULT_PHRASES } from './phrases';
 
 export type Phase =
@@ -27,7 +33,9 @@ export type Phase =
   | 'moreReplies' // the AI's other suggestions (from "Other…")
   | 'menu' //        "Other…": quick phrases, type my own, set mood
   | 'phrases' //     quick-access saved phrases
-  | 'typing' //      the eye keyboard
+  | 'typing' //      the eye keyboard (exact spelling)
+  | 'quickType' //   first-letter typing: type the first letter of each word, the AI guesses
+  | 'qtMore' //      more guesses, delete, spell exactly, start over
   | 'pickMood' //    choose the persistent mood
   | 'confirmTone' // "speak it in this tone?"  yes / change
   | 'pickTone' //    choose a different tone
@@ -54,7 +62,11 @@ export interface State {
   /** What the partner said while the user was busy choosing or typing a reply. It is held (the
    * options don't change under their eyes) and handled as soon as they are free again. */
   heldPartner: string;
-  /** How many times this turn's replies were restarted by more speech (max MAX_RESTARTS). */
+  /** When the partner last finished a sentence (ms), to tell a follow-up from other talk. */
+  lastPartnerAt: number | null;
+  /** Speech heard while replies load, waiting on "is it related?" (see check_related). */
+  pendingRelated: string;
+  /** How many times this turn's replies were restarted by follow-up speech (max MAX_RESTARTS). */
   restarts: number;
   suggestions: Suggestion[];
   /** Increases per request so a slow, old response can't overwrite a newer one. */
@@ -67,6 +79,8 @@ export interface State {
   detected: EmotionEstimate;
   /** The emotion measured right after the partner spoke. */
   measuredEmotion: Emotion | null;
+  /** How this moment feels, from the partner's words AND the user's face (null until known). */
+  feel: ConversationEmotion | null;
   lastSpoken: SpokenReply | null;
   utteranceCount: number;
   idPrefix: string;
@@ -80,18 +94,29 @@ export interface State {
   /** Eye keyboard: the text typed so far, and which group of keys we are inside. */
   typed: string;
   kbPath: number[];
+  /** First-letter typing: the letters so far ("iww"), the AI's guesses for them, and whether
+   * the letter picker is showing (vs. the "best guess / next letter / other" screen). */
+  initials: string;
+  expansions: Suggestion[];
+  expandId: number;
+  expanding: boolean;
+  qtPicking: boolean;
 }
 
 export type Event =
   | { type: 'partner_partial'; text: string }
-  | { type: 'partner_final'; text: string }
+  | { type: 'partner_final'; text: string; /** when it was heard (ms) */ at?: number }
+  | { type: 'related_result'; requestId: number; related: boolean; text: string }
   | {
       type: 'suggestions_ready';
       requestId: number;
       suggestions: Suggestion[];
       reaction?: Emotion | null;
+      feel?: ConversationEmotion | null;
     }
   | { type: 'suggestions_failed'; requestId: number; message: string }
+  | { type: 'expansions_ready'; requestId: number; suggestions: Suggestion[] }
+  | { type: 'expansions_failed'; requestId: number; message: string }
   | { type: 'set_mood'; mood: Emotion | null }
   | { type: 'set_phrases'; phrases: string[] }
   | { type: 'emotion_estimate'; estimate: EmotionEstimate }
@@ -111,6 +136,8 @@ export type Effect =
       mood: Emotion | null;
       reaction: Emotion | null;
     }
+  | { type: 'check_related'; requestId: number; previous: string; new: string }
+  | { type: 'expand'; requestId: number; initials: string; mood: Emotion | null }
   | { type: 'snapshot_features' }
   | { type: 'save_mood'; mood: Emotion | null }
   | { type: 'speak'; spoken: SpokenReply }
@@ -133,6 +160,8 @@ export function initialState(
     partnerText: '',
     interim: '',
     heldPartner: '',
+    lastPartnerAt: null,
+    pendingRelated: '',
     restarts: 0,
     suggestions: [],
     requestId: 0,
@@ -141,6 +170,7 @@ export function initialState(
     mood,
     detected: { emotion: 'neutral', confidence: 0 },
     measuredEmotion: null,
+    feel: null,
     lastSpoken: null,
     utteranceCount: 0,
     idPrefix,
@@ -150,6 +180,11 @@ export function initialState(
     returnStack: [],
     typed: '',
     kbPath: [],
+    initials: '',
+    expansions: [],
+    expandId: 0,
+    expanding: false,
+    qtPicking: true,
   };
 }
 
@@ -181,7 +216,8 @@ export interface Option {
   info?: boolean;
 }
 
-type SubScreen = 'menu' | 'moreReplies' | 'phrases' | 'typing' | 'pickMood';
+type SubScreen =
+  'menu' | 'moreReplies' | 'phrases' | 'typing' | 'quickType' | 'qtMore' | 'pickMood';
 
 export type Action =
   | { kind: 'none' } //                               info card: nothing happens
@@ -198,7 +234,11 @@ export type Action =
   | { kind: 'feedback'; ok: boolean }
   | { kind: 'skipFeedback' }
   | { kind: 'key'; symbol: string }
-  | { kind: 'group'; index: number };
+  | { kind: 'group'; index: number }
+  | { kind: 'initial'; letter: string } // first-letter typing: add this letter
+  | { kind: 'qtLetter' } //                show the letter picker
+  | { kind: 'qtDelete' }
+  | { kind: 'qtClear' };
 
 export interface Entry {
   option: Option;
@@ -287,7 +327,9 @@ export function getEntries(s: State): Entry[] {
           : []),
         ...(from === 'listening'
           ? []
-          : [goto('Quick phrases', 'phrases'), goto('Type my own reply', 'typing')]),
+          : [goto('Quick phrases', 'phrases'), goto('Type my own reply', 'quickType')]),
+        // exact spelling (names, unusual words), always one step away
+        goto('Spell it exactly', 'typing'),
         goto('Set mood', 'pickMood'),
         backEntry,
       ];
@@ -355,6 +397,45 @@ export function getEntries(s: State): Entry[] {
         { option: { label: 'Not sure (skip)' }, action: { kind: 'skipFeedback' } },
       ];
 
+    case 'quickType': {
+      // picking a letter: the same 3-way letter groups as the keyboard (letters only)
+      if (s.qtPicking || !s.initials) {
+        return keyboardEntries(s.kbPath, LETTERS).map((e): Entry =>
+          e.kind === 'group'
+            ? { option: { label: e.label }, action: { kind: 'group', index: e.index } }
+            : e.kind === 'symbol'
+              ? { option: { label: e.label }, action: { kind: 'initial', letter: e.symbol } }
+              : backEntry,
+        );
+      }
+      const letters = s.initials.toUpperCase().split('').join(' ');
+      const best = s.expansions[0];
+      const first: Entry = best
+        ? replyEntry(best.text, s.measuredEmotion ?? best.tone, `✓ best guess (${letters})`)
+        : s.expanding
+          ? info('Guessing…', letters)
+          : info('No guess yet', 'add another letter');
+      return [
+        first,
+        { option: { label: 'Next letter' }, action: { kind: 'qtLetter' } },
+        other('qtMore'),
+      ];
+    }
+
+    case 'qtMore':
+      return threeOf(
+        [
+          ...s.expansions
+            .slice(1)
+            .map((x) => replyEntry(x.text, s.measuredEmotion ?? x.tone, 'guess')),
+          { option: { label: '⌫ Delete last letter' }, action: { kind: 'qtDelete' } },
+          goto('Spell it exactly', 'typing'),
+          { option: { label: 'Start over' }, action: { kind: 'qtClear' } },
+          backEntry,
+        ],
+        s.page,
+      );
+
     case 'typing':
       return keyboardEntries(s.kbPath).map((e): Entry =>
         e.kind === 'group'
@@ -405,6 +486,15 @@ export function reduce(state: State, event: Event): Result {
   return result;
 }
 
+/** Only a clear read of the moment overrides each reply's own tone (so replies keep variety). */
+export const FEEL_TRUST = 0.7;
+
+/** The tone the moment calls for (words + face), if it's clear and not just "neutral". */
+function feelTone(feel: ConversationEmotion | null | undefined): Emotion | null {
+  if (!feel || feel.emotion === 'neutral' || feel.confidence < FEEL_TRUST) return null;
+  return feel.emotion;
+}
+
 /** Speech held while the user is busy is kept short: only the most recent words matter. */
 const HELD_WORDS = 20;
 function lastWords(text: string, n = HELD_WORDS): string {
@@ -418,8 +508,24 @@ const hold = (state: State, text: string): State => ({
   interim: '',
 });
 
-/** More speech may restart a turn's replies at most this often (a TV would never stop). */
+/** Follow-up speech may restart a turn's replies at most this often (a TV would never stop). */
 export const MAX_RESTARTS = 2;
+/** A sentence this soon after the last one is the same person still talking. */
+export const FOLLOW_UP_MS = 3000;
+const CONNECTORS = ['and', 'or', 'but', 'also', 'so', 'because', 'plus'];
+const REFERS_BACK = ['it', "it's", 'that', "that's", 'them', 'this', 'those'];
+
+/** Cheap, offline rules for "is this the same turn?". false = not sure (ask the backend). */
+export function obviouslyRelated(text: string, gapMs: number | null): boolean {
+  if (gapMs !== null && gapMs <= FOLLOW_UP_MS) return true;
+  const first =
+    text
+      .trim()
+      .toLowerCase()
+      .replace(/’/g, "'")
+      .split(/[\s,.!?]+/)[0] ?? '';
+  return CONNECTORS.includes(first) || REFERS_BACK.includes(first);
+}
 
 /**
  * Start preparing replies. `shown` is the partner's whole turn (what the screen shows); `added`
@@ -442,8 +548,14 @@ function startSuggesting(state: State, shown: string, added: string, restart = f
       reply: null,
       tone: null,
       measuredEmotion: reaction,
+      feel: null,
       requestId,
       restarts: restart ? state.restarts + 1 : 0,
+      // a check still running belongs to the old request: keep its text for later
+      heldPartner: state.pendingRelated
+        ? lastWords(`${state.heldPartner} ${state.pendingRelated}`)
+        : state.heldPartner,
+      pendingRelated: '',
       error: null,
       page: 0,
       typed: '',
@@ -464,16 +576,46 @@ function reduceEvent(state: State, event: Event): Result {
       // While the app is speaking, ignore the room (it would also hear its own voice), and a lone
       // "yeah" / "um" is background noise, not a turn.
       if (!isRealSentence(text) || state.phase === 'speaking') return same(state);
+      const at = event.at ?? null;
+      const gap = at !== null && state.lastPartnerAt !== null ? at - state.lastPartnerAt : null;
+      const heard = { ...state, lastPartnerAt: at ?? state.lastPartnerAt };
       if (state.phase === 'suggesting') {
-        // Still preparing replies: it's the same turn ("Are you hungry? We have soup."), so ask
-        // again with all of it, but only a couple of times (constant chatter would never finish).
-        if (state.restarts >= MAX_RESTARTS) return same(hold(state, text));
-        return startSuggesting(state, `${state.partnerText} ${text}`, text, true);
+        // Enough restarts for this turn, or a check already running: answer it afterwards.
+        if (state.restarts >= MAX_RESTARTS || state.pendingRelated) return same(hold(heard, text));
+        // A follow-up ("Are you hungry?" ... "We have soup."): same turn, ask again with all of it.
+        if (obviouslyRelated(text, gap)) {
+          return startSuggesting(heard, `${state.partnerText} ${text}`, text, true);
+        }
+        // Not sure (could be the TV): ask, while the replies keep loading.
+        return {
+          state: { ...heard, pendingRelated: text, interim: '' },
+          effects: [
+            {
+              type: 'check_related',
+              requestId: state.requestId,
+              previous: state.partnerText,
+              new: text,
+            },
+          ],
+        };
       }
       // The user is choosing or typing a reply: don't change the screen under their eyes.
       // Hold it, and handle it as soon as they're done (see reduce()).
-      if (!TAKES_PARTNER_SPEECH.includes(state.phase)) return same(hold(state, text));
-      return startSuggesting(state, text, text);
+      if (!TAKES_PARTNER_SPEECH.includes(state.phase)) return same(hold(heard, text));
+      return startSuggesting(heard, text, text);
+    }
+
+    case 'related_result': {
+      const stale =
+        event.requestId !== state.requestId ||
+        state.phase !== 'suggesting' ||
+        event.text !== state.pendingRelated;
+      if (stale) return same(state); // its text was already held (see startSuggesting / replies)
+      const next = { ...state, pendingRelated: '' };
+      if (event.related && state.restarts < MAX_RESTARTS) {
+        return startSuggesting(next, `${state.partnerText} ${event.text}`, event.text, true);
+      }
+      return same(hold(next, event.text));
     }
 
     case 'suggestions_ready':
@@ -482,15 +624,33 @@ function reduceEvent(state: State, event: Event): Result {
         return same({ ...state, phase: 'listening', error: 'The AI returned no suggestions.' });
       }
       return same({
-        ...state,
+        // replies came first: speech still being checked is answered after this reply
+        ...(state.pendingRelated ? hold(state, state.pendingRelated) : state),
+        pendingRelated: '',
         phase: 'selectReply',
         suggestions: event.suggestions,
-        measuredEmotion: event.reaction !== undefined ? event.reaction : state.measuredEmotion,
+        feel: event.feel ?? null,
+        measuredEmotion:
+          feelTone(event.feel) ??
+          (event.reaction !== undefined ? event.reaction : state.measuredEmotion),
       });
 
     case 'suggestions_failed':
       if (event.requestId !== state.requestId || state.phase !== 'suggesting') return same(state);
-      return same({ ...state, phase: 'listening', error: event.message });
+      return same({
+        ...(state.pendingRelated ? hold(state, state.pendingRelated) : state),
+        pendingRelated: '',
+        phase: 'listening',
+        error: event.message,
+      });
+
+    case 'expansions_ready':
+      if (event.requestId !== state.expandId) return same(state); // an older guess: ignore
+      return same({ ...state, expansions: event.suggestions, expanding: false });
+
+    case 'expansions_failed':
+      if (event.requestId !== state.expandId) return same(state);
+      return same({ ...state, expanding: false, error: event.message });
 
     case 'set_mood':
       return same({ ...state, mood: event.mood });
@@ -517,7 +677,8 @@ function reduceEvent(state: State, event: Event): Result {
     case 'custom_reply': {
       // A caregiver typing the reply in the text box instead of using the eye keyboard.
       const text = event.text.trim();
-      if (state.phase !== 'typing' || !text) return same(state);
+      // the caregiver's text box works on any typing screen
+      if (!['typing', 'quickType', 'qtMore'].includes(state.phase) || !text) return same(state);
       return proposeTone(state, { text, suggestedTone: 'neutral' });
     }
 
@@ -588,6 +749,17 @@ function speak(state: State): Result {
 }
 
 /** Pop one level off the "where did I come from" stack (listening if there is nothing to go back to). */
+/** Set the first letters and ask the AI for guesses (none needed when there are no letters). */
+function withInitials(state: State, initials: string): Result {
+  const base = { ...state, initials, kbPath: [], qtPicking: initials === '', expansions: [] };
+  if (!initials) return same({ ...base, expanding: false });
+  const expandId = state.expandId + 1;
+  return {
+    state: { ...base, expandId, expanding: true },
+    effects: [{ type: 'expand', requestId: expandId, initials, mood: state.mood }],
+  };
+}
+
 function leaveSubScreen(state: State): State {
   const stack = state.returnStack;
   return {
@@ -603,6 +775,11 @@ function leaveSubScreen(state: State): State {
 /** "Back" / cancel: one step back, depending on where we are. */
 function goBack(state: State): Result {
   switch (state.phase) {
+    case 'quickType':
+      // inside a letter group: back out of it; picking a letter: back to the guess; else leave
+      if (state.kbPath.length > 0) return same({ ...state, kbPath: state.kbPath.slice(0, -1) });
+      if (state.qtPicking && state.initials) return same({ ...state, qtPicking: false });
+      return same(leaveSubScreen(state));
     case 'typing':
       // inside a group of keys: back out of the group first; at the top: leave the keyboard
       return state.kbPath.length > 0
@@ -612,6 +789,7 @@ function goBack(state: State): Result {
     case 'moreReplies':
     case 'phrases':
     case 'pickMood':
+    case 'qtMore':
       return same(leaveSubScreen(state));
     case 'selectReply':
       return same({ ...state, phase: 'listening' });
@@ -654,7 +832,23 @@ function applyAction(state: State, action: Action): Result {
         page: 0,
         typed: '',
         kbPath: [],
+        // opening first-letter typing starts fresh
+        ...(action.phase === 'quickType'
+          ? { initials: '', expansions: [], expanding: false, qtPicking: true }
+          : {}),
       });
+
+    case 'initial':
+      return withInitials(state, state.initials + action.letter.toLowerCase());
+
+    case 'qtLetter':
+      return same({ ...state, qtPicking: true, kbPath: [] });
+
+    case 'qtDelete':
+      return withInitials(leaveSubScreen(state), state.initials.slice(0, -1));
+
+    case 'qtClear':
+      return withInitials(leaveSubScreen(state), '');
 
     case 'more':
       return same({ ...state, page: state.page + 1 });

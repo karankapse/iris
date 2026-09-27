@@ -2,6 +2,8 @@ import type {
   ConversationService,
   ConversationTurn,
   Emotion,
+  FaceReaction,
+  ReplyBundle,
   Suggestion,
   UserProfile,
 } from '../../contracts';
@@ -16,6 +18,15 @@ export type SuggestionFetcher = (
   reaction?: Emotion | null,
 ) => Promise<Suggestion[]>;
 
+/** Like SuggestionFetcher, but also says how the moment feels (words + face). */
+export type ReplyBundleFetcher = (
+  history: ConversationTurn[],
+  mood: Emotion | null,
+  profile?: UserProfile,
+  reaction?: Emotion | null,
+  face?: FaceReaction,
+) => Promise<ReplyBundle>;
+
 /**
  * Keeps the conversation history and asks a `fetcher` for suggestions.
  * The mock and real versions differ only in the fetcher (canned list vs. backend call).
@@ -23,7 +34,11 @@ export type SuggestionFetcher = (
 export class HistoryConversationService implements ConversationService {
   private turns: ConversationTurn[] = [];
 
-  constructor(private fetchSuggestions: SuggestionFetcher) {}
+  constructor(
+    private fetchSuggestions: (
+      ...args: Parameters<ReplyBundleFetcher>
+    ) => Promise<Suggestion[] | ReplyBundle>,
+  ) {}
 
   addTurn(turn: ConversationTurn) {
     this.turns.push(turn);
@@ -34,8 +49,18 @@ export class HistoryConversationService implements ConversationService {
   }
 
   async suggestReplies(mood: Emotion | null, profile?: UserProfile, reaction?: Emotion | null) {
-    const suggestions = await this.fetchSuggestions(this.history(), mood, profile, reaction);
+    return (await this.suggestRepliesWithEmotion(mood, profile, reaction)).suggestions;
+  }
+
+  async suggestRepliesWithEmotion(
+    mood: Emotion | null,
+    profile?: UserProfile,
+    reaction?: Emotion | null,
+    face?: FaceReaction,
+  ): Promise<ReplyBundle> {
+    const out = await this.fetchSuggestions(this.history(), mood, profile, reaction, face);
+    const bundle = Array.isArray(out) ? { suggestions: out, emotion: null } : out;
     // Claude gives 3-4. Two are shown straight away; the rest are under "Other…" → "More replies".
-    return suggestions.slice(0, MAX_SUGGESTIONS);
+    return { ...bundle, suggestions: bundle.suggestions.slice(0, MAX_SUGGESTIONS) };
   }
 }

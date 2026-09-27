@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../../app/AppContext';
 import { NavDrawer, NavLinks } from './AppShell';
@@ -41,14 +41,15 @@ export function MainScreen() {
     return () => window.removeEventListener('keydown', onKey);
   }, [setShowDebug, setShowTuning]);
 
-  // While the menu drawer is open the eyes can't choose options behind it (only on open/close).
-  const menuPaused = useRef(false);
+  // While the menu drawer or the tuning panel is open, the eyes can't choose options behind it.
   useEffect(() => {
-    if (showMenu !== menuPaused.current) {
-      menuPaused.current = showMenu;
-      orchestrator.setSuspended(showMenu);
-    }
+    orchestrator.setSuspended(showMenu, 'menu');
+    return () => orchestrator.setSuspended(false, 'menu');
   }, [orchestrator, showMenu]);
+  useEffect(() => {
+    orchestrator.setSuspended(showTuning, 'tuning');
+    return () => orchestrator.setSuspended(false, 'tuning');
+  }, [orchestrator, showTuning]);
 
   const pick = (optionIndex: number) =>
     orchestrator.dispatch({ type: 'eye', event: { type: 'select', optionIndex } });

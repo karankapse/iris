@@ -10,6 +10,7 @@ import { DevPanel } from './DevPanel';
 import { MicPanel } from './MicPanel';
 import { MoodBar } from './MoodBar';
 import { ProfilePanel } from './ProfilePanel';
+import { MemoryPanel } from './MemoryPanel';
 import { SettingsPanel } from './SettingsPanel';
 import { SetupPanel } from './SetupPanel';
 
@@ -78,6 +79,7 @@ export function SettingsPage() {
           />
         </section>
         <SettingsPanel orchestrator={orchestrator} settings={view.settings} />
+        <MemoryPanel orchestrator={orchestrator} settings={view.settings} />
         {services.usesCamera && (
           <section className="panel">
             <h3>Camera</h3>

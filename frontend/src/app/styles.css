@@ -1817,6 +1817,20 @@ a.login-submit {
   border-color: var(--bad);
   color: var(--bad);
 }
+
+/* --- conversation memory ------------------------------------------------------------------ */
+.memory-panel h3 {
+  margin: 0 0 6px;
+}
+.memory-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
 .calib-zone {
   position: absolute;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -1847,4 +1861,9 @@ a.login-submit {
 .partner-said .said-scroll::-webkit-scrollbar-thumb {
   background: rgba(127, 127, 127, 0.5);
   border-radius: 4px;
+}
+.partner-said .feels {
+  margin-left: 0.6em;
+  font-size: 0.85rem;
+  opacity: 0.75;
 }

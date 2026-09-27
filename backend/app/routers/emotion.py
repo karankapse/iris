@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
 
@@ -14,7 +16,10 @@ def add_samples(req: SamplesRequest, db: DbDep) -> dict:
         if len(s.features) != len(req.feature_names):
             raise HTTPException(422, "Each sample must have one value per feature name")
     db.add_samples(
-        req.user_id, req.feature_names, [(s.label, s.features, s.source) for s in req.samples]
+        req.user_id,
+        req.feature_names,
+        [(s.label, s.features, s.source) for s in req.samples],
+        recording=uuid.uuid4().hex,  # one request = one recording (for honest accuracy checks)
     )
     return {"stored": len(req.samples)}
 

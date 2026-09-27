@@ -35,6 +35,34 @@ describe('HistoryConversationService', () => {
   });
 });
 
+describe('HistoryConversationService: how the moment feels', () => {
+  it('sends the face reading and passes back the AI’s read of the moment', async () => {
+    const face = { scores: { happy: 0.7 }, peak: 'happy' as const, confidence: 0.8 };
+    const emotion = {
+      emotion: 'happy' as const,
+      confidence: 0.8,
+      reason: 'smiling',
+      source: 'face' as const,
+    };
+    let seenFace = null;
+    const svc = new HistoryConversationService(async (_h, _m, _p, _r, f) => {
+      seenFace = f;
+      return { suggestions: [{ id: '1', text: 'Yes!', tone: 'happy' }], emotion };
+    });
+    const out = await svc.suggestRepliesWithEmotion(null, undefined, 'happy', face);
+    expect(seenFace).toEqual(face);
+    expect(out.emotion).toEqual(emotion);
+    expect(await svc.suggestReplies(null)).toHaveLength(1);
+  });
+
+  it('a fetcher that returns only replies has no emotion', async () => {
+    const svc = new HistoryConversationService(async () => [
+      { id: '1', text: 'x', tone: 'neutral' },
+    ]);
+    expect((await svc.suggestRepliesWithEmotion(null)).emotion).toBeNull();
+  });
+});
+
 describe('cannedSuggestions', () => {
   it('answers a hunger question with food-related replies', async () => {
     const out = await cannedSuggestions([{ speaker: 'partner', text: 'Are you hungry?' }], null);

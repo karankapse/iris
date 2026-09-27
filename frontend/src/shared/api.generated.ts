@@ -174,6 +174,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/conversation/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log Exchange
+         * @description Remember one moment: what was said, how the user felt, what they replied.
+         */
+        post: operations["log_exchange_api_conversation_log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversation/memory/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Memory */
+        get: operations["get_memory_api_conversation_memory__user_id__get"];
+        put?: never;
+        post?: never;
+        /** Forget */
+        delete: operations["forget_api_conversation_memory__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/emotion/model/{user_id}": {
         parameters: {
             query?: never;
@@ -219,6 +257,26 @@ export interface paths {
         put?: never;
         /** Train */
         post: operations["train_api_emotion_train_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Expand
+         * @description First-letter typing: "iww" -> "I want water" (using the conversation and the memory).
+         */
+        post: operations["expand_api_expand_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -274,6 +332,26 @@ export interface paths {
         /** Put Profile */
         put: operations["put_profile_api_profile__user_id__put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Related
+         * @description Is speech heard while replies were loading part of the same turn? (fast model)
+         */
+        post: operations["related_api_related_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -399,6 +477,31 @@ export interface components {
             /** New Password */
             new_password: string;
         };
+        /**
+         * ConversationEmotion
+         * @description How this moment feels, judged from the partner's words AND the user's face.
+         */
+        ConversationEmotion: {
+            /** Confidence */
+            confidence: number;
+            /**
+             * Emotion
+             * @enum {string}
+             */
+            emotion: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
+            /**
+             * Reason
+             * @description Short: why (and any words/face disagreement)
+             * @default
+             */
+            reason: string;
+            /**
+             * Source
+             * @default face + words
+             * @enum {string}
+             */
+            source: "face" | "words" | "face + words";
+        };
         /** ConversationTurn */
         ConversationTurn: {
             /**
@@ -434,9 +537,14 @@ export interface components {
         EmotionModel: {
             /**
              * Accuracy
-             * @description Cross-validated accuracy (0.0 to 1.0), or None if not enough data to measure.
+             * @description Average per-emotion accuracy on held-out recordings
              */
             accuracy?: number | null;
+            /**
+             * Advice
+             * @description e.g. "sad needs more examples (record it again)"
+             */
+            advice?: string[];
             /** Classes */
             classes: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious")[];
             /**
@@ -455,6 +563,10 @@ export interface components {
             means: number[];
             /** N Samples */
             n_samples: number;
+            /** Per Class Accuracy */
+            per_class_accuracy?: {
+                [key: string]: number;
+            };
             /** Scales */
             scales: number[];
             /** User Id */
@@ -480,6 +592,88 @@ export interface components {
             source: "calibration" | "feedback";
         };
         /**
+         * ExchangeLog
+         * @description One moment of conversation, logged when a reply is spoken.
+         */
+        ExchangeLog: {
+            /**
+             * Detected Emotion
+             * @description What the user's face showed right after the partner spoke
+             */
+            detected_emotion?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /** Emotion Confidence */
+            emotion_confidence?: number | null;
+            /**
+             * Mood
+             * @description The user's mood setting
+             */
+            mood?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /**
+             * Partner Text
+             * @description What the partner had just said
+             */
+            partner_text: string;
+            /** Reply Text */
+            reply_text: string;
+            /**
+             * Reply Tone
+             * @enum {string}
+             */
+            reply_tone: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+            /** Utterance Id */
+            utterance_id: string;
+        };
+        /**
+         * ExpandRequest
+         * @description First-letter typing: guess the sentence from the first letter of each word.
+         */
+        ExpandRequest: {
+            /** History */
+            history?: components["schemas"]["ConversationTurn"][];
+            /**
+             * Initials
+             * @description e.g. "iww" for "I want water"
+             */
+            initials: string;
+            /** Mood */
+            mood?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            profile?: components["schemas"]["UserProfile"] | null;
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+        };
+        /**
+         * FaceReaction
+         * @description The user's face while reacting to what was just said (not just one label).
+         */
+        FaceReaction: {
+            /**
+             * Confidence
+             * @description How sure the peak was
+             * @default 0
+             */
+            confidence: number;
+            /**
+             * Peak
+             * @description Strongest non-neutral expression
+             */
+            peak?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /**
+             * Scores
+             * @description Share of the reaction window per emotion, weighted by confidence (0..1)
+             */
+            scores?: {
+                [key: string]: number;
+            };
+        };
+        /**
          * FeedbackRequest
          * @description One piece of feedback about a spoken reply.
          *
@@ -487,6 +681,11 @@ export interface components {
          *     fields are optional; send whichever one you have. `utterance_id` ties them together.
          */
         FeedbackRequest: {
+            /**
+             * Feature Frames
+             * @description Face features from the reaction window (about 10 frames); preferred
+             */
+            feature_frames?: number[][] | null;
             /** Feature Names */
             feature_names?: string[] | null;
             /**
@@ -529,6 +728,55 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /** MemoryEntry */
+        MemoryEntry: {
+            /** Created At */
+            created_at: string;
+            /** Detected Emotion */
+            detected_emotion: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /** Partner Text */
+            partner_text: string;
+            /** Reply Text */
+            reply_text: string;
+            /**
+             * Reply Tone
+             * @enum {string}
+             */
+            reply_tone: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
+            /** Tone Ok */
+            tone_ok: boolean | null;
+        };
+        /** MemoryResponse */
+        MemoryResponse: {
+            /** Count */
+            count: number;
+            /**
+             * Entries
+             * @description Newest first
+             */
+            entries: components["schemas"]["MemoryEntry"][];
+        };
+        /** RelatedRequest */
+        RelatedRequest: {
+            /**
+             * New
+             * @description Speech heard while the replies were being prepared
+             */
+            new: string;
+            /**
+             * Previous
+             * @description What the partner said this turn so far
+             */
+            previous: string;
+        };
+        /** RelatedResponse */
+        RelatedResponse: {
+            /**
+             * Related
+             * @description True if the new speech continues the same turn
+             */
+            related: boolean;
         };
         /** ResetPasswordRequest */
         ResetPasswordRequest: {
@@ -617,6 +865,8 @@ export interface components {
         };
         /** SuggestionsRequest */
         SuggestionsRequest: {
+            /** @description The full face reading behind `reaction` */
+            face_reaction?: components["schemas"]["FaceReaction"] | null;
             /**
              * History
              * @description Oldest first; last turn is usually the partner
@@ -634,9 +884,16 @@ export interface components {
              * @description The user's immediate emotional reaction / facial expression to what was said
              */
             reaction?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /**
+             * User Id
+             * @description Whose conversation memory to use
+             * @default local-user
+             */
+            user_id: string;
         };
         /** SuggestionsResponse */
         SuggestionsResponse: {
+            conversation_emotion?: components["schemas"]["ConversationEmotion"] | null;
             /** Suggestions */
             suggestions: components["schemas"]["Suggestion"][];
         };
@@ -1097,6 +1354,107 @@ export interface operations {
             };
         };
     };
+    log_exchange_api_conversation_log_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExchangeLog"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_memory_api_conversation_memory__user_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forget_api_conversation_memory__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_model_api_emotion_model__user_id__get: {
         parameters: {
             query?: never;
@@ -1183,6 +1541,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EmotionModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    expand_api_expand_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpandRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -1306,6 +1697,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserProfile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    related_api_related_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelatedRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedResponse"];
                 };
             };
             /** @description Validation Error */

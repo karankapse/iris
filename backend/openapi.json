@@ -74,6 +74,51 @@
         "title": "ChangePasswordRequest",
         "type": "object"
       },
+      "ConversationEmotion": {
+        "description": "How this moment feels, judged from the partner's words AND the user's face.",
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "emotion": {
+            "enum": [
+              "neutral",
+              "happy",
+              "sad",
+              "excited",
+              "joking",
+              "serious"
+            ],
+            "title": "Emotion",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "description": "Short: why (and any words/face disagreement)",
+            "title": "Reason",
+            "type": "string"
+          },
+          "source": {
+            "default": "face + words",
+            "enum": [
+              "face",
+              "words",
+              "face + words"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emotion",
+          "confidence"
+        ],
+        "title": "ConversationEmotion",
+        "type": "object"
+      },
       "ConversationTurn": {
         "properties": {
           "speaker": {
@@ -135,8 +180,16 @@
                 "type": "null"
               }
             ],
-            "description": "Cross-validated accuracy (0.0 to 1.0), or None if not enough data to measure.",
+            "description": "Average per-emotion accuracy on held-out recordings",
             "title": "Accuracy"
+          },
+          "advice": {
+            "description": "e.g. \"sad needs more examples (record it again)\"",
+            "items": {
+              "type": "string"
+            },
+            "title": "Advice",
+            "type": "array"
           },
           "classes": {
             "items": {
@@ -195,6 +248,23 @@
           "n_samples": {
             "title": "N Samples",
             "type": "integer"
+          },
+          "per_class_accuracy": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "propertyNames": {
+              "enum": [
+                "neutral",
+                "happy",
+                "sad",
+                "excited",
+                "joking",
+                "serious"
+              ]
+            },
+            "title": "Per Class Accuracy",
+            "type": "object"
           },
           "scales": {
             "items": {
@@ -260,9 +330,235 @@
         "title": "EmotionSample",
         "type": "object"
       },
+      "ExchangeLog": {
+        "description": "One moment of conversation, logged when a reply is spoken.",
+        "properties": {
+          "detected_emotion": {
+            "anyOf": [
+              {
+                "enum": [
+                  "neutral",
+                  "happy",
+                  "sad",
+                  "excited",
+                  "joking",
+                  "serious"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What the user's face showed right after the partner spoke",
+            "title": "Detected Emotion"
+          },
+          "emotion_confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emotion Confidence"
+          },
+          "mood": {
+            "anyOf": [
+              {
+                "enum": [
+                  "neutral",
+                  "happy",
+                  "sad",
+                  "excited",
+                  "joking",
+                  "serious"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The user's mood setting",
+            "title": "Mood"
+          },
+          "partner_text": {
+            "description": "What the partner had just said",
+            "title": "Partner Text",
+            "type": "string"
+          },
+          "reply_text": {
+            "title": "Reply Text",
+            "type": "string"
+          },
+          "reply_tone": {
+            "enum": [
+              "neutral",
+              "happy",
+              "sad",
+              "excited",
+              "joking",
+              "serious"
+            ],
+            "title": "Reply Tone",
+            "type": "string"
+          },
+          "user_id": {
+            "default": "local-user",
+            "title": "User Id",
+            "type": "string"
+          },
+          "utterance_id": {
+            "title": "Utterance Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "utterance_id",
+          "partner_text",
+          "reply_text",
+          "reply_tone"
+        ],
+        "title": "ExchangeLog",
+        "type": "object"
+      },
+      "ExpandRequest": {
+        "description": "First-letter typing: guess the sentence from the first letter of each word.",
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationTurn"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "initials": {
+            "description": "e.g. \"iww\" for \"I want water\"",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Initials",
+            "type": "string"
+          },
+          "mood": {
+            "anyOf": [
+              {
+                "enum": [
+                  "neutral",
+                  "happy",
+                  "sad",
+                  "excited",
+                  "joking",
+                  "serious"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mood"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserProfile"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "user_id": {
+            "default": "local-user",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "initials"
+        ],
+        "title": "ExpandRequest",
+        "type": "object"
+      },
+      "FaceReaction": {
+        "description": "The user's face while reacting to what was just said (not just one label).",
+        "properties": {
+          "confidence": {
+            "default": 0,
+            "description": "How sure the peak was",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "peak": {
+            "anyOf": [
+              {
+                "enum": [
+                  "neutral",
+                  "happy",
+                  "sad",
+                  "excited",
+                  "joking",
+                  "serious"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Strongest non-neutral expression",
+            "title": "Peak"
+          },
+          "scores": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "Share of the reaction window per emotion, weighted by confidence (0..1)",
+            "propertyNames": {
+              "enum": [
+                "neutral",
+                "happy",
+                "sad",
+                "excited",
+                "joking",
+                "serious"
+              ]
+            },
+            "title": "Scores",
+            "type": "object"
+          }
+        },
+        "title": "FaceReaction",
+        "type": "object"
+      },
       "FeedbackRequest": {
         "description": "One piece of feedback about a spoken reply.\n\nThe user's eye yes/no and the partner's tap arrive at different moments, so both\nfields are optional; send whichever one you have. `utterance_id` ties them together.",
         "properties": {
+          "feature_frames": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Face features from the reaction window (about 10 frames); preferred",
+            "title": "Feature Frames"
+          },
           "feature_names": {
             "anyOf": [
               {
@@ -395,6 +691,130 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "MemoryEntry": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "detected_emotion": {
+            "anyOf": [
+              {
+                "enum": [
+                  "neutral",
+                  "happy",
+                  "sad",
+                  "excited",
+                  "joking",
+                  "serious"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected Emotion"
+          },
+          "partner_text": {
+            "title": "Partner Text",
+            "type": "string"
+          },
+          "reply_text": {
+            "title": "Reply Text",
+            "type": "string"
+          },
+          "reply_tone": {
+            "enum": [
+              "neutral",
+              "happy",
+              "sad",
+              "excited",
+              "joking",
+              "serious"
+            ],
+            "title": "Reply Tone",
+            "type": "string"
+          },
+          "tone_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tone Ok"
+          }
+        },
+        "required": [
+          "partner_text",
+          "detected_emotion",
+          "reply_text",
+          "reply_tone",
+          "tone_ok",
+          "created_at"
+        ],
+        "title": "MemoryEntry",
+        "type": "object"
+      },
+      "MemoryResponse": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "entries": {
+            "description": "Newest first",
+            "items": {
+              "$ref": "#/components/schemas/MemoryEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "entries"
+        ],
+        "title": "MemoryResponse",
+        "type": "object"
+      },
+      "RelatedRequest": {
+        "properties": {
+          "new": {
+            "description": "Speech heard while the replies were being prepared",
+            "title": "New",
+            "type": "string"
+          },
+          "previous": {
+            "description": "What the partner said this turn so far",
+            "title": "Previous",
+            "type": "string"
+          }
+        },
+        "required": [
+          "previous",
+          "new"
+        ],
+        "title": "RelatedRequest",
+        "type": "object"
+      },
+      "RelatedResponse": {
+        "properties": {
+          "related": {
+            "description": "True if the new speech continues the same turn",
+            "title": "Related",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "related"
+        ],
+        "title": "RelatedResponse",
         "type": "object"
       },
       "ResetPasswordRequest": {
@@ -601,6 +1021,17 @@
       },
       "SuggestionsRequest": {
         "properties": {
+          "face_reaction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FaceReaction"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The full face reading behind `reaction`"
+          },
           "history": {
             "description": "Oldest first; last turn is usually the partner",
             "items": {
@@ -659,6 +1090,12 @@
             ],
             "description": "The user's immediate emotional reaction / facial expression to what was said",
             "title": "Reaction"
+          },
+          "user_id": {
+            "default": "local-user",
+            "description": "Whose conversation memory to use",
+            "title": "User Id",
+            "type": "string"
           }
         },
         "required": [
@@ -669,6 +1106,16 @@
       },
       "SuggestionsResponse": {
         "properties": {
+          "conversation_emotion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConversationEmotion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "suggestions": {
             "items": {
               "$ref": "#/components/schemas/Suggestion"
@@ -1398,6 +1845,144 @@
         ]
       }
     },
+    "/api/conversation/log": {
+      "post": {
+        "description": "Remember one moment: what was said, how the user felt, what they replied.",
+        "operationId": "log_exchange_api_conversation_log_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExchangeLog"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Log Exchange Api Conversation Log Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Log Exchange",
+        "tags": [
+          "conversation"
+        ]
+      }
+    },
+    "/api/conversation/memory/{user_id}": {
+      "delete": {
+        "operationId": "forget_api_conversation_memory__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Forget Api Conversation Memory  User Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forget",
+        "tags": [
+          "conversation"
+        ]
+      },
+      "get": {
+        "operationId": "get_memory_api_conversation_memory__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Memory",
+        "tags": [
+          "conversation"
+        ]
+      }
+    },
     "/api/emotion/model/{user_id}": {
       "get": {
         "operationId": "get_model_api_emotion_model__user_id__get",
@@ -1521,6 +2106,48 @@
         "summary": "Train",
         "tags": [
           "emotion"
+        ]
+      }
+    },
+    "/api/expand": {
+      "post": {
+        "description": "First-letter typing: \"iww\" -> \"I want water\" (using the conversation and the memory).",
+        "operationId": "expand_api_expand_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuggestionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Expand",
+        "tags": [
+          "conversation"
         ]
       }
     },
@@ -1677,6 +2304,48 @@
         "summary": "Put Profile",
         "tags": [
           "profile"
+        ]
+      }
+    },
+    "/api/related": {
+      "post": {
+        "description": "Is speech heard while replies were loading part of the same turn? (fast model)",
+        "operationId": "related_api_related_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelatedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RelatedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Related",
+        "tags": [
+          "conversation"
         ]
       }
     },

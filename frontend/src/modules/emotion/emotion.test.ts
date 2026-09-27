@@ -3,7 +3,7 @@ import { api } from '../../core/api';
 import { RETRAIN_AFTER, RealEmotionDetector } from './real/RealEmotionDetector';
 import type { FaceFrame } from '../../contracts';
 import type { ApiEmotionModel } from '../../core/api';
-import { extractFeatures, FEATURE_NAMES, subsample } from './features';
+import { extractFeatures, FEATURE_NAMES, subsample, usableFrame } from './features';
 import { bestGuess, predictProbabilities } from './real/predict';
 
 const frame = (
@@ -34,6 +34,53 @@ describe('extractFeatures', () => {
 
   it('ignores blink blendshapes (blinks are the control signal)', () => {
     expect(FEATURE_NAMES.some((n) => n.startsWith('eyeBlink'))).toBe(false);
+  });
+});
+
+describe('usableFrame', () => {
+  it('drops frames that would teach the wrong thing', () => {
+    expect(usableFrame(frame({ mouthSmileLeft: 0.5 }))).toBe(true);
+    expect(usableFrame(frame({}))).toBe(false); // no face
+    expect(usableFrame(frame({ eyeBlinkLeft: 0.9, eyeBlinkRight: 0.8 }))).toBe(false);
+    expect(
+      usableFrame({ ...frame({ jawOpen: 0.1 }), headPose: { yaw: 40, pitch: 0, roll: 0 } }),
+    ).toBe(false);
+    expect(
+      usableFrame({ ...frame({ jawOpen: 0.1 }), headPose: { yaw: 0, pitch: -30, roll: 0 } }),
+    ).toBe(false);
+  });
+
+  it('recordSample keeps only good frames, up to 90, and rejects a bad recording', async () => {
+    const spy = vi.spyOn(api, 'addSamples').mockResolvedValue({ stored: 0 });
+    vi.spyOn(api, 'getModel').mockResolvedValue(null);
+    const d = new RealEmotionDetector();
+    const good = Array.from({ length: 150 }, () => frame({ mouthSmileLeft: 0.6 }));
+    const blinks = Array.from({ length: 30 }, () => frame({ eyeBlinkLeft: 1, eyeBlinkRight: 1 }));
+    expect(await d.recordSample('happy', [...good, ...blinks])).toBe(90);
+    expect(spy.mock.calls[0][0].samples).toHaveLength(90);
+    await expect(d.recordSample('happy', blinks)).rejects.toThrow('Not enough clear frames');
+    vi.restoreAllMocks();
+  });
+
+  it('sends the reaction-window frames with a confirmed tone', async () => {
+    const spy = vi
+      .spyOn(api, 'feedback')
+      .mockResolvedValue({ stored: true, added_training_sample: true });
+    vi.spyOn(api, 'getModel').mockResolvedValue(null);
+    const d = new RealEmotionDetector();
+    const frames = Array.from({ length: 10 }, (_, i) => FEATURE_NAMES.map(() => i / 10));
+    await d.addFeedback({
+      utteranceId: 'u',
+      replyText: 'Hi',
+      spokenTone: 'happy',
+      userToneOk: true,
+      featureFrames: frames,
+    });
+    expect(spy.mock.calls[0][0]).toMatchObject({
+      feature_frames: frames,
+      feature_names: [...FEATURE_NAMES],
+    });
+    vi.restoreAllMocks();
   });
 });
 
