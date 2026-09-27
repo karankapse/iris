@@ -1,0 +1,19 @@
+{
+  "_notes": [
+    "How each Iris tone becomes Cartesia voice settings. TUNE HERE, then listen in the tone tester (/tone-tester).",
+    "speed: 0.6 to 1.5 (1.0 = normal). volume: 0.5 to 2.0 (1.0 = normal). Cartesia treats both as guidance, not exact.",
+    "emotion: must be one of Cartesia's supported names (see docs.cartesia.ai, Sonic-3 volume/speed/emotion). Emotion control is BETA, English only, and only takes effect when it fits the words being said.",
+    "Cartesia has no 'joking' or 'serious'. serious -> calm (a primary, well-supported emotion). joking -> enthusiastic as an approximation; try 'sarcastic' or 'ironic' if you want a drier joke (they are not primary emotions, so results vary).",
+    "Voices differ a lot in how much emotion they show (Cartesia lists Leo, Jace, Kyle, Gavin, Maya, Tessa, Dana and Marian as most expressive). Put a voice id in 'voice' to change it."
+  ],
+  "model": "sonic-3",
+  "voice": "f786b574-daa5-4673-aa0c-cbe3e8534c02",
+  "tones": {
+    "neutral": { "emotion": "neutral", "speed": 1.0, "volume": 1.0 },
+    "happy": { "emotion": "happy", "speed": 1.08, "volume": 1.1 },
+    "sad": { "emotion": "sad", "speed": 0.85, "volume": 0.8 },
+    "excited": { "emotion": "excited", "speed": 1.2, "volume": 1.2 },
+    "joking": { "emotion": "enthusiastic", "speed": 1.1, "volume": 1.05 },
+    "serious": { "emotion": "calm", "speed": 0.92, "volume": 1.0 }
+  }
+}

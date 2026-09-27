@@ -22,3 +22,8 @@ class FeedbackRequest(BaseModel):
     features: list[float] | None = Field(
         default=None, description="Face-feature snapshot taken when the tone was suggested"
     )
+    feature_frames: list[list[float]] | None = Field(
+        default=None,
+        max_length=30,
+        description="Face features from the reaction window (about 10 frames); preferred",
+    )

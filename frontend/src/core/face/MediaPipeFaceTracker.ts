@@ -1,7 +1,14 @@
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import type { FaceFrame, FaceTracker } from '../../contracts';
 import { createEmitter } from '../emitter';
-import { estimateGaze, headPoseFromMatrix, mouthAsymmetry } from './faceMath';
+import { withoutGlobalModule } from './isolateModule';
+import {
+  estimateGaze,
+  eyeAspectRatio,
+  headPoseFromMatrix,
+  irisMetrics,
+  mouthAsymmetry,
+} from './faceMath';
 
 // Files are served from /public. Run `npm run setup:mediapipe` once to put them there.
 const WASM_PATH = '/mediapipe/wasm';
@@ -30,7 +37,8 @@ export class MediaPipeFaceTracker implements FaceTracker {
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
+        // Higher resolution = more pixels on the eyes, which is what gaze tracking needs.
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
         audio: false, // the camera stream never includes audio
       });
     } catch (e) {
@@ -82,6 +90,14 @@ export class MediaPipeFaceTracker implements FaceTracker {
 
   private async createLandmarker(delegate: 'GPU' | 'CPU') {
     const fileset = await FilesetResolver.forVisionTasks(WASM_PATH);
+    // See isolateModule.ts: don't let WebGazer's copy of MediaPipe get mixed up with ours.
+    return withoutGlobalModule(() => this.createLandmarkerUnsafe(fileset, delegate));
+  }
+
+  private createLandmarkerUnsafe(
+    fileset: Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>,
+    delegate: 'GPU' | 'CPU',
+  ) {
     return FaceLandmarker.createFromOptions(fileset, {
       baseOptions: { modelAssetPath: MODEL_PATH, delegate },
       runningMode: 'VIDEO',
@@ -104,11 +120,17 @@ export class MediaPipeFaceTracker implements FaceTracker {
           for (const c of result.faceBlendshapes[0]?.categories ?? []) {
             blendshapes[c.categoryName] = c.score;
           }
+          // Landmarks are 0..1 of width and height; the aspect makes distances comparable.
+          const aspect = video.videoHeight ? video.videoWidth / video.videoHeight : 1;
           this.emitter.emit({
             t: now,
             blendshapes,
             gaze: estimateGaze(blendshapes),
-            metrics: { mouthAsymmetry: mouthAsymmetry(landmarks) },
+            metrics: {
+              mouthAsymmetry: mouthAsymmetry(landmarks),
+              ...irisMetrics(landmarks, aspect),
+              ear: eyeAspectRatio(landmarks, aspect),
+            },
             landmarks: landmarks.map((p) => ({ x: p.x, y: p.y })),
             headPose: headPoseFromMatrix(result.facialTransformationMatrixes[0]?.data),
           });

@@ -1,0 +1,30 @@
+# Optional: checks that run automatically before each `git commit`, so problems are caught early.
+# One-time setup:   uv tool install pre-commit && pre-commit install
+# (CI runs the same checks on every pull request either way.)
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff (Python lint)
+        entry: bash -c 'cd backend && uv run ruff check --fix'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+      - id: ruff-format
+        name: ruff format (Python)
+        entry: bash -c 'cd backend && uv run ruff format'
+        language: system
+        files: ^backend/.*\.py$
+        pass_filenames: false
+      - id: prettier
+        name: prettier (TypeScript formatting)
+        entry: bash -c 'cd frontend && npm run format:check'
+        language: system
+        files: ^frontend/src/
+        pass_filenames: false
+      - id: eslint
+        name: eslint (TypeScript lint)
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        files: ^frontend/src/.*\.(ts|tsx)$
+        pass_filenames: false

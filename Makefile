@@ -1,5 +1,5 @@
 # Handy shortcuts. Run `make help` to list them.
-.PHONY: help setup dev dev-frontend dev-backend lint test format gen-types
+.PHONY: help users delete-user setup dev dev-frontend dev-backend lint test format gen-types
 
 help:            ## Show this help
 	@grep -E '^[a-z-]+:.*##' Makefile | sed 's/:.*##/ -/'
@@ -16,7 +16,7 @@ dev-frontend:    ## Start the web app on http://localhost:5173
 	cd frontend && npm run dev
 
 dev-backend:     ## Start the API on http://localhost:8000
-	cd backend && uv run uvicorn app.main:app --reload --port 8000
+	cd backend && uv run uvicorn app.main:app --reload --reload-dir app --port 8000
 
 lint:            ## Lint + format check, both sides
 	cd frontend && npm run lint && npm run format:check && npm run typecheck
@@ -33,3 +33,9 @@ test:            ## Run all tests
 gen-types:       ## Regenerate frontend API types from the backend's Pydantic models
 	cd backend && uv run python -m scripts.export_openapi
 	cd frontend && npm run gen:types
+
+users:           ## List every Iris account on this laptop
+	cd backend && uv run python -m scripts.users list
+
+delete-user:     ## Delete an account and all its data: make delete-user EMAIL=someone@example.com
+	cd backend && uv run python -m scripts.users delete "$(EMAIL)"

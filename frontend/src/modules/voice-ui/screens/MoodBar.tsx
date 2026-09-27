@@ -23,12 +23,12 @@ export function MoodBar({ mood, eyeMode, onMood, onEyeMode }: Props) {
         </button>
       ))}
       <label className="eyemode">
-        <input
-          type="checkbox"
-          checked={eyeMode === 'vertical'}
-          onChange={(e) => onEyeMode(e.target.checked ? 'vertical' : 'full')}
-        />
-        vertical-only eyes
+        Eye control:{' '}
+        <select value={eyeMode} onChange={(e) => onEyeMode(e.target.value as EyeMode)}>
+          <option value="glance">Glance left / right (default)</option>
+          <option value="full">Look at an option</option>
+          <option value="vertical">Up / down only</option>
+        </select>
       </label>
     </div>
   );

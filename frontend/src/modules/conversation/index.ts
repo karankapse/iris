@@ -4,3 +4,4 @@ export { MockSpeechToText } from './mock/MockSpeechToText';
 export { apiSuggestions } from './real/apiSuggestions';
 export { WebSpeechToText } from './real/WebSpeechToText';
 export { MuseSpeechToText } from './real/MuseSpeechToText';
+export { AutoSpeechToText, pickEngine } from './real/AutoSpeechToText';

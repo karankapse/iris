@@ -19,6 +19,7 @@ backend/data/*
 # large files fetched by `npm run setup:mediapipe`
 frontend/public/mediapipe/
 frontend/public/models/
+frontend/public/webgazer/
 
 # editor / OS / tooling
 .DS_Store

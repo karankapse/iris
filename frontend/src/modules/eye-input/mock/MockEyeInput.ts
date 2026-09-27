@@ -4,7 +4,7 @@ import { createEmitter } from '../../../core/emitter';
 /**
  * Keyboard stand-in for the webcam, so everyone can develop without a camera:
  *
- *   ↑ / ↓        move the highlight       (= looking up / down)
+ *   ↑ ↓ ← →      move the highlight       (= looking at another option/corner)
  *   Space        select highlighted option (= a deliberate blink / dwell finished)
  *   1 – 4        select that option directly
  *   Enter        confirm                   (= "yes")
@@ -50,16 +50,21 @@ export class MockEyeInput implements EyeInput {
 
   private onKey = (e: KeyboardEvent) => {
     if (!this.running) return;
-    // Don't hijack typing in text boxes (e.g. the Dev Panel or custom-reply field).
+    // Native controls own their keys; Enter/Space must not also select a gaze option.
     const target = e.target as HTMLElement | null;
-    if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+    if (
+      target?.closest(
+        'input, textarea, select, button, a, summary, dialog, [contenteditable="true"]',
+      )
+    )
+      return;
 
     const handled = () => e.preventDefault();
 
-    if (e.key === 'ArrowDown' && this.optionCount > 0) {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowRight') && this.optionCount > 0) {
       handled();
       this.setHighlight(Math.min(this.optionCount - 1, (this.highlighted ?? -1) + 1));
-    } else if (e.key === 'ArrowUp' && this.optionCount > 0) {
+    } else if ((e.key === 'ArrowUp' || e.key === 'ArrowLeft') && this.optionCount > 0) {
       handled();
       this.setHighlight(Math.max(0, (this.highlighted ?? 1) - 1));
     } else if (e.key === ' ' && this.highlighted !== null) {

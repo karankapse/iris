@@ -19,4 +19,10 @@ describe('EMOTION_PROFILES', () => {
     expect(EMOTION_PROFILES.sad.rate).toBeLessThan(EMOTION_PROFILES.happy.rate);
     expect(EMOTION_PROFILES.sad.pitch).toBeLessThan(EMOTION_PROFILES.happy.pitch);
   });
+
+  it('creates ClonedTts or SilentTts via factory', async () => {
+    const { createTts, ClonedTts, SilentTts } = await import('./index');
+    expect(createTts('silent')).toBeInstanceOf(SilentTts);
+    expect(createTts('cloned')).toBeInstanceOf(ClonedTts);
+  });
 });

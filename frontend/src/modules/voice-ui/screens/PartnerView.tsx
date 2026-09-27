@@ -5,7 +5,13 @@ const STATUS: Record<PartnerViewMessage['phase'], string> = {
   listening: 'Listening to you…',
   suggesting: 'Getting reply ideas…',
   selectReply: 'Choosing a reply…',
+  moreReplies: 'Choosing a reply…',
+  menu: 'Choosing what to do…',
+  phrases: 'Choosing a quick phrase…',
   typing: 'Typing a reply…',
+  quickType: 'Typing a reply (first letters)…',
+  qtMore: 'Typing a reply…',
+  pickMood: 'Choosing a mood…',
   confirmTone: 'Choosing how to say it…',
   pickTone: 'Choosing how to say it…',
   speaking: 'Speaking…',
@@ -55,6 +61,13 @@ export function PartnerView() {
   return (
     <main className="screen partner">
       <p className="status">{STATUS[msg.phase]}</p>
+
+      {msg.phase === 'typing' && (
+        <section>
+          <span className="label">They are typing…</span>
+          <p className="big typing-live">{msg.typed || '…'}</p>
+        </section>
+      )}
 
       <section>
         <span className="label">You said</span>

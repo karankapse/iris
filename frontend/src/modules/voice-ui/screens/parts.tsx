@@ -1,0 +1,190 @@
+// Small pieces shared by the two screen layouts (corners and stacked list).
+import { useEffect, useRef, useState } from 'react';
+import type { Orchestrator } from '../../../app/Orchestrator';
+import type { Phase, State } from '../../../app/machine';
+
+export const STATUS: Record<Phase, string> = {
+  listening: 'Listening…',
+  suggesting: 'Preparing replies…',
+  selectReply: 'Choose a reply',
+  moreReplies: 'More replies',
+  menu: 'Other options',
+  phrases: 'Quick phrases',
+  typing: 'Spell a reply',
+  quickType: 'Type the first letter of each word',
+  qtMore: 'More guesses',
+  pickMood: 'Choose a mood',
+  confirmTone: 'Speak it in this tone?',
+  pickTone: 'Choose a different tone',
+  speaking: 'Speaking…',
+  feedback: 'Was the tone right?',
+};
+
+export function PartnerSaid({ machine }: { machine: State }) {
+  // Long turns scroll inside a small box; new words keep it scrolled to the latest line
+  // (unless the reader has scrolled up to read something earlier).
+  const box = useRef<HTMLDivElement>(null);
+  const pinned = useRef(true);
+  const text = `${machine.interim}|${machine.partnerText}|${machine.heldPartner}`;
+  useEffect(() => {
+    const el = box.current;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [text]);
+  const onScroll = () => {
+    const el = box.current;
+    if (el) pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 8;
+  };
+
+  return (
+    <div className="partner-said">
+      <span className="label">Partner said</span>
+      {/* how the moment feels, from the partner's words and the user's face */}
+      {machine.feel && (
+        <span className="feels" title={machine.feel.reason}>
+          Feels: {machine.feel.emotion} ({machine.feel.source})
+        </span>
+      )}
+      <div className="said-scroll" ref={box} onScroll={onScroll} tabIndex={0}>
+        {machine.phase === 'listening' || machine.phase === 'suggesting' ? (
+          <p>{machine.interim || machine.partnerText || 'Waiting for your partner…'}</p>
+        ) : (
+          <>
+            {/* busy choosing a reply: keep what they're answering; newer speech waits below */}
+            <p>{machine.partnerText || '—'}</p>
+            {/* only finished sentences, not live words, so it doesn't keep growing on screen */}
+            {machine.heldPartner && <p className="also-said">Also said: {machine.heldPartner}</p>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ErrorBanner({
+  machine,
+  orchestrator,
+  floating = false,
+}: {
+  machine: State;
+  orchestrator: Orchestrator;
+  /** Float over the top of the screen (used by the corner layout, which has no spare room). */
+  floating?: boolean;
+}) {
+  if (!machine.error) return null;
+  return (
+    <div className={floating ? 'error floating' : 'error'} role="alert">
+      {machine.error}
+      <button onClick={() => orchestrator.dispatch({ type: 'dismiss_error' })}>Dismiss</button>
+    </div>
+  );
+}
+
+/** The big status line, plus the reply and tone while one is being confirmed or spoken. */
+export function PhasePrompt({ machine }: { machine: State }) {
+  return (
+    <>
+      <h1 className="status" role="status" aria-live="polite">
+        {STATUS[machine.phase]}
+      </h1>
+      <PhaseDetails machine={machine} />
+    </>
+  );
+}
+
+/** What goes with the status line: the reaction tone, typed letters, or the reply being spoken. */
+export function PhaseDetails({ machine }: { machine: State }) {
+  return (
+    <>
+      {machine.phase === 'selectReply' && machine.measuredEmotion && (
+        <p className="tone">
+          Reaction tone: <strong>{machine.measuredEmotion}</strong>
+        </p>
+      )}
+      {(machine.phase === 'quickType' || machine.phase === 'qtMore') && (
+        <p className="reply">
+          {machine.initials
+            ? `First letters: ${machine.initials.toUpperCase().split('').join(' · ')}`
+            : 'Look at the group with the first letter of your first word'}
+        </p>
+      )}
+      {machine.phase === 'typing' && (
+        <p className="reply">
+          {machine.typed ? `“${machine.typed}”` : 'Look at a group of letters'}
+        </p>
+      )}
+      {['confirmTone', 'pickTone', 'speaking'].includes(machine.phase) && machine.reply && (
+        <>
+          <p className="reply">“{machine.reply.text}”</p>
+          {machine.tone && (
+            <p className="tone">
+              Tone: <strong>{machine.tone}</strong>
+            </p>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+/** Caregiver fallback for typing a reply, until the eye keyboard exists. */
+export function TypingForm({
+  draft,
+  setDraft,
+  orchestrator,
+}: {
+  draft: string;
+  setDraft: (v: string) => void;
+  orchestrator: Orchestrator;
+}) {
+  return (
+    <form
+      className="typing"
+      onSubmit={(e) => {
+        e.preventDefault();
+        orchestrator.dispatch({ type: 'custom_reply', text: draft });
+        setDraft('');
+      }}
+    >
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        aria-label="Type a reply"
+        placeholder="Type a reply"
+      />
+      <button type="submit" disabled={!draft.trim()}>
+        Use this reply
+      </button>
+      <button
+        type="button"
+        onClick={() => orchestrator.dispatch({ type: 'eye', event: { type: 'cancel' } })}
+      >
+        Back
+      </button>
+    </form>
+  );
+}
+
+/** Always visible while listening: type what the partner says (works with or without a microphone). */
+export function PartnerTypeBox({ orchestrator }: { orchestrator: Orchestrator }) {
+  const [text, setText] = useState('');
+  return (
+    <form
+      className="partner-type"
+      onSubmit={(e) => {
+        e.preventDefault();
+        orchestrator.dispatch({ type: 'partner_final', text });
+        setText('');
+      }}
+    >
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        aria-label="Partner’s message"
+        placeholder="Type your partner’s message"
+      />
+      <button type="submit" disabled={!text.trim()}>
+        Send
+      </button>
+    </form>
+  );
+}

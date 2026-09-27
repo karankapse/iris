@@ -12,6 +12,8 @@ export interface PartnerViewMessage {
   partnerText: string;
   interim: string;
   phase: Phase;
+  /** What the user has typed so far on the eye keyboard (for the "typing…" indicator). */
+  typed: string;
   lastSpoken: SpokenReply | null;
   mood: Emotion | null;
 }
@@ -35,6 +37,7 @@ export function linkPartnerView(orchestrator: Orchestrator): () => void {
       partnerText: machine.partnerText,
       interim: machine.interim,
       phase: machine.phase,
+      typed: machine.typed,
       lastSpoken: machine.lastSpoken,
       mood: machine.mood,
     };

@@ -1,6 +1,11 @@
 import type { EyeTuning } from './tuning';
 
-export type BlinkOutcome = 'select' | 'cancel' | null;
+export type BlinkOutcome = 'select' | 'cancel' | 'double' | null;
+
+/** A blink shorter than this is too quick to be a real blink (noise); ignored for double-blink counting. */
+const MIN_BLINK_MS = 80;
+/** Two short blinks closer together than this count as a "double blink". */
+const DOUBLE_BLINK_WINDOW_MS = 700;
 
 /**
  * Turns a stream of "how closed are the eyes" numbers into deliberate gestures:
@@ -14,11 +19,21 @@ export class BlinkDetector {
   private consumed = false;
   private lastEventAt = -Infinity;
   private lastT = -Infinity;
+  private doubleBlinkEnabled = false;
+  private lastShortBlinkEnd = -Infinity;
 
   constructor(private tuning: EyeTuning) {}
 
   setTuning(tuning: EyeTuning) {
     this.tuning = tuning;
+  }
+
+  /**
+   * Also recognise two quick natural-length blinks in a row as 'double' (a "back" gesture).
+   * Off by default: people sometimes blink twice in a row without meaning anything.
+   */
+  setDoubleBlink(enabled: boolean) {
+    this.doubleBlinkEnabled = enabled;
   }
 
   /** True while the eyes are closed. */
@@ -53,6 +68,20 @@ export class BlinkDetector {
       if (!this.consumed && duration >= tune.selectMs && duration < tune.cancelMs) {
         outcome = 'select';
         this.lastEventAt = t;
+      } else if (
+        this.doubleBlinkEnabled &&
+        !this.consumed &&
+        duration >= MIN_BLINK_MS &&
+        duration < tune.selectMs
+      ) {
+        // a natural-length blink: does it complete a double blink?
+        if (t - this.lastShortBlinkEnd <= DOUBLE_BLINK_WINDOW_MS) {
+          outcome = 'double';
+          this.lastEventAt = t;
+          this.lastShortBlinkEnd = -Infinity;
+        } else {
+          this.lastShortBlinkEnd = t;
+        }
       }
       this.closedAt = null;
       this.consumed = false;
