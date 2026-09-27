@@ -444,7 +444,7 @@ function reduceEvent(state: State, event: Event): Result {
       return same({ ...state, interim: event.text });
 
     case 'partner_final': {
-      const text = event.text.trim();
+      const text = (event.text || state.interim || "").trim();
       // While the app is speaking, ignore the room (it would also hear its own voice).
       if (!text || state.phase === 'speaking') return same(state);
       if (state.phase === 'suggesting') {
@@ -499,7 +499,7 @@ function reduceEvent(state: State, event: Event): Result {
 
     case 'custom_reply': {
       // A caregiver typing the reply in the text box instead of using the eye keyboard.
-      const text = event.text.trim();
+      const text = (event.text || state.interim || "").trim();
       if (state.phase !== 'typing' || !text) return same(state);
       return proposeTone(state, { text, suggestedTone: 'neutral' });
     }

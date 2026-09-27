@@ -3,7 +3,7 @@ import type { Emotion } from '../../../contracts';
 import type { Services } from '../../../app/services';
 import { useOrchestrator } from '../../../app/useOrchestrator';
 import { CameraPreview } from './CameraPreview';
-import { ColumnLayout } from './ColumnLayout';
+import { V0ColumnLayout } from './v0/V0ColumnLayout';
 import { DevPanel } from './DevPanel';
 import { EyeTuningPanel } from './EyeTuningPanel';
 import { GazeDebugOverlay } from './GazeDebugOverlay';
@@ -165,38 +165,24 @@ export function MainScreen({ services }: { services: Services }) {
         />
       )}
       {eyeMode === 'full' ? (
-        <ColumnLayout
+        <V0ColumnLayout services={services}
           orchestrator={orchestrator}
           view={view}
           draft={draft}
           setDraft={setDraft}
           onPick={pick}
-          face={
-            <>
-              {services.usesCamera ? (
-                <CameraPreview services={services} showReadout={false} />
-              ) : (
-                // no camera in use (keyboard mock): a simple face stands in for the live view
-                <div className="face-placeholder" aria-hidden="true">
-                  <span />
-                  <span />
-                </div>
-              )}
-              <div className="face-row">
-                {services.usesMic && (
-                  <span className={`chip-state ${stt.state}`}>mic: {stt.state}</span>
-                )}
-                {services.usesCamera && (
-                  <button className="linkbtn small" onClick={() => setShowSetup(true)}>
-                    Calibrate
-                  </button>
-                )}
-                <button className="linkbtn small" onClick={() => setShowMenu(true)}>
-                  ☰ Menu
-                </button>
+          camera={
+            services.usesCamera ? (
+              <CameraPreview services={services} showReadout={false} />
+            ) : (
+              <div className="face-placeholder h-full w-full bg-white relative shadow-[inset_0_-8px_0_rgba(0,0,0,0.06)]" aria-hidden="true">
+                <span className="absolute top-[30%] left-[30%] w-[13%] aspect-square rounded-full bg-[#111]" />
+                <span className="absolute top-[30%] left-[57%] w-[13%] aspect-square rounded-full bg-[#111]" />
               </div>
-            </>
+            )
           }
+          onCalibrate={() => setShowSetup(true)}
+          onOpenMenu={() => setShowMenu(true)}
         />
       ) : (
         <StackLayout

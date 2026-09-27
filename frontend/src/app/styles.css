@@ -1,3 +1,94 @@
+@import 'tailwindcss';
+
+@theme inline {
+  --font-sans: var(--font-geist), 'Geist Fallback', system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), 'Geist Mono Fallback', ui-monospace, monospace;
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: oklch(0.165 0.025 255);
+  --foreground: oklch(0.97 0.008 90);
+  --card: oklch(0.225 0.03 255);
+  --card-foreground: oklch(0.97 0.008 90);
+  --popover: oklch(0.225 0.03 255);
+  --popover-foreground: oklch(0.97 0.008 90);
+  --primary: oklch(0.84 0.12 190);
+  --primary-foreground: oklch(0.165 0.025 255);
+  --secondary: oklch(0.27 0.03 255);
+  --secondary-foreground: oklch(0.97 0.008 90);
+  --muted: oklch(0.27 0.03 255);
+  --muted-foreground: oklch(0.72 0.025 255);
+  --accent: oklch(0.27 0.03 255);
+  --accent-foreground: oklch(0.97 0.008 90);
+  --warning: oklch(0.82 0.13 75);
+  --warning-foreground: oklch(0.165 0.025 255);
+  --destructive: oklch(0.82 0.13 75);
+  --border: oklch(0.97 0.008 90 / 10%);
+  --input: oklch(0.97 0.008 90 / 14%);
+  --ring: oklch(0.84 0.12 190);
+  --radius: 0.875rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+}
+
+@keyframes iris-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.animate-iris-pulse {
+  animation: iris-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes iris-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.06); opacity: 0.5; }
+}
+.animate-iris-breathe {
+  animation: iris-breathe 4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-iris-pulse,
+  .animate-iris-breathe {
+    animation: none;
+  }
+}
+
 /* High contrast, large targets. Eye control is imprecise and tiring: never make things small. */
 :root {
   --bg: #0d1117;

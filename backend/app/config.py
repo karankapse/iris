@@ -34,12 +34,12 @@ class Settings(BaseSettings):
     # is rejected with close code 1008.
     muse_bearer_prefix: bool = False
     # Log every raw event from Muse (transcripts included). For debugging the protocol only.
-    stt_debug: bool = False
+    stt_debug: bool = True
 
     # --- ElevenLabs Voice Cloning & Expressive Emotional TTS (/api/voice/*) ---
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "CwhRBWXzGAHq8TQ4Fs17"
-    elevenlabs_model: str = "eleven_v3"
+    elevenlabs_model: str = "eleven_v3_conversational"
 
     @property
     def use_mock_llm(self) -> bool:

@@ -163,13 +163,13 @@ export function CameraPreview({
   return (
     <aside className="camera">
       <canvas ref={canvas} width={W} height={H} />
-      <div className="camera-chips">
+      {showReadout && <div className="camera-chips">
         <span className={`chip-state ${readout.face ? 'listening' : 'error'}`}>
           {readout.face ? 'face found' : 'NO FACE'}
         </span>
         {readout.region && <span className="chip-state">looking: {readout.region}</span>}
         {!readout.calibrated && <span className="chip-state error">not calibrated</span>}
-      </div>
+      </div>}
       {showReadout && (
         <dl className="readout">
           <dt>Eyes closed</dt>
