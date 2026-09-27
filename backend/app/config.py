@@ -19,8 +19,18 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5"
+    # A small, fast model for quick yes/no checks (e.g. "is this new speech related?").
+    anthropic_fast_model: str = "claude-haiku-4-5"
     # Force canned suggestions even if a key is set. Also used automatically when no key exists.
     mock_llm: bool = False
+    # --- Email (welcome, password changed, password reset). Any SMTP server works, e.g. Gmail with
+    # an App Password (smtp.gmail.com, port 587). Empty SMTP_HOST = emails are printed to the log.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    email_from: str = ""  # e.g. "Iris <you@gmail.com>"; defaults to smtp_user
+    app_url: str = "http://localhost:5173"  # used in links inside emails
     database_path: Path = REPO_ROOT / "backend" / "data" / "iris.db"
     cors_origins: list[str] = ["http://localhost:5173"]
 
@@ -36,6 +46,7 @@ class Settings(BaseSettings):
     # Log every raw event from Muse (transcripts included). For debugging the protocol only.
     stt_debug: bool = True
 
+    # --- ElevenLabs Voice Cloning & Expressive Emotional TTS (/api/voice/*) ---
     # --- ElevenLabs Voice Cloning & Expressive Emotional TTS (/api/voice/*) ---
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "CwhRBWXzGAHq8TQ4Fs17"

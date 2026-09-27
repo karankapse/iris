@@ -66,7 +66,6 @@ def normalize_event(raw: str | bytes, debug: bool = False) -> dict | None:
     # (Its own `final: true` transcript only arrives when the stream ends, and is empty.)
     if kind == "speechComplete":
         text = str(event.get("transcript") or "").strip()
-        # My fix: Even if text is empty, send final=True so the frontend can fallback to interim
         return {"type": "transcript", "text": text, "final": True}
     if kind == "transcript":
         text = str(event.get("transcript") or "").strip()

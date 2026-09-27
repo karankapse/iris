@@ -9,6 +9,8 @@ const STATUS: Record<PartnerViewMessage['phase'], string> = {
   menu: 'Choosing what to do…',
   phrases: 'Choosing a quick phrase…',
   typing: 'Typing a reply…',
+  quickType: 'Typing a reply (first letters)…',
+  qtMore: 'Typing a reply…',
   pickMood: 'Choosing a mood…',
   confirmTone: 'Choosing how to say it…',
   pickTone: 'Choosing how to say it…',

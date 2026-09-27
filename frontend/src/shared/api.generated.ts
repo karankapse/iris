@@ -4,6 +4,214 @@
  */
 
 export interface paths {
+    "/api/auth/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forgot Password
+         * @description Emails a one-time reset link. Same answer either way: it never reveals who has an account.
+         */
+        post: operations["forgot_password_api_auth_forgot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Login */
+        post: operations["login_api_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Logout */
+        post: operations["logout_api_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_api_auth_me_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Account
+         * @description Permanently delete the signed-in account and everything stored for it.
+         */
+        delete: operations["delete_account_api_auth_me_delete"];
+        options?: never;
+        head?: never;
+        /** Update Me */
+        patch: operations["update_me_api_auth_me_patch"];
+        trace?: never;
+    };
+    "/api/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change Password */
+        post: operations["change_password_api_auth_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/resend-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend Verification
+         * @description Same answer whether or not the account exists (never reveals who is registered).
+         */
+        post: operations["resend_verification_api_auth_resend_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Password */
+        post: operations["reset_password_api_auth_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Signup
+         * @description Creates the account (not usable yet) and emails a confirmation link, like most apps do.
+         */
+        post: operations["signup_api_auth_signup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Email
+         * @description The link in the confirmation email: confirms the address and signs in.
+         */
+        post: operations["verify_email_api_auth_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversation/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log Exchange
+         * @description Remember one moment: what was said, how the user felt, what they replied.
+         */
+        post: operations["log_exchange_api_conversation_log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/conversation/memory/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Memory */
+        get: operations["get_memory_api_conversation_memory__user_id__get"];
+        put?: never;
+        post?: never;
+        /** Forget */
+        delete: operations["forget_api_conversation_memory__user_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/emotion/model/{user_id}": {
         parameters: {
             query?: never;
@@ -49,6 +257,26 @@ export interface paths {
         put?: never;
         /** Train */
         post: operations["train_api_emotion_train_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Expand
+         * @description First-letter typing: "iww" -> "I want water" (using the conversation and the memory).
+         */
+        post: operations["expand_api_expand_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -104,6 +332,26 @@ export interface paths {
         /** Put Profile */
         put: operations["put_profile_api_profile__user_id__put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Related
+         * @description Is speech heard while replies were loading part of the same turn? (fast model)
+         */
+        post: operations["related_api_related_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -199,6 +447,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AuthResponse */
+        AuthResponse: {
+            /**
+             * Token
+             * @description Send as 'Authorization: Bearer <token>'
+             */
+            token: string;
+            user: components["schemas"]["UserOut"];
+        };
         /** Body_clone_voice_api_voice_clone_post */
         Body_clone_voice_api_voice_clone_post: {
             /** Duration */
@@ -213,6 +470,38 @@ export interface components {
              */
             user_id: string;
         };
+        /** ChangePasswordRequest */
+        ChangePasswordRequest: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
+        /**
+         * ConversationEmotion
+         * @description How this moment feels, judged from the partner's words AND the user's face.
+         */
+        ConversationEmotion: {
+            /** Confidence */
+            confidence: number;
+            /**
+             * Emotion
+             * @enum {string}
+             */
+            emotion: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
+            /**
+             * Reason
+             * @description Short: why (and any words/face disagreement)
+             * @default
+             */
+            reason: string;
+            /**
+             * Source
+             * @default face + words
+             * @enum {string}
+             */
+            source: "face" | "words" | "face + words";
+        };
         /** ConversationTurn */
         ConversationTurn: {
             /**
@@ -222,6 +511,19 @@ export interface components {
             speaker: "partner" | "user";
             /** Text */
             text: string;
+        };
+        /** DeleteAccountRequest */
+        DeleteAccountRequest: {
+            /**
+             * Password
+             * @description Confirms it's really the account owner
+             */
+            password: string;
+        };
+        /** EmailRequest */
+        EmailRequest: {
+            /** Email */
+            email: string;
         };
         /**
          * EmotionModel
@@ -235,9 +537,14 @@ export interface components {
         EmotionModel: {
             /**
              * Accuracy
-             * @description Cross-validated accuracy (0.0 to 1.0), or None if not enough data to measure.
+             * @description Average per-emotion accuracy on held-out recordings
              */
             accuracy?: number | null;
+            /**
+             * Advice
+             * @description e.g. "sad needs more examples (record it again)"
+             */
+            advice?: string[];
             /** Classes */
             classes: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious")[];
             /**
@@ -256,6 +563,10 @@ export interface components {
             means: number[];
             /** N Samples */
             n_samples: number;
+            /** Per Class Accuracy */
+            per_class_accuracy?: {
+                [key: string]: number;
+            };
             /** Scales */
             scales: number[];
             /** User Id */
@@ -281,6 +592,88 @@ export interface components {
             source: "calibration" | "feedback";
         };
         /**
+         * ExchangeLog
+         * @description One moment of conversation, logged when a reply is spoken.
+         */
+        ExchangeLog: {
+            /**
+             * Detected Emotion
+             * @description What the user's face showed right after the partner spoke
+             */
+            detected_emotion?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /** Emotion Confidence */
+            emotion_confidence?: number | null;
+            /**
+             * Mood
+             * @description The user's mood setting
+             */
+            mood?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /**
+             * Partner Text
+             * @description What the partner had just said
+             */
+            partner_text: string;
+            /** Reply Text */
+            reply_text: string;
+            /**
+             * Reply Tone
+             * @enum {string}
+             */
+            reply_tone: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+            /** Utterance Id */
+            utterance_id: string;
+        };
+        /**
+         * ExpandRequest
+         * @description First-letter typing: guess the sentence from the first letter of each word.
+         */
+        ExpandRequest: {
+            /** History */
+            history?: components["schemas"]["ConversationTurn"][];
+            /**
+             * Initials
+             * @description e.g. "iww" for "I want water"
+             */
+            initials: string;
+            /** Mood */
+            mood?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            profile?: components["schemas"]["UserProfile"] | null;
+            /**
+             * User Id
+             * @default local-user
+             */
+            user_id: string;
+        };
+        /**
+         * FaceReaction
+         * @description The user's face while reacting to what was just said (not just one label).
+         */
+        FaceReaction: {
+            /**
+             * Confidence
+             * @description How sure the peak was
+             * @default 0
+             */
+            confidence: number;
+            /**
+             * Peak
+             * @description Strongest non-neutral expression
+             */
+            peak?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /**
+             * Scores
+             * @description Share of the reaction window per emotion, weighted by confidence (0..1)
+             */
+            scores?: {
+                [key: string]: number;
+            };
+        };
+        /**
          * FeedbackRequest
          * @description One piece of feedback about a spoken reply.
          *
@@ -288,6 +681,11 @@ export interface components {
          *     fields are optional; send whichever one you have. `utterance_id` ties them together.
          */
         FeedbackRequest: {
+            /**
+             * Feature Frames
+             * @description Face features from the reaction window (about 10 frames); preferred
+             */
+            feature_frames?: number[][] | null;
             /** Feature Names */
             feature_names?: string[] | null;
             /**
@@ -314,10 +712,78 @@ export interface components {
             /** Utterance Id */
             utterance_id: string;
         };
+        /** ForgotPasswordRequest */
+        ForgotPasswordRequest: {
+            /** Email */
+            email: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** LoginRequest */
+        LoginRequest: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
+        /** MemoryEntry */
+        MemoryEntry: {
+            /** Created At */
+            created_at: string;
+            /** Detected Emotion */
+            detected_emotion: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /** Partner Text */
+            partner_text: string;
+            /** Reply Text */
+            reply_text: string;
+            /**
+             * Reply Tone
+             * @enum {string}
+             */
+            reply_tone: "neutral" | "happy" | "sad" | "excited" | "joking" | "serious";
+            /** Tone Ok */
+            tone_ok: boolean | null;
+        };
+        /** MemoryResponse */
+        MemoryResponse: {
+            /** Count */
+            count: number;
+            /**
+             * Entries
+             * @description Newest first
+             */
+            entries: components["schemas"]["MemoryEntry"][];
+        };
+        /** RelatedRequest */
+        RelatedRequest: {
+            /**
+             * New
+             * @description Speech heard while the replies were being prepared
+             */
+            new: string;
+            /**
+             * Previous
+             * @description What the partner said this turn so far
+             */
+            previous: string;
+        };
+        /** RelatedResponse */
+        RelatedResponse: {
+            /**
+             * Related
+             * @description True if the new speech continues the same turn
+             */
+            related: boolean;
+        };
+        /** ResetPasswordRequest */
+        ResetPasswordRequest: {
+            /** New Password */
+            new_password: string;
+            /** Token */
+            token: string;
         };
         /** SamplesRequest */
         SamplesRequest: {
@@ -339,6 +805,29 @@ export interface components {
             user_id: string;
             /** Voice Id */
             voice_id: string;
+        };
+        /** SignupRequest */
+        SignupRequest: {
+            /** Email */
+            email: string;
+            /**
+             * Name
+             * @description The person who will use Iris
+             */
+            name: string;
+            /** Password */
+            password: string;
+        };
+        /** SignupResponse */
+        SignupResponse: {
+            /** Email */
+            email: string;
+            /**
+             * Needs Verification
+             * @description A confirmation link was emailed; sign-in works after clicking it
+             * @default true
+             */
+            needs_verification: boolean;
         };
         /** SpeakRequest */
         SpeakRequest: {
@@ -376,6 +865,8 @@ export interface components {
         };
         /** SuggestionsRequest */
         SuggestionsRequest: {
+            /** @description The full face reading behind `reaction` */
+            face_reaction?: components["schemas"]["FaceReaction"] | null;
             /**
              * History
              * @description Oldest first; last turn is usually the partner
@@ -393,16 +884,42 @@ export interface components {
              * @description The user's immediate emotional reaction / facial expression to what was said
              */
             reaction?: ("neutral" | "happy" | "sad" | "excited" | "joking" | "serious") | null;
+            /**
+             * User Id
+             * @description Whose conversation memory to use
+             * @default local-user
+             */
+            user_id: string;
         };
         /** SuggestionsResponse */
         SuggestionsResponse: {
+            conversation_emotion?: components["schemas"]["ConversationEmotion"] | null;
             /** Suggestions */
             suggestions: components["schemas"]["Suggestion"][];
+        };
+        /** TokenRequest */
+        TokenRequest: {
+            /** Token */
+            token: string;
         };
         /** TrainRequest */
         TrainRequest: {
             /** User Id */
             user_id: string;
+        };
+        /** UpdateMeRequest */
+        UpdateMeRequest: {
+            /** Name */
+            name: string;
+        };
+        /** UserOut */
+        UserOut: {
+            /** Email */
+            email: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
         };
         /**
          * UserProfile
@@ -482,6 +999,462 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    forgot_password_api_auth_forgot_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_api_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_api_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    me_api_auth_me_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_account_api_auth_me_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteAccountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_me_api_auth_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_password_api_auth_password_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resend_verification_api_auth_resend_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_api_auth_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    signup_api_auth_signup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignupResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_email_api_auth_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    log_exchange_api_conversation_log_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExchangeLog"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_memory_api_conversation_memory__user_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forget_api_conversation_memory__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_model_api_emotion_model__user_id__get: {
         parameters: {
             query?: never;
@@ -568,6 +1541,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EmotionModel"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    expand_api_expand_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpandRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionsResponse"];
                 };
             };
             /** @description Validation Error */
@@ -691,6 +1697,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserProfile"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    related_api_related_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelatedRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedResponse"];
                 };
             };
             /** @description Validation Error */

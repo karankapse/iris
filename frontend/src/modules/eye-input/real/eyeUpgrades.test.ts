@@ -152,7 +152,7 @@ describe('dwell radius', () => {
     h.play(300, OPEN, { x: W * 0.83, y: H * 0.53 }); // out of the circle (still the right column)
     h.play(1000, OPEN, { x: W * 0.83, y: H * 0.84 }); // back: starts over, not enough yet
     expect(h.selects()).toEqual([]);
-    h.play(600, OPEN, { x: W * 0.83, y: H * 0.84 });
+    h.play(800, OPEN, { x: W * 0.83, y: H * 0.84 });
     expect(h.selects()).toHaveLength(1);
   });
 });

@@ -1,20 +1,23 @@
-import type { ReactNode } from 'react'
-import { Crosshair, Menu } from 'lucide-react'
-import { cn } from '../../../../core/utils'
+import type { ReactNode } from 'react';
+import { Crosshair, Menu } from 'lucide-react';
+import { cn } from '../../../../core/utils';
 
 export type TrackingStatus = {
-  faceFound: boolean
-  gaze: string
-  calibrated: boolean
-  micListening: boolean
-}
+  faceFound: boolean;
+  /** Where the eyes are looking ("left column"...), empty when the eye mode doesn't track that. */
+  gaze: string;
+  calibrated: boolean;
+  /** null = no microphone in use (typing only). */
+  micListening: boolean | null;
+};
 
 type CameraPanelProps = {
-  camera: ReactNode
-  tracking: TrackingStatus
-  onCalibrate?: () => void
-  onOpenMenu?: () => void
-}
+  camera: ReactNode;
+  tracking: TrackingStatus;
+  /** Hidden when no camera is in use (keyboard mock). */
+  onCalibrate?: () => void;
+  onOpenMenu?: () => void;
+};
 
 function StatusPill({ ok, children }: { ok: boolean | null; children: ReactNode }) {
   return (
@@ -37,7 +40,7 @@ function StatusPill({ ok, children }: { ok: boolean | null; children: ReactNode 
       />
       {children}
     </li>
-  )
+  );
 }
 
 export function CameraPanel({ camera, tracking, onCalibrate, onOpenMenu }: CameraPanelProps) {
@@ -46,7 +49,7 @@ export function CameraPanel({ camera, tracking, onCalibrate, onOpenMenu }: Camer
       aria-label="Eye tracking status"
       className="flex shrink-0 items-stretch gap-4 rounded-3xl border border-border bg-card/55 p-3 backdrop-blur-2xl"
     >
-      <div className="relative aspect-square w-32 overflow-hidden rounded-2xl bg-background md:w-40">
+      <div className="v0-camera relative aspect-square w-32 overflow-hidden rounded-2xl bg-background md:w-40">
         {camera}
         <span
           className={cn(
@@ -69,29 +72,33 @@ export function CameraPanel({ camera, tracking, onCalibrate, onOpenMenu }: Camer
           <StatusPill ok={tracking.faceFound}>
             {tracking.faceFound ? 'face found' : 'no face'}
           </StatusPill>
-          <StatusPill ok={null}>looking: {tracking.gaze}</StatusPill>
+          {tracking.gaze && <StatusPill ok={null}>looking: {tracking.gaze}</StatusPill>}
           <StatusPill ok={tracking.calibrated}>
             {tracking.calibrated ? 'calibrated' : 'not calibrated'}
           </StatusPill>
-          <StatusPill ok={tracking.micListening}>
-            mic: {tracking.micListening ? 'listening' : 'off'}
-          </StatusPill>
+          {tracking.micListening !== null && (
+            <StatusPill ok={tracking.micListening}>
+              mic: {tracking.micListening ? 'listening' : 'off'}
+            </StatusPill>
+          )}
         </ul>
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onCalibrate}
-            className={cn(
-              'flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors',
-              tracking.calibrated
-                ? 'bg-foreground/8 text-foreground hover:bg-foreground/12'
-                : 'bg-warning text-warning-foreground hover:bg-warning/90',
-            )}
-          >
-            <Crosshair className="size-4" aria-hidden="true" />
-            Calibrate
-          </button>
+          {onCalibrate && (
+            <button
+              type="button"
+              onClick={onCalibrate}
+              className={cn(
+                'flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors',
+                tracking.calibrated
+                  ? 'bg-foreground/8 text-foreground hover:bg-foreground/12'
+                  : 'bg-warning text-warning-foreground hover:bg-warning/90',
+              )}
+            >
+              <Crosshair className="size-4" aria-hidden="true" />
+              Calibrate
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenMenu}
@@ -103,5 +110,5 @@ export function CameraPanel({ camera, tracking, onCalibrate, onOpenMenu }: Camer
         </div>
       </div>
     </section>
-  )
+  );
 }

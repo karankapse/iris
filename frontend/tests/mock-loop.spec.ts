@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test';
 
 test('End-to-End Mock Loop', async ({ page }) => {
+  // 0. Be logged in: a saved session, and a stubbed "who am I" check (the app now requires login)
+  const user = { id: 'u_e2e', email: 'e2e@iris.test', name: 'E2E' };
+  await page.addInitScript((u) => {
+    localStorage.setItem('iris.session.v1', JSON.stringify({ token: 'e2e-token', user: u }));
+  }, user);
+  await page.route('**/api/auth/me', (route) => route.fulfill({ json: user }));
+
   // 1. Load the app
   await page.goto('/');
   await page.waitForLoadState('networkidle');
