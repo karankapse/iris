@@ -76,9 +76,9 @@ const TRAIN_POINTS: { key: string; pos: { x: number; y: number } }[] = [
   // extra points spread over the rest band and the columns, so the mapping is learned everywhere
   { key: 'rest-left', pos: { x: 32, y: 28 } }, //   "Partner said"
   { key: 'rest-right', pos: { x: 68, y: 28 } }, //  the face view
-  { key: 'col-left', pos: { x: TARGET_POSITION.left.x, y: 60 } },
-  { key: 'col-middle', pos: { x: TARGET_POSITION.middle.x, y: 60 } },
-  { key: 'col-right', pos: { x: TARGET_POSITION.right.x, y: 60 } },
+  { key: 'col-left', pos: { x: TARGET_POSITION.left.x, y: 74 } },
+  { key: 'col-middle', pos: { x: TARGET_POSITION.middle.x, y: 74 } },
+  { key: 'col-right', pos: { x: TARGET_POSITION.right.x, y: 74 } },
 ];
 const CHECK_ZONES: Zone[] = ['center', 'left', 'middle', 'right'];
 const ZONE_LABEL: Record<Zone, string> = {

@@ -25,7 +25,9 @@ export function optionRegions(optionCount: number, mode: 'full' | 'vertical'): R
  *  - below it, three columns: left | middle | right. You choose by looking at the words, which sit
  *    at the bottom of each column.
  */
-export const LAYOUT = { restBottom: 0.5, leftColumn: 1 / 3, rightColumn: 2 / 3 } as const;
+// restBottom 0.65: the middle of the screen counts as REST (people rest their eyes there);
+// only looking down toward the words (bottom third) chooses an option.
+export const LAYOUT = { restBottom: 0.65, leftColumn: 1 / 3, rightColumn: 2 / 3 } as const;
 
 /**
  * Where on the screen (percent of width, height) each calibration target sits: the rest area at the

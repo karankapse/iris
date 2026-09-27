@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { ScreenZoneTracker, zoneAt } from './screenZones';
 
 const VP = { w: 900, h: 800 };
-// rest band: y < 400.  columns below it: 0-300 | 300-600 | 600-900
+// rest band: y < 520 (65%).  columns below it: 0-300 | 300-600 | 600-900
 
 describe('zoneAt', () => {
   it('the top half is the rest zone ("Partner said" and the face)', () => {
     expect(zoneAt(100, 100, VP)).toBe('center');
     expect(zoneAt(450, 250, VP)).toBe('center');
     expect(zoneAt(850, 390, VP)).toBe('center');
+    expect(zoneAt(450, 480, VP)).toBe('center'); // screen middle = resting, not choosing
   });
 
   it('below it, the three columns', () => {
