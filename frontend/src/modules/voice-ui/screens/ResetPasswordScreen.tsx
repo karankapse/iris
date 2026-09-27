@@ -27,6 +27,7 @@ export function ResetPasswordScreen() {
         }}
       >
         <div className="login-brand">
+          <img className="brand-mark large" src="/iris-mark.png" alt="Iris" />
           <h1>New password</h1>
           <p>Choose a new password for this Iris account.</p>
         </div>

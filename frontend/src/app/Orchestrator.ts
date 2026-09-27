@@ -31,6 +31,8 @@ export interface View {
   eyeMode: EyeMode;
   /** What the microphone / speech engine is doing (for the on-screen indicator). */
   stt: SttStatus;
+  /** Microphone muted with the Mute button: nothing the room says is heard. */
+  micMuted: boolean;
   /** The user's adjustable settings (dwell time, blink length, speech speed...). */
   settings: Settings;
   /** Who the user is (name, relationships, quick phrases...). */
@@ -83,7 +85,9 @@ const EMOTION_POLL_MS = 500;
  * It's a plain class (no React) so it can be tested; `useOrchestrator` connects it to React.
  */
 /** How long the face is read after the partner speaks, before asking for replies. */
-const REACTION_WINDOW_MS = 800;
+const REACTION_WINDOW_MS = 300;
+/** A reply can't keep the app "speaking" (deaf to the partner) longer than this + ~0.7 s a word. */
+const SPEAK_GRACE_MS = 8000;
 
 export class Orchestrator {
   private view: View;
@@ -109,6 +113,10 @@ export class Orchestrator {
   private suspendedBy = new Set<string>();
   /** Whether the reply being spoken was stopped. */
   private speechStopped = false;
+  /** Bumped by newConversation(), so a reply still being spoken doesn't land in the new one. */
+  private conversationId = 0;
+  /** Bumped per reply spoken, so an older reply finishing late can't end a newer one. */
+  private speechId = 0;
 
   constructor(
     private services: Services,
@@ -122,6 +130,7 @@ export class Orchestrator {
       highlight: null,
       dwell: 0,
       stt: { state: 'off', engine: '' },
+      micMuted: false,
       eyeMode: load(STORAGE.eyeMode, ['glance', 'full', 'vertical'] as const) ?? 'glance',
     };
   }
@@ -164,6 +173,7 @@ export class Orchestrator {
 
     unsubs.push(
       stt.onTranscript((t) => {
+        if (this.view.micMuted) return; // (a last result arriving just after muting)
         if (this.isOwnEcho(t.text)) return; // the microphone hearing our own reply
         this.dispatch(
           t.isFinal
@@ -322,6 +332,22 @@ export class Orchestrator {
     this.dispatch({ type: 'set_mood', mood });
   }
 
+  /** Mute / unmute the microphone. Muted, the mic is really off: nothing is heard or sent. */
+  setMicMuted(muted: boolean) {
+    if (muted === this.view.micMuted) return;
+    this.setView({ ...this.view, micMuted: muted });
+    if (muted) {
+      this.services.stt.stop();
+      if (this.view.machine.interim) this.dispatch({ type: 'partner_partial', text: '' });
+      return;
+    }
+    try {
+      this.services.stt.start();
+    } catch (e) {
+      this.dispatch({ type: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   setEyeMode(eyeMode: EyeMode) {
     save(STORAGE.eyeMode, eyeMode);
     this.setView({ ...this.view, eyeMode });
@@ -330,6 +356,25 @@ export class Orchestrator {
       this.startEye();
     } catch (e) {
       this.dispatch({ type: 'error', message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  /** Start a blank conversation: forget the history and go back to listening (mood and phrases
+   * stay). Request ids keep counting up so a slow answer from before can't land in the new one. */
+  newConversation() {
+    this.conversationId++;
+    if (this.speaking) this.run({ type: 'stop_speaking' });
+    this.services.conversation.clear?.();
+    const before = this.view.machine;
+    const machine = {
+      ...initialState(before.mood, before.idPrefix, before.phrases),
+      requestId: before.requestId + 1,
+      expandId: before.expandId + 1,
+      utteranceCount: before.utteranceCount,
+    };
+    this.setView({ ...this.view, machine, highlight: null, dwell: 0 });
+    if (machine.phase !== before.phase) {
+      this.services.eyeInput.setOptionCount(getOptions(machine).length);
     }
   }
 
@@ -519,19 +564,35 @@ export class Orchestrator {
         if (byEyeSelection) learning?.hold(performance.now());
         else learning?.discard();
         this.speechStopped = false;
-        tts
-          .speak(effect.spoken.text, effect.spoken.tone, {
-            speed: this.view.settings.speechSpeed,
-          })
-          .catch((e) => console.error('[tts]', e))
-          .finally(() => {
-            this.speaking = false;
-            this.spokeUntil = performance.now();
-            if (this.speechStopped) learning?.discard();
-            else learning?.confirm(performance.now());
-            conversation.addTurn({ speaker: 'user', text: effect.spoken.text });
-            this.dispatch({ type: 'speak_done' });
-          });
+        const conversationId = this.conversationId;
+        const speechId = ++this.speechId;
+        const speed = this.view.settings.speechSpeed || 1;
+        // Safety net: if the voice never reports "done", stop it, so the next turn still loads.
+        let watchdog: ReturnType<typeof setTimeout> | undefined;
+        const maxMs = SPEAK_GRACE_MS + (effect.spoken.text.split(/\s+/).length * 700) / speed;
+        const timedOut = new Promise<void>((resolve) => {
+          watchdog = setTimeout(() => {
+            console.warn('[tts] the reply took too long to finish: moving on');
+            tts.cancel();
+            resolve();
+          }, maxMs);
+        });
+        Promise.race([
+          tts
+            .speak(effect.spoken.text, effect.spoken.tone, { speed })
+            .catch((e) => console.error('[tts]', e)),
+          timedOut,
+        ]).finally(() => {
+          clearTimeout(watchdog);
+          if (speechId !== this.speechId) return; // a newer reply is speaking: it owns this
+          this.speaking = false;
+          this.spokeUntil = performance.now();
+          if (this.speechStopped) learning?.discard();
+          else learning?.confirm(performance.now());
+          if (conversationId !== this.conversationId) return; // cleared while speaking
+          conversation.addTurn({ speaker: 'user', text: effect.spoken.text });
+          this.dispatch({ type: 'speak_done' });
+        });
         break;
       }
 

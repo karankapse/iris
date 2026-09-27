@@ -23,6 +23,7 @@ export function VerifyEmailScreen() {
     <main className="login-page">
       <div className="login-card">
         <div className="login-brand">
+          <img className="brand-mark large" src="/iris-mark.png" alt="Iris" />
           <h1>{error ? 'Link problem' : 'Confirming…'}</h1>
           <p>{error ?? 'One moment while we confirm your email.'}</p>
         </div>

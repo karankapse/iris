@@ -86,6 +86,13 @@ export function MainScreen() {
             )
           }
           onCalibrate={services.usesCamera ? () => navigate('/calibrate') : undefined}
+          onNewConversation={() => {
+            setDraft('');
+            orchestrator.newConversation();
+          }}
+          onToggleMute={
+            services.usesMic ? () => orchestrator.setMicMuted(!view.micMuted) : undefined
+          }
           onOpenMenu={() => setShowMenu(true)}
         />
       ) : (

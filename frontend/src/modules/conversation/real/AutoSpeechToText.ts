@@ -35,11 +35,13 @@ export class AutoSpeechToText implements SpeechToText {
   private inner: SpeechToText | null = null;
   private unsubs: (() => void)[] = [];
   private wanted = false;
+  /** Bumped per start(), so a quick stop + start never ends up with two microphones. */
+  private attempt = 0;
 
   start() {
     this.wanted = true;
     this.statuses.emit({ state: 'connecting', engine: 'choosing…' });
-    void this.begin();
+    void this.begin(++this.attempt);
   }
 
   stop() {
@@ -61,9 +63,9 @@ export class AutoSpeechToText implements SpeechToText {
     return this.statuses.on(handler);
   }
 
-  private async begin() {
+  private async begin(attempt: number) {
     const engine = await pickEngine(() => fetch('/api/health').then((r) => r.json()));
-    if (!this.wanted) return; // stopped while we were choosing
+    if (!this.wanted || attempt !== this.attempt) return; // stopped (or restarted) meanwhile
 
     const inner: SpeechToText =
       engine === 'muse'
