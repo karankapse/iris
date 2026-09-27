@@ -136,8 +136,8 @@ def test_me_needs_a_valid_token(client):
 def test_tokens_are_not_stored_in_plain_text(client, outbox):
     token = signup_confirmed(client, outbox)["token"]
     with client.app.state.db._connect() as conn:
-        stored = [r[0] for r in conn.execute("SELECT token_hash FROM sessions")]
-        pw = [r[0] for r in conn.execute("SELECT password_hash FROM users")]
+        stored = [r["token_hash"] for r in conn.execute("SELECT token_hash FROM sessions")]
+        pw = [r["password_hash"] for r in conn.execute("SELECT password_hash FROM users")]
     assert token not in stored
     assert "correct horse" not in pw[0]
 
@@ -211,12 +211,21 @@ def test_delete_account_removes_the_account_and_all_its_data(client, outbox):
 def test_user_tables_cover_every_table_with_a_user_id(client):
     db = client.app.state.db
     with db._connect() as conn:
-        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
-        with_user = {
-            t
-            for t in tables
-            if any(c[1] == "user_id" for c in conn.execute(f"PRAGMA table_info({t})"))
-        }
+        if db.url:  # Postgres
+            rows = conn.execute(
+                "SELECT table_name FROM information_schema.columns"
+                " WHERE column_name = 'user_id' AND table_schema = 'public'"
+            )
+            with_user = {r["table_name"] for r in rows}
+        else:
+            tables = [
+                r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            ]
+            with_user = {
+                t
+                for t in tables
+                if any(c[1] == "user_id" for c in conn.execute(f"PRAGMA table_info({t})"))
+            }
     assert with_user == set(db.USER_TABLES)
 
 

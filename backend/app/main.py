@@ -14,7 +14,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     app = FastAPI(title="Iris API", version="0.1.0")
     app.state.settings = settings
-    app.state.db = Database(settings.database_path)
+    app.state.db = Database(settings.database_path, settings.database_url)
 
     # The Vite dev server runs on another port, so allow it (dev only).
     app.add_middleware(

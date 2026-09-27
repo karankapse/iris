@@ -13,7 +13,8 @@ from app.db import Database
 
 
 def main() -> None:
-    db = Database(get_settings().database_path)
+    settings = get_settings()
+    db = Database(settings.database_path, settings.database_url)
     cmd = sys.argv[1] if len(sys.argv) > 1 else "list"
 
     if cmd == "list":

@@ -1,4 +1,7 @@
-"""Tiny SQLite storage layer (standard library only, no ORM).
+"""Tiny storage layer (no ORM): SQLite on your machine, Postgres when deployed.
+
+Set DATABASE_URL (e.g. the free Postgres database Vercel adds) to use Postgres; otherwise it's a
+SQLite file. The same SQL runs on both (see _PgConnection).
 
 Only numbers and labels are stored here, EXCEPT the optional conversation memory
 (conversation_log): the partner's words and the reply, so suggestions can learn how this person
@@ -8,6 +11,7 @@ A new connection per call keeps things simple and thread-safe for a local app.
 """
 
 import json
+import re
 import sqlite3
 from contextlib import closing
 from pathlib import Path
@@ -109,9 +113,68 @@ CREATE TABLE IF NOT EXISTS voices (
 """
 
 
+def _postgres_schema() -> str:
+    return SCHEMA.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "BIGSERIAL PRIMARY KEY")
+
+
+class _PgConnection:
+    """Postgres behind the same small interface the code below uses with sqlite3: `?`
+    placeholders, conn.execute() returning a cursor, rows by column name, `with conn:` = one
+    transaction (committed on success)."""
+
+    def __init__(self, url: str):
+        import psycopg
+        from psycopg.rows import dict_row
+
+        # no server-side prepared statements: works through connection poolers (Neon, PgBouncer)
+        self._conn = psycopg.connect(url, row_factory=dict_row, prepare_threshold=None)
+
+    @staticmethod
+    def _sql(sql: str) -> str:
+        return re.sub(r"\?", "%s", sql)
+
+    def execute(self, sql: str, params=()):
+        cur = self._conn.cursor()
+        # no parameters: sent as-is, which also allows several statements (the schema)
+        cur.execute(self._sql(sql), params or None)
+        return cur
+
+    def executemany(self, sql: str, rows):
+        cur = self._conn.cursor()
+        cur.executemany(self._sql(sql), list(rows))
+        return cur
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, *_):
+        if exc_type:
+            self._conn.rollback()
+        else:
+            self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
+
+def _integrity_errors() -> tuple[type[Exception], ...]:
+    try:
+        import psycopg
+
+        return (sqlite3.IntegrityError, psycopg.IntegrityError)
+    except ImportError:
+        return (sqlite3.IntegrityError,)
+
+
 class Database:
-    def __init__(self, path: Path | str):
+    def __init__(self, path: Path | str, url: str = ""):
         self.path = str(path)
+        self.url = url
+        if url:
+            with closing(self._connect()) as conn, conn:
+                conn.execute(_postgres_schema())  # several statements, no parameters
+                conn.execute("ALTER TABLE emotion_samples ADD COLUMN IF NOT EXISTS recording TEXT")
+            return
         if self.path != ":memory:":
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         # ":memory:" gives a fresh DB per connection, so tests use a temp file instead.
@@ -129,7 +192,9 @@ class Database:
             if "recording" not in cols:
                 conn.execute("ALTER TABLE emotion_samples ADD COLUMN recording TEXT")
 
-    def _connect(self) -> sqlite3.Connection:
+    def _connect(self):
+        if self.url:
+            return _PgConnection(self.url)
         conn = sqlite3.connect(self.path)
         conn.row_factory = sqlite3.Row
         return conn
@@ -317,7 +382,8 @@ class Database:
             ).fetchone()
             if active:
                 conn.execute(
-                    "INSERT OR IGNORE INTO voices (user_id, voice_id, name) VALUES (?, ?, ?)",
+                    "INSERT INTO voices (user_id, voice_id, name) VALUES (?, ?, ?)"
+                    " ON CONFLICT(user_id, voice_id) DO NOTHING",
                     (user_id, active["voice_id"], active["name"]),
                 )
             rows = conn.execute(
@@ -368,7 +434,7 @@ class Database:
                     (user_id, email, name, password_hash),
                 )
             return True
-        except sqlite3.IntegrityError:
+        except _integrity_errors():
             return False
 
     def get_user_by_email(self, email: str) -> dict | None:
