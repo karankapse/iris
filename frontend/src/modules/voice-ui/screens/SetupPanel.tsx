@@ -66,7 +66,6 @@ export function SetupPanel({
 
   useEffect(() => {
     mounted.current = true;
-    orchestrator.setSuspended(true);
 
     // Fetch existing voice profile
     fetch(`/api/voice/profile/${getUserId()}`)
@@ -81,7 +80,6 @@ export function SetupPanel({
 
     return () => {
       mounted.current = false;
-      orchestrator.setSuspended(false);
     };
   }, [orchestrator]);
 
@@ -276,12 +274,12 @@ export function SetupPanel({
           </div>
         </div>
       )}
-      <div className="modal" role="dialog" aria-label="Set up">
-        <div className="modal-card">
+      <div className="setup-page">
+        <div className="setup-card">
           <header>
-            <h2>Set up</h2>
+            <span className="muted">Calibration is saved to this account.</span>
             <button onClick={onClose} disabled={busy !== null}>
-              Done
+              Done: start talking →
             </button>
           </header>
 

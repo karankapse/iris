@@ -69,3 +69,34 @@ def test_tokens_are_not_stored_in_plain_text(client):
         pw = [r[0] for r in conn.execute("SELECT password_hash FROM users")]
     assert token not in stored
     assert "correct horse" not in pw[0]
+
+
+def test_update_name(client):
+    token = client.post("/api/auth/signup", json=ACCOUNT).json()["token"]
+    res = client.patch("/api/auth/me", json={"name": "  Samuel "}, headers=bearer(token))
+    assert res.status_code == 200 and res.json()["name"] == "Samuel"
+    assert client.get("/api/auth/me", headers=bearer(token)).json()["name"] == "Samuel"
+    assert client.patch("/api/auth/me", json={"name": "x"}).status_code == 401  # needs login
+
+
+def test_change_password_signs_out_other_devices(client):
+    token = client.post("/api/auth/signup", json=ACCOUNT).json()["token"]
+    other = client.post(
+        "/api/auth/login", json={"email": "sam@example.com", "password": "correct horse"}
+    ).json()["token"]
+    wrong = client.post(
+        "/api/auth/password",
+        json={"current_password": "nope", "new_password": "brand new pw"},
+        headers=bearer(token),
+    )
+    assert wrong.status_code == 401
+    ok = client.post(
+        "/api/auth/password",
+        json={"current_password": "correct horse", "new_password": "brand new pw"},
+        headers=bearer(token),
+    )
+    assert ok.status_code == 204
+    assert client.get("/api/auth/me", headers=bearer(token)).status_code == 200  # this device stays
+    assert client.get("/api/auth/me", headers=bearer(other)).status_code == 401  # others signed out
+    login = {"email": "sam@example.com", "password": "brand new pw"}
+    assert client.post("/api/auth/login", json=login).status_code == 200

@@ -6,7 +6,14 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, HTTPException
 
 from app.deps import DbDep
-from app.schemas.auth import AuthResponse, LoginRequest, SignupRequest, UserOut
+from app.schemas.auth import (
+    AuthResponse,
+    ChangePasswordRequest,
+    LoginRequest,
+    SignupRequest,
+    UpdateMeRequest,
+    UserOut,
+)
 from app.services import auth
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -74,3 +81,26 @@ def logout(db: DbDep, authorization: Annotated[str | None, Header()] = None) -> 
     token = _bearer(authorization)
     if token:
         db.delete_session(auth.token_hash(token))
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(req: UpdateMeRequest, user: CurrentUser, db: DbDep) -> UserOut:
+    name = req.name.strip()
+    if not name:
+        raise HTTPException(422, "Name can't be empty")
+    db.update_user(user["id"], name=name)
+    return UserOut(id=user["id"], email=user["email"], name=name)
+
+
+@router.post("/password", status_code=204)
+def change_password(
+    req: ChangePasswordRequest,
+    user: CurrentUser,
+    db: DbDep,
+    authorization: Annotated[str | None, Header()] = None,
+) -> None:
+    if not auth.verify_password(req.current_password, user["password_hash"]):
+        raise HTTPException(401, "Current password is wrong")
+    db.update_user(user["id"], password_hash=auth.hash_password(req.new_password))
+    # Sign out every OTHER device (e.g. if the old password leaked); keep this one signed in.
+    db.delete_other_sessions(user["id"], auth.token_hash(_bearer(authorization) or ""))

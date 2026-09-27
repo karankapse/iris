@@ -21,3 +21,12 @@ class UserOut(BaseModel):
 class AuthResponse(BaseModel):
     token: str = Field(description="Send as 'Authorization: Bearer <token>'")
     user: UserOut
+
+
+class UpdateMeRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=200)

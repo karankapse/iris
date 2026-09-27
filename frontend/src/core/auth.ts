@@ -94,3 +94,34 @@ export async function logout() {
   await fetch('/api/auth/logout', { method: 'POST', headers: authHeader() }).catch(() => null);
   setSession(null);
 }
+
+async function send(method: string, path: string, body: unknown) {
+  const res = await fetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const d = data?.detail;
+    throw new Error(
+      (Array.isArray(d) ? d.map((x: { msg: string }) => x.msg).join('. ') : d) ||
+        `Request failed (${res.status})`,
+    );
+  }
+  return data;
+}
+
+export async function updateName(name: string): Promise<User> {
+  const user = (await send('PATCH', '/api/auth/me', { name })) as User;
+  const s = getSession();
+  if (s) setSession({ ...s, user });
+  return user;
+}
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  await send('POST', '/api/auth/password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
+}

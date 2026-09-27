@@ -52,6 +52,24 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /** Update Me */
+        patch: operations["update_me_api_auth_me_patch"];
+        trace?: never;
+    };
+    "/api/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Change Password */
+        post: operations["change_password_api_auth_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -290,6 +308,13 @@ export interface components {
              */
             user_id: string;
         };
+        /** ChangePasswordRequest */
+        ChangePasswordRequest: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
+        };
         /** ConversationTurn */
         ConversationTurn: {
             /**
@@ -500,6 +525,11 @@ export interface components {
             /** User Id */
             user_id: string;
         };
+        /** UpdateMeRequest */
+        UpdateMeRequest: {
+            /** Name */
+            name: string;
+        };
         /** UserOut */
         UserOut: {
             /** Email */
@@ -668,6 +698,74 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_me_api_auth_me_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    change_password_api_auth_password_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

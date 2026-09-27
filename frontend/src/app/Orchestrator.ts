@@ -191,6 +191,7 @@ export class Orchestrator {
 
   /** Pause/resume acting on eye gestures (e.g. while the setup screen is open). */
   setSuspended(suspended: boolean) {
+    if (suspended === this.suspended) return; // no mic restart when nothing changes
     this.suspended = suspended;
     if (suspended) {
       this.services.stt.stop();

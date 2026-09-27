@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { EMOTIONS } from '../../../contracts';
 import type { Emotion } from '../../../contracts';
 import { getServices } from '../../../app/services';
@@ -40,13 +39,11 @@ export function ToneTester() {
   }
 
   return (
-    <main className="screen tester">
-      <header className="topbar">
-        <h1>Tone tester</h1>
-        <Link className="linkbtn" to="/">
-          ← Back to Iris
-        </Link>
-      </header>
+    <div className="tester">
+      <div className="page-header">
+        <h1>Voice</h1>
+        <p className="muted">Hear the same sentence in every tone.</p>
+      </div>
       <p className="muted">
         Voice provider: <strong>{flags.tts}</strong>. Same sentence, every tone.
       </p>
@@ -97,6 +94,6 @@ export function ToneTester() {
           );
         })}
       </ul>
-    </main>
+    </div>
   );
 }

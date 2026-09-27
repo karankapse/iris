@@ -262,3 +262,21 @@ class Database:
     def delete_session(self, token_hash: str) -> None:
         with closing(self._connect()) as conn, conn:
             conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+
+    def update_user(
+        self, user_id: str, *, name: str | None = None, password_hash: str | None = None
+    ):
+        with closing(self._connect()) as conn, conn:
+            if name is not None:
+                conn.execute("UPDATE users SET name = ? WHERE id = ?", (name, user_id))
+            if password_hash is not None:
+                conn.execute(
+                    "UPDATE users SET password_hash = ? WHERE id = ?", (password_hash, user_id)
+                )
+
+    def delete_other_sessions(self, user_id: str, keep_token_hash: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "DELETE FROM sessions WHERE user_id = ? AND token_hash != ?",
+                (user_id, keep_token_hash),
+            )
