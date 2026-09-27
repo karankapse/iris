@@ -1,6 +1,7 @@
-"""Sending email over SMTP (standard library only), as branded HTML with a plain-text fallback.
+"""Sending email as branded HTML with a plain-text fallback, over SMTP (e.g. Gmail) or, where
+SMTP is blocked (hosts like Railway), Brevo's HTTPS API.
 
-No SMTP server configured (the default in development)? The email is written to the backend log
+Nothing configured (the default in development)? The email is written to the backend log
 instead, so every flow can still be tested; nothing is lost silently.
 """
 
@@ -8,7 +9,9 @@ import html as html_lib
 import logging
 import smtplib
 from email.message import EmailMessage
-from email.utils import make_msgid
+from email.utils import make_msgid, parseaddr
+
+import httpx
 
 from app.config import Settings
 
@@ -26,6 +29,8 @@ def send_email(
 
 
 def deliver(settings: Settings, to: str, subject: str, body: str, html: str | None = None) -> bool:
+    if settings.brevo_api_key:
+        return _deliver_brevo(settings, to, subject, body, html)
     if not settings.smtp_host:
         log.warning("[email not sent: SMTP not configured] to=%s subject=%s\n%s", to, subject, body)
         return False
@@ -47,6 +52,33 @@ def deliver(settings: Settings, to: str, subject: str, body: str, html: str | No
         return True
     except (smtplib.SMTPException, OSError) as e:
         log.error("email to %s failed: %s", to, e)
+        return False
+
+
+def _deliver_brevo(settings: Settings, to: str, subject: str, body: str, html: str | None) -> bool:
+    """Brevo's transactional email API (HTTPS, so it works where SMTP ports are blocked). The
+    sender must be verified in Brevo (a single address is enough: no domain needed)."""
+    name, address = parseaddr(settings.email_from or settings.smtp_user)
+    payload = {
+        "sender": {"name": name or "Iris", "email": address},
+        "to": [{"email": to}],
+        "subject": subject,
+        "textContent": body,
+        **({"htmlContent": html} if html else {}),
+    }
+    try:
+        res = httpx.post(
+            "https://api.brevo.com/v3/smtp/email",
+            json=payload,
+            headers={"api-key": settings.brevo_api_key, "accept": "application/json"},
+            timeout=15,
+        )
+        res.raise_for_status()
+        log.info("email sent to %s: %s", to, subject)
+        return True
+    except httpx.HTTPError as e:
+        detail = e.response.text if isinstance(e, httpx.HTTPStatusError) else str(e)
+        log.error("email to %s failed (Brevo): %s", to, detail)
         return False
 
 

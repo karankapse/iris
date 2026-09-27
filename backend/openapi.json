@@ -484,6 +484,28 @@
         "title": "ExpandRequest",
         "type": "object"
       },
+      "EyeCalibration": {
+        "description": "This person's eye calibration, as saved by the browser (storage key -> JSON text).\nKept with the account so it follows them to any computer.",
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None = this account hasn't calibrated its eyes yet",
+            "title": "Data"
+          }
+        },
+        "title": "EyeCalibration",
+        "type": "object"
+      },
       "FaceReaction": {
         "description": "The user's face while reacting to what was just said (not just one label).",
         "properties": {
@@ -1628,6 +1650,105 @@
           }
         },
         "summary": "Update Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/me/eye-calibration": {
+      "get": {
+        "operationId": "get_eye_calibration_api_auth_me_eye_calibration_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EyeCalibration"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Eye Calibration",
+        "tags": [
+          "auth"
+        ]
+      },
+      "put": {
+        "operationId": "put_eye_calibration_api_auth_me_eye_calibration_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EyeCalibration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Eye Calibration",
         "tags": [
           "auth"
         ]

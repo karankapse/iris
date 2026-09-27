@@ -1,6 +1,7 @@
 """Sign up, log in, log out, and "who am I". A caregiver creates one account per Iris user;
 everything personal (profile, calibration, emotion model, voice) is stored under that account."""
 
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
@@ -12,6 +13,7 @@ from app.schemas.auth import (
     ChangePasswordRequest,
     DeleteAccountRequest,
     EmailRequest,
+    EyeCalibration,
     ForgotPasswordRequest,
     LoginRequest,
     ResetPasswordRequest,
@@ -132,6 +134,21 @@ def login(req: LoginRequest, db: DbDep) -> AuthResponse:
 @router.get("/me", response_model=UserOut)
 def me(user: CurrentUser) -> UserOut:
     return UserOut(id=user["id"], email=user["email"], name=user["name"])
+
+
+@router.get("/me/eye-calibration", response_model=EyeCalibration)
+def get_eye_calibration(user: CurrentUser, db: DbDep) -> EyeCalibration:
+    saved = db.get_eye_calibration(user["id"])
+    return EyeCalibration(data=json.loads(saved) if saved else None)
+
+
+@router.put("/me/eye-calibration", status_code=204)
+def put_eye_calibration(req: EyeCalibration, user: CurrentUser, db: DbDep) -> None:
+    if req.data is None:
+        raise HTTPException(422, "No calibration to save")
+    if len(json.dumps(req.data)) > 200_000:
+        raise HTTPException(413, "Calibration too large")
+    db.save_eye_calibration(user["id"], json.dumps(req.data))
 
 
 @router.post("/logout", status_code=204)

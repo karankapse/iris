@@ -58,3 +58,12 @@ class TokenRequest(BaseModel):
 
 class EmailRequest(BaseModel):
     email: str
+
+
+class EyeCalibration(BaseModel):
+    """This person's eye calibration, as saved by the browser (storage key -> JSON text).
+    Kept with the account so it follows them to any computer."""
+
+    data: dict[str, str] | None = Field(
+        default=None, description="None = this account hasn't calibrated its eyes yet"
+    )

@@ -14,7 +14,8 @@ dependencies = [
     "websockets>=13",
     "python-multipart>=0.0.32",
     "httpx>=0.28.1",
-    "mlx-whisper>=0.4.3",
+    # local speech-to-text on Apple Silicon only (not installed on Linux servers)
+    "mlx-whisper>=0.4.3; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 
 [dependency-groups]

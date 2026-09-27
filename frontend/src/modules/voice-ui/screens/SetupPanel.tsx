@@ -7,6 +7,7 @@ import type { Services } from '../../../app/services';
 import { RealEyeInput } from '../../eye-input';
 import type { CalibrationReport } from '../../eye-input/real/screenCalibration';
 import { CalibrationResults } from './CalibrationResults';
+import { saveEyeCalibration } from '../../../core/eyeCalibration';
 
 /** Where each calibration dot is drawn (the corners match the option cards exactly). */
 const DOT_POSITION = { ...TARGET_POSITION, up: { x: 50, y: 14 }, down: { x: 50, y: 86 } } as const;
@@ -127,6 +128,11 @@ export function SetupPanel({
         setStep(s);
         setSecondsLeft(Math.ceil(s.seconds));
       });
+      // keep it with the account, so it follows this person to any computer
+      const onAccount = await saveEyeCalibration().then(
+        () => true,
+        () => false,
+      );
       if (eyeInput instanceof RealEyeInput && mounted.current)
         setReport(eyeInput.lastCalibration());
       const accuracy = eyeInput.status?.().accuracy;
@@ -134,7 +140,8 @@ export function SetupPanel({
         accuracy === undefined
           ? ''
           : ` Measured accuracy: ${Math.round(accuracy * 100)}% of gaze readings landed in the right box.`;
-      if (warnings.length === 0) return `Eye calibration saved.${measured}`;
+      const where = onAccount ? 'to your account' : 'on this computer (the server was unreachable)';
+      if (warnings.length === 0) return `Eye calibration saved ${where}.${measured}`;
       throw new Error(
         `Calibrated, but: ${warnings.join(' ')}${measured} Try again: sit still, good light, look right at each dot.`,
       );

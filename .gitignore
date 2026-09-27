@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# public frontend build settings only (see the file): committed
+!.env.production
 
 # dependencies / build output
 node_modules/

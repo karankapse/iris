@@ -80,6 +80,24 @@ export interface paths {
         patch: operations["update_me_api_auth_me_patch"];
         trace?: never;
     };
+    "/api/auth/me/eye-calibration": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Eye Calibration */
+        get: operations["get_eye_calibration_api_auth_me_eye_calibration_get"];
+        /** Put Eye Calibration */
+        put: operations["put_eye_calibration_api_auth_me_eye_calibration_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/password": {
         parameters: {
             query?: never;
@@ -650,6 +668,20 @@ export interface components {
             user_id: string;
         };
         /**
+         * EyeCalibration
+         * @description This person's eye calibration, as saved by the browser (storage key -> JSON text).
+         *     Kept with the account so it follows them to any computer.
+         */
+        EyeCalibration: {
+            /**
+             * Data
+             * @description None = this account hasn't calibrated its eyes yet
+             */
+            data?: {
+                [key: string]: string;
+            } | null;
+        };
+        /**
          * FaceReaction
          * @description The user's face while reacting to what was just said (not just one label).
          */
@@ -1179,6 +1211,70 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_eye_calibration_api_auth_me_eye_calibration_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EyeCalibration"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_eye_calibration_api_auth_me_eye_calibration_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EyeCalibration"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
