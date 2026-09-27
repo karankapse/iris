@@ -66,6 +66,11 @@ def normalize_event(raw: str | bytes, debug: bool = False) -> dict | None:
         if not text:
             return None
         return {"type": "transcript", "text": text, "final": bool(event.get("final"))}
+    if kind == "speechComplete":
+        # In ENDPOINTING mode Muse delivers the finished sentence here (its own "final"
+        # transcript event can arrive empty), so this is the one that ends a turn.
+        text = str(event.get("transcript") or "").strip()
+        return {"type": "transcript", "text": text, "final": True} if text else None
     if kind == "error":
         return {"type": "error", "message": str(event.get("message") or "Muse error")}
     # The handshake acknowledgement has a sessionId and no "type" field.
