@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { AudioLines, Ear, Eye, MailCheck } from 'lucide-react';
+import { ConstellationGrid } from '../../../components/ui/constellation-grid';
 import { AuthError, forgotPassword, login, resendConfirmation, signup } from '../../../core/auth';
 
 type Mode = 'login' | 'signup' | 'forgot' | 'checkInbox';
@@ -33,6 +35,95 @@ function PasswordField({
       />
       {help && <span className="help">{help}</span>}
     </label>
+  );
+}
+
+/** What Iris is, shown beside the form: most people meet the app here. */
+function Intro() {
+  return (
+    <header className="login-intro">
+      <div className="login-logo">
+        <img className="brand-mark" src="/iris-mark.png" alt="" />
+        Iris
+      </div>
+      <p className="login-eyebrow">
+        <Eye size={16} aria-hidden="true" /> Eye-controlled communication
+      </p>
+      <h1>
+        Speak with your eyes. <span>Be heard with feeling.</span>
+      </h1>
+      <p className="login-lede">
+        Iris gives a voice back to people who can&apos;t speak or move, like those living with ALS
+        or locked-in syndrome. A glance at an ordinary laptop webcam picks the reply, and Iris says
+        it in a tone that matches how they feel.
+      </p>
+    </header>
+  );
+}
+
+const STEPS = [
+  {
+    icon: Ear,
+    title: 'Iris listens',
+    text: 'When someone talks, Iris writes down what they said and suggests a few short replies that sound like the person.',
+  },
+  {
+    icon: Eye,
+    title: 'A glance chooses',
+    text: "Look toward a reply, then hold or blink to pick it. No special hardware, just the laptop's camera.",
+  },
+  {
+    icon: AudioLines,
+    title: 'It speaks with feeling',
+    text: 'Iris reads their expression and suggests a tone, from joking to serious. Nothing is said until they confirm it.',
+  },
+];
+
+function HowItWorks() {
+  return (
+    <section className="login-details" aria-label="How Iris works">
+      <p className="login-quote">
+        Most communication devices talk in a flat computer voice. Iris sounds the way you feel.
+      </p>
+      <ol className="login-steps">
+        {STEPS.map(({ icon: Icon, title, text }) => (
+          <li key={title}>
+            <span className="login-step-icon" aria-hidden="true">
+              <Icon size={22} />
+            </span>
+            <div>
+              <strong>{title}</strong>
+              <p>{text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <ul className="login-stats">
+        <li>
+          <strong>1</strong> ordinary webcam
+        </li>
+        <li>
+          <strong>6</strong> tones of voice
+        </li>
+        <li>
+          <strong>0</strong> video frames leave the device
+        </li>
+      </ul>
+    </section>
+  );
+}
+
+/** The login page: the constellation behind, what Iris is on one side, the form on the other. */
+function LoginPage({ children }: { children: ReactNode }) {
+  return (
+    <main className="login-page">
+      <ConstellationGrid />
+      <div className="login-layout">
+        <Intro />
+        {children}
+        <HowItWorks />
+      </div>
+    </main>
   );
 }
 
@@ -100,25 +191,11 @@ export function LoginScreen({ onDone }: { onDone: () => void }) {
     setNotice('A new confirmation link is on its way. Check the inbox (and spam).');
   }
 
-  const brand = (
-    <div className="login-brand">
-      <div className="face-placeholder small" aria-hidden="true">
-        <span />
-        <span />
-      </div>
-      <h1>Iris</h1>
-      <p>Speak with your eyes, and with feeling.</p>
-    </div>
-  );
-
   if (mode === 'checkInbox') {
     return (
-      <main className="login-page">
+      <LoginPage>
         <div className="login-card">
-          {brand}
-          <div className="inbox-icon" aria-hidden="true">
-            ✉️
-          </div>
+          <MailCheck className="inbox-icon" size={48} aria-hidden="true" />
           <h2 className="center">Check your inbox</h2>
           <p className="muted center">
             We sent a confirmation link to <strong>{email}</strong>. Click it to finish creating the
@@ -132,15 +209,23 @@ export function LoginScreen({ onDone }: { onDone: () => void }) {
             ← Back to log in
           </button>
         </div>
-      </main>
+      </LoginPage>
     );
   }
 
   return (
-    <main className="login-page">
+    <LoginPage>
       <form className="login-card" onSubmit={submit}>
-        {brand}
-
+        {mode !== 'forgot' && (
+          <div className="login-card-head">
+            <h2>{mode === 'signup' ? 'Create an account' : 'Welcome back'}</h2>
+            <p className="muted">
+              {mode === 'signup'
+                ? 'Usually set up by a caregiver or family member.'
+                : 'Log in to pick up the conversation.'}
+            </p>
+          </div>
+        )}
         {mode !== 'forgot' && (
           <div className="login-tabs" role="tablist">
             <button
@@ -248,6 +333,6 @@ export function LoginScreen({ onDone }: { onDone: () => void }) {
           </button>
         )}
       </form>
-    </main>
+    </LoginPage>
   );
 }

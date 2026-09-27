@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Crosshair, Menu } from 'lucide-react';
+import { Crosshair, Menu, Mic, MicOff, RotateCcw } from 'lucide-react';
 import { cn } from '../../../../core/utils';
 
 export type TrackingStatus = {
@@ -16,6 +16,10 @@ type CameraPanelProps = {
   tracking: TrackingStatus;
   /** Hidden when no camera is in use (keyboard mock). */
   onCalibrate?: () => void;
+  onNewConversation?: () => void;
+  /** Hidden when no microphone is in use (typing only). */
+  onToggleMute?: () => void;
+  micMuted?: boolean;
   onOpenMenu?: () => void;
 };
 
@@ -43,7 +47,15 @@ function StatusPill({ ok, children }: { ok: boolean | null; children: ReactNode 
   );
 }
 
-export function CameraPanel({ camera, tracking, onCalibrate, onOpenMenu }: CameraPanelProps) {
+export function CameraPanel({
+  camera,
+  tracking,
+  onCalibrate,
+  onNewConversation,
+  onToggleMute,
+  micMuted = false,
+  onOpenMenu,
+}: CameraPanelProps) {
   return (
     <section
       aria-label="Eye tracking status"
@@ -77,8 +89,8 @@ export function CameraPanel({ camera, tracking, onCalibrate, onOpenMenu }: Camer
             {tracking.calibrated ? 'calibrated' : 'not calibrated'}
           </StatusPill>
           {tracking.micListening !== null && (
-            <StatusPill ok={tracking.micListening}>
-              mic: {tracking.micListening ? 'listening' : 'off'}
+            <StatusPill ok={micMuted ? false : tracking.micListening}>
+              mic: {micMuted ? 'muted' : tracking.micListening ? 'listening' : 'off'}
             </StatusPill>
           )}
         </ul>
@@ -97,6 +109,36 @@ export function CameraPanel({ camera, tracking, onCalibrate, onOpenMenu }: Camer
             >
               <Crosshair className="size-4" aria-hidden="true" />
               Calibrate
+            </button>
+          )}
+          {onNewConversation && (
+            <button
+              type="button"
+              onClick={onNewConversation}
+              className="flex h-9 items-center gap-2 rounded-full bg-foreground/8 px-4 text-sm font-medium text-foreground transition-colors hover:bg-foreground/12"
+            >
+              <RotateCcw className="size-4" aria-hidden="true" />
+              Clear chat
+            </button>
+          )}
+          {onToggleMute && (
+            <button
+              type="button"
+              onClick={onToggleMute}
+              aria-pressed={micMuted}
+              className={cn(
+                'flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors',
+                micMuted
+                  ? 'bg-warning text-warning-foreground hover:bg-warning/90'
+                  : 'bg-foreground/8 text-foreground hover:bg-foreground/12',
+              )}
+            >
+              {micMuted ? (
+                <MicOff className="size-4" aria-hidden="true" />
+              ) : (
+                <Mic className="size-4" aria-hidden="true" />
+              )}
+              {micMuted ? 'Unmute' : 'Mute'}
             </button>
           )}
           <button

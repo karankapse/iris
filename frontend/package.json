@@ -21,6 +21,7 @@
     "@mediapipe/tasks-vision": "^1.0.1",
     "@tailwindcss/postcss": "^4.3.3",
     "clsx": "^2.1.1",
+    "framer-motion": "^13.4.4",
     "lucide-react": "^1.48.0",
     "postcss": "^8.5.28",
     "react": "^19.3.0",

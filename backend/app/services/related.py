@@ -6,11 +6,11 @@ should change the replies; the TV or another conversation should not.
 
 import logging
 
-import anthropic
 from pydantic import BaseModel
 
 from app.config import Settings
 from app.services.conversation_memory import keywords
+from app.services.llm import claude
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def keyword_related(previous: str, new: str) -> bool:
 def is_related(settings: Settings, previous: str, new: str) -> bool:
     if settings.use_mock_llm:
         return keyword_related(previous, new)
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = claude(settings.anthropic_api_key)
     response = client.messages.parse(
         model=settings.anthropic_fast_model,
         max_tokens=64,

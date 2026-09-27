@@ -62,6 +62,9 @@ export interface State {
   /** What the partner said while the user was busy choosing or typing a reply. It is held (the
    * options don't change under their eyes) and handled as soon as they are free again. */
   heldPartner: string;
+  /** The replies loading are for held (older) speech: anything the partner says now is newer
+   * and replaces them, so the conversation never falls a statement behind. */
+  catchingUp: boolean;
   /** When the partner last finished a sentence (ms), to tell a follow-up from other talk. */
   lastPartnerAt: number | null;
   /** Speech heard while replies load, waiting on "is it related?" (see check_related). */
@@ -160,6 +163,7 @@ export function initialState(
     partnerText: '',
     interim: '',
     heldPartner: '',
+    catchingUp: false,
     lastPartnerAt: null,
     pendingRelated: '',
     restarts: 0,
@@ -481,7 +485,10 @@ export function reduce(state: State, event: Event): Result {
   if (next.phase === 'listening' && next.heldPartner && state.phase !== 'listening') {
     const text = next.heldPartner.replace(/^… /, '');
     const held = startSuggesting({ ...next, heldPartner: '' }, text, text);
-    return { state: held.state, effects: [...result.effects, ...held.effects] };
+    return {
+      state: { ...held.state, catchingUp: true },
+      effects: [...result.effects, ...held.effects],
+    };
   }
   return result;
 }
@@ -542,6 +549,7 @@ function startSuggesting(state: State, shown: string, added: string, restart = f
     state: {
       ...state,
       phase: 'suggesting',
+      catchingUp: false,
       partnerText: shown,
       interim: '',
       suggestions: [],
@@ -580,6 +588,9 @@ function reduceEvent(state: State, event: Event): Result {
       const gap = at !== null && state.lastPartnerAt !== null ? at - state.lastPartnerAt : null;
       const heard = { ...state, lastPartnerAt: at ?? state.lastPartnerAt };
       if (state.phase === 'suggesting') {
+        // Still loading replies to older, held speech: this is newer, answer it instead
+        // (the held words are already in the conversation history).
+        if (state.catchingUp) return startSuggesting(heard, text, text);
         // Enough restarts for this turn, or a check already running: answer it afterwards.
         if (state.restarts >= MAX_RESTARTS || state.pendingRelated) return same(hold(heard, text));
         // A follow-up ("Are you hungry?" ... "We have soup."): same turn, ask again with all of it.
