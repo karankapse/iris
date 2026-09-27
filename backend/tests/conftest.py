@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -13,8 +15,17 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("MODEL_API_KEY", "")
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
     monkeypatch.setenv("ELEVENLABS_VOICE_ID", "")
+    monkeypatch.setenv("DATABASE_URL", "")
+    # TEST_DATABASE_URL=postgresql://... runs the suite on Postgres (emptied before each test)
+    pg = os.environ.get("TEST_DATABASE_URL", "")
+    if pg:
+        import psycopg
+
+        with psycopg.connect(pg, autocommit=True) as conn:
+            conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public")
     settings = Settings(
         database_path=tmp_path / "test.db",
+        database_url=pg,
         anthropic_api_key="",
         model_api_key="",
         elevenlabs_api_key="",

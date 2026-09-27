@@ -4,6 +4,7 @@ The API key lives ONLY here (server side). The browser never sees it: Vite only
 exposes variables that start with `VITE_`, and this one doesn't.
 """
 
+import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,7 +38,14 @@ class Settings(BaseSettings):
     # (REQUIRE_EMAIL_VERIFICATION=false): accounts then work right after signing up.
     require_email_verification: bool = True
     app_url: str = "http://localhost:5173"  # used in links inside emails
-    database_path: Path = REPO_ROOT / "backend" / "data" / "iris.db"
+    database_path: Path = (
+        # Vercel: only /tmp is writable (and temporary): set DATABASE_URL there to keep data
+        Path("/tmp/iris.db")
+        if os.environ.get("VERCEL")
+        else REPO_ROOT / "backend" / "data" / "iris.db"
+    )
+    # Postgres connection string (deployed). Empty = the SQLite file above.
+    database_url: str = ""
     cors_origins: list[str] = ["http://localhost:5173"]
 
     # --- Meta "Muse Voice Transcribe" speech-to-text (used by /api/stt/stream) ---
