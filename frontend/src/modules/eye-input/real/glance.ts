@@ -1,7 +1,7 @@
-// GLANCE control: a quick look to the LEFT moves the highlight one option left, a quick look to
-// the RIGHT moves it one option right. It reads the eye movement itself (from the face tracking),
-// not where on the screen the person is looking, so it works even when screen-gaze tracking is
-// poor. One glance = one step: the eyes must come back to the middle before the next step.
+// GLANCE control, two gestures read from the horizontal eye movement (face tracking):
+//   LOOK at a side and keep looking  -> that side's option is highlighted directly
+//   FLICK the eyes out and back      -> the highlight moves one option that way
+// Which one it is depends on how long the eyes stay out: a flick comes back quickly.
 import type { FaceFrame } from '../../../contracts';
 import { median } from './tuning';
 
@@ -16,8 +16,10 @@ export interface GlanceTuning {
   sign: 1 | -1;
   /** How far from center (in signal units) counts as a glance. */
   threshold: number;
-  /** A glance must last this long to count (filters twitches). */
+  /** A flick must last this long to count (filters twitches). */
   holdMs: number;
+  /** Eyes out and back within this time = a FLICK; staying out longer = LOOKING at that side. */
+  flickMaxMs: number;
 }
 
 export const DEFAULT_GLANCE: GlanceTuning = {
@@ -25,7 +27,8 @@ export const DEFAULT_GLANCE: GlanceTuning = {
   center: 0,
   sign: 1,
   threshold: 0.3,
-  holdMs: 120,
+  holdMs: 80,
+  flickMaxMs: 600,
 };
 
 /**
@@ -39,12 +42,15 @@ export function glanceValue(frame: FaceFrame, signal: GlanceSignal): number {
 
 type Dir = 'left' | 'center' | 'right';
 
-export class GlanceStepper {
+export type GestureEvent =
+  | { type: 'look'; dir: 'left' | 'right' } //  eyes stayed on a side: highlight that side's option
+  | { type: 'flick'; dir: 'left' | 'right' }; // out and back quickly: move one option that way
+
+export class EyeGestures {
   private dir: Dir = 'center';
-  private candidate: Dir = 'center';
-  private since = 0;
-  /** A step was already made for the current glance (wait for a return to the middle). */
-  private fired = false;
+  private outSince = 0;
+  /** A 'look' was already reported for the current time out (report it once). */
+  private looked = false;
   private center: number;
 
   constructor(private tuning: GlanceTuning = DEFAULT_GLANCE) {
@@ -57,46 +63,46 @@ export class GlanceStepper {
     this.reset();
   }
 
-  get glancing() {
-    return this.candidate !== 'center';
-  }
-
-  /** -1 = one step left, +1 = one step right, 0 = nothing. `suppress` = eyes closing/opening. */
-  update(t: number, value: number, suppress: boolean): -1 | 0 | 1 {
-    if (suppress) return 0;
-    const { threshold, sign, holdMs } = this.tuning;
+  /** `suppress` = eyes closing/opening (the numbers are unreliable): ignore the frame. */
+  update(t: number, value: number, suppress: boolean): GestureEvent | null {
+    if (suppress) return null;
+    const { threshold, sign, holdMs, flickMaxMs } = this.tuning;
     const d = (value - this.center) * sign; // + = looking right
 
-    // hysteresis: to leave a glance the eyes must come clearly back toward the middle
+    // hysteresis: to count as back in the middle, the eyes must come clearly back
     let now: Dir;
     if (d <= -threshold) now = 'left';
     else if (d >= threshold) now = 'right';
     else if (Math.abs(d) < threshold * 0.5) now = 'center';
-    else now = this.dir; // in between: keep what we had
+    else now = this.dir;
 
     // looking straight: slowly follow the resting position (posture drifts over time)
     if (now === 'center') this.center += 0.02 * (value - this.center);
 
-    if (now !== this.candidate) {
-      this.candidate = now;
-      this.since = t;
+    let event: GestureEvent | null = null;
+    if (now !== this.dir) {
+      if (this.dir !== 'center' && now === 'center') {
+        // came back: a quick out-and-back is a flick (a long stay was already a 'look')
+        const out = t - this.outSince;
+        if (!this.looked && out >= holdMs && out <= flickMaxMs) {
+          event = { type: 'flick', dir: this.dir };
+        }
+      }
+      if (now !== 'center') {
+        this.outSince = t;
+        this.looked = false;
+      }
+      this.dir = now;
+    } else if (now !== 'center' && !this.looked && t - this.outSince > flickMaxMs) {
+      this.looked = true; // stayed out: they are LOOKING at that side
+      event = { type: 'look', dir: now };
     }
-    if (t - this.since < holdMs) return 0;
-    this.dir = this.candidate;
-
-    if (this.dir === 'center') {
-      this.fired = false; // back to the middle: ready for the next glance
-      return 0;
-    }
-    if (this.fired) return 0;
-    this.fired = true;
-    return this.dir === 'left' ? -1 : 1;
+    return event;
   }
 
   reset() {
     this.dir = 'center';
-    this.candidate = 'center';
-    this.fired = false;
+    this.looked = false;
   }
 }
 
@@ -138,11 +144,11 @@ export function glanceFromSamples(
   const warnings: string[] = [];
   if (Math.sign((best.r - best.c) * sign) <= 0 || Math.sign((best.c - best.l) * sign) <= 0) {
     warnings.push(
-      'Left and right glances were not on opposite sides of looking straight. Try again, glancing further.',
+      'Left and right were not on opposite sides of looking straight. Try again, eyes only.',
     );
   }
   if (best.separation < 2) {
-    warnings.push('The glances were small compared to eye jitter. Glance further left and right.');
+    warnings.push('Left and right looked too similar. Look right at each option, head still.');
   }
   return {
     tuning: {
@@ -163,7 +169,7 @@ export function loadGlance(): GlanceTuning | null {
   try {
     const g = JSON.parse(localStorage.getItem(KEY) ?? 'null');
     return g && (g.signal === 'blend' || g.signal === 'iris') && Number.isFinite(g.threshold)
-      ? g
+      ? { ...DEFAULT_GLANCE, ...g } // fill in settings added later (e.g. flickMaxMs)
       : null;
   } catch {
     return null;

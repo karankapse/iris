@@ -26,7 +26,7 @@ import {
 import { GazeStepper } from './gaze';
 import {
   DEFAULT_GLANCE,
-  GlanceStepper,
+  EyeGestures,
   glanceFromSamples,
   glanceValue,
   loadGlance,
@@ -195,7 +195,7 @@ export class RealEyeInput implements EyeInput {
   private mode: EyeMode = 'full';
   // glance mode
   private glanceTuning: GlanceTuning = loadGlance() ?? DEFAULT_GLANCE;
-  private glance = new GlanceStepper(this.glanceTuning);
+  private glance = new EyeGestures(this.glanceTuning);
   /** When the highlight last moved (dwell counts from here); null = set on the next frame. */
   private glanceMovedAt: number | null = null;
   private optionCount = 0;
@@ -352,17 +352,29 @@ export class RealEyeInput implements EyeInput {
   }
 
   /**
-   * GLANCE mode: a glance left/right moves the highlight one option; staying on an option for the
-   * dwell time (7 s by default) selects it, and so does a deliberate blink.
+   * GLANCE mode: looking at a side highlights that side's option; a quick flick left/right (out and
+   * back) moves one option that way. Staying on an option for the dwell time (7 s by default)
+   * selects it, and so does a deliberate blink.
    */
   private onFrameGlance(frame: FaceFrame, outcome: BlinkOutcome, blinkProgress: number) {
     const t = frame.t;
     if (this.glanceMovedAt === null) this.glanceMovedAt = t;
     let index = this.highlighted;
 
-    const step = this.glance.update(t, glanceValue(frame, this.glanceTuning.signal), this.settling);
-    if (step !== 0 && this.optionCount > 0 && index !== null) {
-      const next = Math.max(0, Math.min(this.optionCount - 1, index + step));
+    const gesture = this.glance.update(
+      t,
+      glanceValue(frame, this.glanceTuning.signal),
+      this.settling,
+    );
+    if (gesture && this.optionCount > 0 && index !== null) {
+      const last = this.optionCount - 1;
+      const side = gesture.dir === 'left' ? -1 : 1;
+      const next =
+        gesture.type === 'look'
+          ? side < 0 // looking AT a side: jump to that side's option
+            ? 0
+            : last
+          : Math.max(0, Math.min(last, index + side)); // flick out and back: one step
       if (next !== index) {
         index = next;
         this.glanceMovedAt = t; // moving restarts the countdown
@@ -762,13 +774,13 @@ export class RealEyeInput implements EyeInput {
       {
         key: 'left',
         target: 'left',
-        prompt: 'Glance LEFT (just your eyes) and hold',
+        prompt: 'Look at the LEFT option (eyes only, head still)',
         seconds: 2.5,
       },
       {
         key: 'right',
         target: 'right',
-        prompt: 'Glance RIGHT (just your eyes) and hold',
+        prompt: 'Look at the RIGHT option (eyes only, head still)',
         seconds: 2.5,
       },
       {
