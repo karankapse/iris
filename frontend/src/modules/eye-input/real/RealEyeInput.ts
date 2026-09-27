@@ -63,22 +63,43 @@ const MIN_CALIBRATION_FRAMES = 10;
 const PROGRESS_STEP = 0.05;
 
 // Screen-gaze calibration (WebGazer). Positions are percent of the screen.
-const SCREEN_CALIBRATED_KEY = 'iris.gazeCalibrated';
+const SCREEN_CALIBRATED_KEY = 'iris.gazeCalibrated.v2'; // v2: column layout (older calibrations don't count)
 const SETTLE_MS = 900; // time to find the dot
 const TRAIN_MS = 1500;
 const TRAIN_EVERY_MS = 75;
 const CHECK_MS = 1200;
-const TRAIN_POINTS: { key: string; pos: { x: number; y: number } }[] = [
-  { key: 'center', pos: TARGET_POSITION.center },
-  { key: 'left', pos: TARGET_POSITION.left },
-  { key: 'middle', pos: TARGET_POSITION.middle },
-  { key: 'right', pos: TARGET_POSITION.right },
-  // extra points spread over the rest band and the columns, so the mapping is learned everywhere
-  { key: 'rest-left', pos: { x: 32, y: 28 } }, //   "Partner said"
-  { key: 'rest-right', pos: { x: 68, y: 28 } }, //  the face view
-  { key: 'col-left', pos: { x: TARGET_POSITION.left.x, y: 74 } },
-  { key: 'col-middle', pos: { x: TARGET_POSITION.middle.x, y: 74 } },
-  { key: 'col-right', pos: { x: TARGET_POSITION.right.x, y: 74 } },
+/**
+ * Calibration looks at the THREE COLUMNS (where the options are) and the rest area, not at random
+ * dots: that is exactly what the person has to tell apart when choosing. Each column is shown lit
+ * up; we train at the words and a little above them. Two rounds, so each column is learned twice.
+ */
+type TrainStep = {
+  key: string;
+  target: 'center' | 'left' | 'middle' | 'right';
+  prompt: string;
+  points: { x: number; y: number }[];
+};
+const COLUMN_STEP = (target: 'left' | 'middle' | 'right', label: string): TrainStep => ({
+  key: target,
+  target,
+  prompt: `Look at the ${label} column`,
+  points: [TARGET_POSITION[target], { x: TARGET_POSITION[target].x, y: 74 }],
+});
+const REST_STEP: TrainStep = {
+  key: 'center',
+  target: 'center',
+  prompt: 'Look at the middle of the screen (this is "resting")',
+  points: [TARGET_POSITION.center, { x: 35, y: 30 }, { x: 65, y: 30 }],
+};
+const TRAIN_STEPS: TrainStep[] = [
+  REST_STEP,
+  COLUMN_STEP('left', 'LEFT'),
+  COLUMN_STEP('middle', 'MIDDLE'),
+  COLUMN_STEP('right', 'RIGHT'),
+  REST_STEP,
+  COLUMN_STEP('left', 'LEFT'),
+  COLUMN_STEP('middle', 'MIDDLE'),
+  COLUMN_STEP('right', 'RIGHT'),
 ];
 const CHECK_ZONES: Zone[] = ['center', 'left', 'middle', 'right'];
 const ZONE_LABEL: Record<Zone, string> = {
@@ -464,7 +485,7 @@ export class RealEyeInput implements EyeInput {
       x: (pos.x / 100) * window.innerWidth,
       y: (pos.y / 100) * window.innerHeight,
     });
-    const total = TRAIN_POINTS.length + CHECK_ZONES.length + 1;
+    const total = TRAIN_STEPS.length + CHECK_ZONES.length + 1;
     let n = 0;
     const step = (
       target: CalibrationStep['target'],
@@ -483,16 +504,18 @@ export class RealEyeInput implements EyeInput {
       await gaze.clearTraining();
 
       // 1) TRAIN: look at each dot
-      for (const point of TRAIN_POINTS) {
-        step('point', 'Look at the dot', (SETTLE_MS + TRAIN_MS) / 1000, point.pos);
+      for (const t of TRAIN_STEPS) {
+        step(t.target, t.prompt, (SETTLE_MS + TRAIN_MS) / 1000);
         current = [];
         await sleep(SETTLE_MS);
-        const at = px(point.pos);
+        // spread the training over the points of this area, so the whole column is learned
+        let i = 0;
         for (let waited = 0; waited < TRAIN_MS; waited += TRAIN_EVERY_MS) {
+          const at = px(t.points[i++ % t.points.length]);
           gaze.train(at.x, at.y);
           await sleep(TRAIN_EVERY_MS);
         }
-        bucket.push({ key: point.key, frames: current });
+        bucket.push({ key: t.key, frames: current });
         current = null;
       }
 
@@ -555,7 +578,7 @@ export class RealEyeInput implements EyeInput {
       // blink + up/down thresholds, from the frames we saw along the way
       const framesOf = (keys: string[]) =>
         bucket.filter((b) => keys.includes(b.key)).flatMap((b) => b.frames);
-      const open = framesOf(TRAIN_POINTS.map((p) => p.key));
+      const open = framesOf(TRAIN_STEPS.map((p) => p.key));
       const closed = framesOf(['closed']);
       const medianY = (fs: FaceFrame[]) => median(fs.map((f) => f.gaze.y));
       if (open.length >= 10 && closed.length >= 10) {
@@ -563,10 +586,8 @@ export class RealEyeInput implements EyeInput {
           {
             centerY:
               (medianY(framesOf(['center'])) + medianY(framesOf(['left', 'middle', 'right']))) / 2,
-            upY: medianY(framesOf(['center', 'rest-left', 'rest-right'])),
-            downY: medianY(
-              framesOf(['left', 'middle', 'right', 'col-left', 'col-middle', 'col-right']),
-            ),
+            upY: medianY(framesOf(['center'])),
+            downY: medianY(framesOf(['left', 'middle', 'right'])),
             openBlink: median(open.map(blinkScore)),
             closedBlink: median(closed.map(blinkScore)),
           },

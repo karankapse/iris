@@ -41,6 +41,13 @@ const choose = (s: State, label: string) => {
   return run([select(i)], s).state;
 };
 
+/** From the reply screen, open "Other…" and page through the menu to `label`. */
+function fromMenu(label: string, base?: Partial<State>): State {
+  let s = choose({ ...atSelectReply(), ...base }, 'Other…');
+  for (let i = 0; i < 4 && !labels(s).includes(label); i++) s = choose(s, 'Other →');
+  return choose(s, label);
+}
+
 /** Partner speaks and 3 suggestions arrive. */
 const atSelectReply = (mood: State['mood'] = null) =>
   run(
@@ -204,13 +211,12 @@ describe('EXACTLY 3 options on every screen (no blanks), the 3rd is always "Othe
   });
 
   it('the 3rd option on the main screens is "Other…"', () => {
-    expect(labels(initialState())[2]).toBe('Other…');
     expect(labels(atSelectReply())[2]).toBe('Other…');
   });
 
   it('a long list shows 2 at a time and the 3rd option pages through all of them', () => {
     const s0 = { ...initialState(), phrases: ['a', 'b', 'c', 'd', 'e'] };
-    let s = choose(s0, 'Quick phrases');
+    let s = fromMenu('Quick phrases', { phrases: s0.phrases });
     const seen = new Set<string>();
     for (let i = 0; i < 4; i++) {
       expect(labels(s)[2]).toBe('Other →');
@@ -269,12 +275,14 @@ describe('tone choice', () => {
 });
 
 describe('quick phrases, "Other…" and mood', () => {
-  it('while listening the user can start: phrases, keyboard, other', () => {
-    expect(labels(initialState())).toEqual(['Quick phrases', 'Type my own reply', 'Other…']);
+  it('while listening there is nothing to pick by accident: 3 info cards', () => {
+    const opts = getOptions(initialState());
+    expect(opts).toHaveLength(3);
+    expect(opts.every((o) => o.info)).toBe(true);
   });
 
   it('a quick phrase goes to tone confirmation with the neutral tone', () => {
-    let s = choose(initialState(), 'Quick phrases');
+    let s = fromMenu('Quick phrases');
     expect(s.phase).toBe('phrases');
     s = choose(s, 'I need help');
     expect(s.phase).toBe('confirmTone');
@@ -297,7 +305,7 @@ describe('quick phrases, "Other…" and mood', () => {
   });
 
   it('back from phrases returns to where you came from, step by step', () => {
-    let s = choose(choose(atSelectReply(), 'Other…'), 'Quick phrases');
+    let s = fromMenu('Quick phrases');
     s = run([eye({ type: 'cancel' })], s).state;
     expect(s.phase).toBe('menu');
     s = run([eye({ type: 'cancel' })], s).state;
@@ -305,7 +313,7 @@ describe('quick phrases, "Other…" and mood', () => {
   });
 
   it('choosing a mood saves it and returns; the next tone proposal uses it', () => {
-    let s = choose(choose(initialState(), 'Other…'), 'Set mood');
+    let s = fromMenu('Set mood');
     expect(s.phase).toBe('pickMood');
     for (let i = 0; i < 4 && !labels(s).includes('happy'); i++) s = choose(s, 'Other →');
     const r = run([select(labels(s).indexOf('happy'))], s);
@@ -316,7 +324,8 @@ describe('quick phrases, "Other…" and mood', () => {
     const next = run(
       [
         { type: 'partner_final', text: 'hi' },
-        { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1, 'sad')] },
+        // the reply screen we came from was request 1, so this is request 2
+        { type: 'suggestions_ready', requestId: 2, suggestions: [sug(1, 'sad')] },
       ],
       r.state,
     ).state;
@@ -324,7 +333,7 @@ describe('quick phrases, "Other…" and mood', () => {
   });
 
   it('the mood list reaches every mood and "no mood"', () => {
-    let s = choose(choose(initialState(), 'Other…'), 'Set mood');
+    let s = fromMenu('Set mood');
     const seen = new Set<string>();
     for (let i = 0; i < 5; i++) {
       labels(s).forEach((l) => seen.add(l));
@@ -359,7 +368,7 @@ describe('quick phrases, "Other…" and mood', () => {
 
 describe('eye keyboard', () => {
   it('types a reply letter by letter and sends it to tone confirmation', () => {
-    let s = choose(initialState(), 'Type my own reply');
+    let s = fromMenu('Type my own reply');
     expect(s.phase).toBe('typing');
     for (const ch of ['H', 'I']) s = typeSymbol(s, ch);
     expect(s.typed).toBe('Hi');
@@ -369,30 +378,30 @@ describe('eye keyboard', () => {
   });
 
   it('every keyboard screen has exactly 3 options', () => {
-    const s = choose(initialState(), 'Type my own reply');
+    const s = fromMenu('Type my own reply');
     expect(getOptions(s)).toHaveLength(3);
   });
 
   it('cancel backs out of a group first, then leaves the keyboard', () => {
-    let s = choose(initialState(), 'Type my own reply');
+    let s = fromMenu('Type my own reply');
     s = run([select(0)], s).state; // into the first group
     expect(s.kbPath).toEqual([0]);
     s = run([eye({ type: 'cancel' })], s).state;
     expect(s.kbPath).toEqual([]);
     expect(s.phase).toBe('typing');
     s = run([eye({ type: 'cancel' })], s).state;
-    expect(s.phase).toBe('listening');
+    expect(s.phase).toBe('menu'); // back to where the keyboard was opened from
     expect(s.typed).toBe('');
   });
 
   it('"done" with nothing typed does nothing', () => {
-    let s = choose(initialState(), 'Type my own reply');
+    let s = fromMenu('Type my own reply');
     s = typeSymbol(s, DONE);
     expect(s.phase).toBe('typing');
   });
 
   it('a caregiver can type the reply in the text box instead', () => {
-    let s = choose(initialState(), 'Type my own reply');
+    let s = fromMenu('Type my own reply');
     s = run([{ type: 'custom_reply', text: '  Thirsty ' }], s).state;
     expect(s.phase).toBe('confirmTone');
     expect(s.reply?.text).toBe('Thirsty');
@@ -465,6 +474,8 @@ describe('robustness', () => {
 
   it('new phrases from the profile replace the list', () => {
     const s = run([{ type: 'set_phrases', phrases: ['Hello'] }]).state;
-    expect(choose(choose(s, 'Quick phrases'), 'Hello').reply?.text).toBe('Hello');
+    expect(choose(fromMenu('Quick phrases', { phrases: s.phrases }), 'Hello').reply?.text).toBe(
+      'Hello',
+    );
   });
 });

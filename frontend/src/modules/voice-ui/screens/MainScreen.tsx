@@ -18,7 +18,13 @@ export function MainScreen({ services }: { services: Services }) {
   const { orchestrator, view } = useOrchestrator(services);
   const { machine, eyeMode, stt } = view;
   const [draft, setDraft] = useState('');
-  const [showSetup, setShowSetup] = useState(false);
+  // Not calibrated yet? Open the setup straight away: eye control is guesswork without it.
+  const needsCalibration =
+    services.usesCamera &&
+    view.eyeMode === 'full' &&
+    services.eyeInput.status?.().calibrated === false;
+  const [showSetup, setShowSetup] = useState(needsCalibration);
+  const [firstRun] = useState(needsCalibration);
   const [showMenu, setShowMenu] = useState(false);
   const [showDot, setShowDot] = useState(() => {
     try {
@@ -168,6 +174,7 @@ export function MainScreen({ services }: { services: Services }) {
           services={services}
           orchestrator={orchestrator}
           onClose={() => setShowSetup(false)}
+          firstRun={firstRun}
         />
       )}
     </>

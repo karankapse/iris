@@ -1181,3 +1181,38 @@ kbd {
     transform: translate(-30%, 25%);
   }
 }
+
+/* calibration: the area to look at lights up (columns match the real layout) */
+.calib-area {
+  position: absolute;
+  border-radius: 26px;
+  background: rgba(116, 188, 240, 0.18);
+  border: 4px solid #74bcf0;
+  box-shadow: 0 0 60px rgba(116, 188, 240, 0.35);
+}
+.calib-area-left {
+  left: 1%;
+  width: 31.5%;
+  top: 2%;
+  bottom: 2%;
+}
+.calib-area-middle {
+  left: 34.25%;
+  width: 31.5%;
+  top: 2%;
+  bottom: 2%;
+}
+.calib-area-right {
+  left: 67.5%;
+  width: 31.5%;
+  top: 2%;
+  bottom: 2%;
+}
+.calib-area-center {
+  left: 20%;
+  width: 60%;
+  top: 8%;
+  height: 55%;
+  background: rgba(217, 94, 156, 0.15);
+  border-color: #d95e9c;
+}

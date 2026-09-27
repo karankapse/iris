@@ -373,10 +373,10 @@ describe('RealEyeInput (full mode, MediaPipe gaze: columns + dwell + blink)', ()
 
   it('dwell: holding the gaze on a column fills the bar and then selects that option', () => {
     const h = ready();
-    h.play(800, LOOK.right);
+    h.play(1200, LOOK.right);
     expect(Math.max(...h.highlights().map((e) => e.dwellProgress))).toBeGreaterThan(0.2);
     expect(selects(h)).toEqual([]); // not yet
-    h.play(1200, LOOK.right);
+    h.play(1800, LOOK.right); // dwell is 2.5 s by default
     expect(selects(h)).toEqual([{ type: 'select', optionIndex: 2 }]);
   });
 
@@ -412,12 +412,12 @@ describe('RealEyeInput (full mode, MediaPipe gaze: columns + dwell + blink)', ()
 
   it('after a selection the same gaze does NOT select again until you look back at the rest area', () => {
     const h = ready();
-    h.play(2300, LOOK.left); // dwell completes once...
+    h.play(3300, LOOK.left); // dwell completes once...
     expect(selects(h)).toHaveLength(1);
-    h.play(3000, LOOK.left); // ...and continuing to stare does nothing more
+    h.play(4000, LOOK.left); // ...and continuing to stare does nothing more
     expect(selects(h)).toHaveLength(1);
     h.play(500, LOOK.rest); // back to rest: re-armed
-    h.play(2300, LOOK.left);
+    h.play(3300, LOOK.left);
     expect(selects(h)).toHaveLength(2);
   });
 
@@ -425,10 +425,10 @@ describe('RealEyeInput (full mode, MediaPipe gaze: columns + dwell + blink)', ()
     const h = ready();
     h.play(500, LOOK.right);
     h.eye.setOptionCount(3); // screen changed while the person is still looking right
-    h.play(3000, LOOK.right);
+    h.play(4000, LOOK.right);
     expect(selects(h)).toEqual([]);
     h.play(500, LOOK.rest);
-    h.play(2300, LOOK.right);
+    h.play(3300, LOOK.right);
     expect(selects(h)).toEqual([{ type: 'select', optionIndex: 2 }]);
   });
 
@@ -520,7 +520,7 @@ describe('RealEyeInput (screen gaze: which box on the screen is the gaze in?)', 
   it('selects by dwell (look and keep looking), and only once', () => {
     const h = setupGaze();
     h.play(600, spots.mid);
-    h.play(2500, spots.middle);
+    h.play(3300, spots.middle);
     expect(h.selects()).toEqual([{ type: 'select', optionIndex: 1 }]);
   });
 

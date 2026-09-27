@@ -41,7 +41,7 @@ export const DEFAULT_TUNING: EyeTuning = {
   gazeUp: -0.2,
   gazeDown: 0.3,
   regionHoldMs: 150,
-  dwellMs: 1500,
+  dwellMs: 2500,
   gazeHoldMs: 250,
   gazeStepMs: 700,
   cooldownMs: 800,

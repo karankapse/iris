@@ -245,7 +245,13 @@ function threeOf(entries: Entry[], page: number, fillers: Entry[] = [backEntry])
 export function getEntries(s: State): Entry[] {
   switch (s.phase) {
     case 'listening':
-      return [goto('Quick phrases', 'phrases'), goto('Type my own reply', 'typing'), other()];
+      // Nothing to choose until the partner speaks: resting eyes must not open menus by accident.
+      // (Quick phrases, the keyboard and mood are under "Other…" once replies appear.)
+      return [
+        info('Listening…'),
+        info(s.interim ? `“${s.interim}”` : 'Waiting for them to speak'),
+        info('Replies will appear here'),
+      ];
 
     case 'selectReply': {
       // The two best AI suggestions. If there are fewer than two, quick phrases fill the gap.
