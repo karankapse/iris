@@ -1,5 +1,6 @@
 // GLANCE control, two gestures read from the horizontal eye movement (face tracking):
 //   LOOK at a side and keep looking  -> that side's option is highlighted directly
+//   LOOK back at the middle (after looking at a side) -> the middle option
 //   FLICK the eyes out and back      -> the highlight moves one option that way
 // Which one it is depends on how long the eyes stay out: a flick comes back quickly.
 import type { FaceFrame } from '../../../contracts';
@@ -20,6 +21,8 @@ export interface GlanceTuning {
   holdMs: number;
   /** Eyes out and back within this time = a FLICK; staying out longer = LOOKING at that side. */
   flickMaxMs: number;
+  /** After LOOKING at a side, eyes back in the middle this long = looking at the middle option. */
+  centerHoldMs: number;
 }
 
 export const DEFAULT_GLANCE: GlanceTuning = {
@@ -29,6 +32,7 @@ export const DEFAULT_GLANCE: GlanceTuning = {
   threshold: 0.3,
   holdMs: 80,
   flickMaxMs: 600,
+  centerHoldMs: 700,
 };
 
 /**
@@ -43,7 +47,7 @@ export function glanceValue(frame: FaceFrame, signal: GlanceSignal): number {
 type Dir = 'left' | 'center' | 'right';
 
 export type GestureEvent =
-  | { type: 'look'; dir: 'left' | 'right' } //  eyes stayed on a side: highlight that side's option
+  | { type: 'look'; dir: 'left' | 'center' | 'right' } // eyes stayed there: highlight that option
   | { type: 'flick'; dir: 'left' | 'right' }; // out and back quickly: move one option that way
 
 export class EyeGestures {
@@ -51,6 +55,8 @@ export class EyeGestures {
   private outSince = 0;
   /** A 'look' was already reported for the current time out (report it once). */
   private looked = false;
+  /** Came back to the middle after LOOKING at a side (not a flick): since when. */
+  private backSince: number | null = null;
   private center: number;
 
   constructor(private tuning: GlanceTuning = DEFAULT_GLANCE) {
@@ -66,7 +72,7 @@ export class EyeGestures {
   /** `suppress` = eyes closing/opening (the numbers are unreliable): ignore the frame. */
   update(t: number, value: number, suppress: boolean): GestureEvent | null {
     if (suppress) return null;
-    const { threshold, sign, holdMs, flickMaxMs } = this.tuning;
+    const { threshold, sign, holdMs, flickMaxMs, centerHoldMs } = this.tuning;
     const d = (value - this.center) * sign; // + = looking right
 
     // hysteresis: to count as back in the middle, the eyes must come clearly back
@@ -87,15 +93,21 @@ export class EyeGestures {
         if (!this.looked && out >= holdMs && out <= flickMaxMs) {
           event = { type: 'flick', dir: this.dir };
         }
+        // back from LOOKING at a side: if the eyes stay here, they're looking at the middle
+        this.backSince = this.looked ? t : null;
       }
       if (now !== 'center') {
         this.outSince = t;
         this.looked = false;
+        this.backSince = null;
       }
       this.dir = now;
     } else if (now !== 'center' && !this.looked && t - this.outSince > flickMaxMs) {
       this.looked = true; // stayed out: they are LOOKING at that side
       event = { type: 'look', dir: now };
+    } else if (now === 'center' && this.backSince !== null && t - this.backSince >= centerHoldMs) {
+      this.backSince = null;
+      event = { type: 'look', dir: 'center' };
     }
     return event;
   }
@@ -103,6 +115,7 @@ export class EyeGestures {
   reset() {
     this.dir = 'center';
     this.looked = false;
+    this.backSince = null;
   }
 }
 

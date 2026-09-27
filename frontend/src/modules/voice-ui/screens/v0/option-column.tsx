@@ -60,7 +60,8 @@ export function OptionColumn({
         )}
       </div>
 
-      <div className="flex flex-col gap-3">
+      {/* centred in the box: the eye tracking expects each option's words mid-column */}
+      <div className="flex flex-col items-center gap-3 text-center">
         {hint && (
           <span className="text-pretty text-base leading-relaxed text-muted-foreground md:text-lg">
             {hint}
