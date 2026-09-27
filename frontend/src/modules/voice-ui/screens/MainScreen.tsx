@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Emotion } from '../../../contracts';
 import type { Services } from '../../../app/services';
 import { useOrchestrator } from '../../../app/useOrchestrator';
@@ -9,6 +9,7 @@ import { EyeTuningPanel } from './EyeTuningPanel';
 import { GazeDebugOverlay } from './GazeDebugOverlay';
 import { GazeDot } from './GazeDot';
 import { MicPanel } from './MicPanel';
+import { MemoryPanel } from './MemoryPanel';
 import { MoodBar } from './MoodBar';
 import { ProfilePanel } from './ProfilePanel';
 import { SettingsPanel } from './SettingsPanel';
@@ -44,19 +45,16 @@ export function MainScreen({ services }: { services: Services }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [setShowDebug, setShowTuning]);
 
-  // While the menu drawer is open the eyes can't choose options behind it. Only on open/close
-  // (never on first render), and not while the setup screen is open: it pauses the eyes itself.
-  const menuPaused = useRef(false);
+  // While the menu drawer or the tuning panel is open, the eyes can't choose options behind it
+  // (the setup screen pauses them itself).
   useEffect(() => {
-    if (showSetup) {
-      menuPaused.current = false;
-      return;
-    }
-    if (showMenu !== menuPaused.current) {
-      menuPaused.current = showMenu;
-      orchestrator.setSuspended(showMenu);
-    }
-  }, [orchestrator, showMenu, showSetup]);
+    orchestrator.setSuspended(showMenu, 'menu');
+    return () => orchestrator.setSuspended(false, 'menu');
+  }, [orchestrator, showMenu]);
+  useEffect(() => {
+    orchestrator.setSuspended(showTuning, 'tuning');
+    return () => orchestrator.setSuspended(false, 'tuning');
+  }, [orchestrator, showTuning]);
 
   const toggleDot = (on: boolean) => {
     setShowDot(on);
@@ -131,6 +129,7 @@ export function MainScreen({ services }: { services: Services }) {
         onEyeMode={(m) => orchestrator.setEyeMode(m)}
       />
       <SettingsPanel orchestrator={orchestrator} settings={view.settings} />
+      <MemoryPanel orchestrator={orchestrator} settings={view.settings} />
       <ProfilePanel
         key={JSON.stringify(view.profile)}
         orchestrator={orchestrator}

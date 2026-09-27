@@ -42,7 +42,7 @@ export function ColumnLayout({ orchestrator, view, draft, setDraft, onPick, face
       <section className="float-card said-float">
         <PartnerSaid machine={machine} />
         <PhasePrompt machine={machine} />
-        {machine.phase === 'typing' && (
+        {['typing', 'quickType', 'qtMore'].includes(machine.phase) && (
           <TypingForm draft={draft} setDraft={setDraft} orchestrator={orchestrator} />
         )}
         {machine.phase === 'listening' && <PartnerTypeBox orchestrator={orchestrator} />}

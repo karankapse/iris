@@ -8,7 +8,6 @@ import {
   type GazeFilterParams,
 } from '../../../core/gaze/FilteredGaze';
 import { RealEyeInput } from '../../eye-input';
-import { CalibrationResults } from './CalibrationResults';
 import { DEFAULT_TUNING, type EyeTuning } from '../../eye-input/real/tuning';
 
 interface Slider<K extends string> {
@@ -348,14 +347,6 @@ export function EyeTuningPanel({
         <button onClick={onClose}>Close</button>
       </header>
       <p className="help">Changes apply live and are saved. Alt+D shows the debug overlay.</p>
-
-      {/* how the last eye calibration went (where each look landed, weakest box) */}
-      {eye?.lastCalibration() && (
-        <details>
-          <summary>Last calibration</summary>
-          <CalibrationResults report={eye.lastCalibration()!} />
-        </details>
-      )}
 
       {filter && (
         <details open>

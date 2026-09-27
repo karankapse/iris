@@ -38,6 +38,21 @@ export function extractFeatures(frame: FaceFrame): number[] {
   return FEATURE_NAMES.map((name) => frame.metrics[name] ?? frame.blendshapes[name] ?? 0);
 }
 
+/** Frames that would teach the model the wrong thing: no face, eyes closed, head turned away. */
+export const MAX_HEAD_YAW = 25;
+export const MAX_HEAD_PITCH = 20;
+const BLINK = 0.5;
+export function usableFrame(frame: FaceFrame): boolean {
+  const b = frame.blendshapes;
+  if (!b || Object.keys(b).length === 0) return false; // no face found
+  if ((b.eyeBlinkLeft ?? 0) > BLINK && (b.eyeBlinkRight ?? 0) > BLINK) return false;
+  const pose = frame.headPose;
+  if (pose && (Math.abs(pose.yaw) > MAX_HEAD_YAW || Math.abs(pose.pitch) > MAX_HEAD_PITCH)) {
+    return false;
+  }
+  return true;
+}
+
 /** Pick at most `max` frames, evenly spread (a 3 s recording at 30 fps is 90 near-identical frames). */
 export function subsample<T>(items: T[], max: number): T[] {
   if (items.length <= max) return items;

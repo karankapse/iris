@@ -1,6 +1,9 @@
 """Tiny SQLite storage layer (standard library only, no ORM).
 
-Only numbers and labels are stored here. Raw video/audio never reaches the backend.
+Only numbers and labels are stored here, EXCEPT the optional conversation memory
+(conversation_log): the partner's words and the reply, so suggestions can learn how this person
+feels about each topic. It stays on this machine and can be switched off / erased in Settings.
+Raw video/audio never reaches the backend.
 A new connection per call keeps things simple and thread-safe for a local app.
 """
 
@@ -39,6 +42,21 @@ CREATE TABLE IF NOT EXISTS feedback (
     partner_reaction TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS conversation_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    utterance_id TEXT NOT NULL,
+    partner_text TEXT NOT NULL,
+    detected_emotion TEXT,         -- what the face showed right after the partner spoke
+    emotion_confidence REAL,
+    mood TEXT,                     -- the user's mood setting at the time
+    reply_text TEXT NOT NULL,
+    reply_tone TEXT NOT NULL,
+    tone_ok INTEGER,               -- NULL / 0 / 1 (the user's eye yes/no afterwards)
+    partner_reaction TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS conversation_log_user ON conversation_log (user_id, id);
 CREATE TABLE IF NOT EXISTS voice_profiles (
     user_id TEXT PRIMARY KEY,
     voice_id TEXT NOT NULL,
@@ -64,6 +82,10 @@ class Database:
         # ":memory:" gives a fresh DB per connection, so tests use a temp file instead.
         with self._connect() as conn:
             conn.executescript(SCHEMA)
+            # Older databases: samples didn't record which recording they came from.
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(emotion_samples)")}
+            if "recording" not in cols:
+                conn.execute("ALTER TABLE emotion_samples ADD COLUMN recording TEXT")
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)
@@ -76,14 +98,23 @@ class Database:
         user_id: str,
         feature_names: list[str],
         rows: list[tuple[str, list[float], str]],
+        recording: str | None = None,
     ) -> None:
-        """rows = [(label, features, source), ...]"""
+        """rows = [(label, features, source), ...]; `recording` groups frames of one recording."""
         with closing(self._connect()) as conn, conn:
             conn.executemany(
-                "INSERT INTO emotion_samples (user_id, label, feature_names, features, source)"
-                " VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO emotion_samples"
+                " (user_id, label, feature_names, features, source, recording)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
                 [
-                    (user_id, label, json.dumps(feature_names), json.dumps(feats), source)
+                    (
+                        user_id,
+                        label,
+                        json.dumps(feature_names),
+                        json.dumps(feats),
+                        source,
+                        recording,
+                    )
                     for label, feats, source in rows
                 ],
             )
@@ -91,7 +122,7 @@ class Database:
     def get_samples(self, user_id: str) -> list[dict]:
         with closing(self._connect()) as conn:
             cur = conn.execute(
-                "SELECT label, feature_names, features FROM emotion_samples"
+                "SELECT label, feature_names, features, source, recording FROM emotion_samples"
                 " WHERE user_id = ? ORDER BY id",
                 (user_id,),
             )
@@ -100,6 +131,8 @@ class Database:
                     "label": r["label"],
                     "feature_names": json.loads(r["feature_names"]),
                     "features": json.loads(r["features"]),
+                    "source": r["source"],
+                    "recording": r["recording"],
                 }
                 for r in cur.fetchall()
             ]
@@ -151,6 +184,64 @@ class Database:
                 "SELECT COUNT(*) AS n FROM feedback WHERE user_id = ?", (user_id,)
             ).fetchone()
             return row["n"]
+
+    # ---- conversation memory ------------------------------------------------
+    def add_exchange(self, user_id: str, row: dict) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO conversation_log (user_id, utterance_id, partner_text,"
+                " detected_emotion, emotion_confidence, mood, reply_text, reply_tone)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    user_id,
+                    row["utterance_id"],
+                    row["partner_text"],
+                    row.get("detected_emotion"),
+                    row.get("emotion_confidence"),
+                    row.get("mood"),
+                    row["reply_text"],
+                    row["reply_tone"],
+                ),
+            )
+
+    def rate_exchange(
+        self,
+        user_id: str,
+        utterance_id: str,
+        tone_ok: bool | None,
+        partner_reaction: str | None,
+    ) -> None:
+        """Attach the later yes/no (or the partner's tap) to the logged exchange."""
+        with closing(self._connect()) as conn, conn:
+            if tone_ok is not None:
+                conn.execute(
+                    "UPDATE conversation_log SET tone_ok = ?"
+                    " WHERE user_id = ? AND utterance_id = ?",
+                    (int(tone_ok), user_id, utterance_id),
+                )
+            if partner_reaction is not None:
+                conn.execute(
+                    "UPDATE conversation_log SET partner_reaction = ?"
+                    " WHERE user_id = ? AND utterance_id = ?",
+                    (partner_reaction, user_id, utterance_id),
+                )
+
+    def recent_exchanges(self, user_id: str, limit: int = 500) -> list[dict]:
+        """Newest first."""
+        with closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT utterance_id, partner_text, detected_emotion, emotion_confidence, mood,"
+                " reply_text, reply_tone, tone_ok, partner_reaction, created_at"
+                " FROM conversation_log WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+                (user_id, limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def clear_exchanges(self, user_id: str) -> int:
+        with closing(self._connect()) as conn, conn:
+            return conn.execute(
+                "DELETE FROM conversation_log WHERE user_id = ?", (user_id,)
+            ).rowcount
 
     # ---- voice profiles & voices --------------------------------------------
     def set_voice_profile(self, user_id: str, voice_id: str, name: str) -> None:

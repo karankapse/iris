@@ -10,7 +10,9 @@ export const STATUS: Record<Phase, string> = {
   moreReplies: 'More replies',
   menu: 'Other options',
   phrases: 'Quick phrases',
-  typing: 'Type a reply',
+  typing: 'Spell a reply',
+  quickType: 'Type the first letter of each word',
+  qtMore: 'More guesses',
   pickMood: 'Choose a mood',
   confirmTone: 'Speak it in this tone?',
   pickTone: 'Choose a different tone',
@@ -36,6 +38,12 @@ export function PartnerSaid({ machine }: { machine: State }) {
   return (
     <div className="partner-said">
       <span className="label">Partner said</span>
+      {/* how the moment feels, from the partner's words and the user's face */}
+      {machine.feel && (
+        <span className="feels" title={machine.feel.reason}>
+          Feels: {machine.feel.emotion} ({machine.feel.source})
+        </span>
+      )}
       <div className="said-scroll" ref={box} onScroll={onScroll} tabIndex={0}>
         {machine.phase === 'listening' || machine.phase === 'suggesting' ? (
           <p>{machine.interim || machine.partnerText || '—'}</p>
@@ -89,6 +97,13 @@ export function PhasePrompt({ machine }: { machine: State }) {
         <p className="tone">
           Reaction tone: <strong>{machine.measuredEmotion}</strong>{' '}
           {TONE_EMOJIS[machine.measuredEmotion] ?? ''}
+        </p>
+      )}
+      {(machine.phase === 'quickType' || machine.phase === 'qtMore') && (
+        <p className="reply">
+          {machine.initials
+            ? `First letters: ${machine.initials.toUpperCase().split('').join(' · ')}`
+            : 'Look at the group with the first letter of your first word'}
         </p>
       )}
       {machine.phase === 'typing' && (

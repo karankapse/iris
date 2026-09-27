@@ -14,7 +14,8 @@ export const SPACE = ' ';
 export const DELETE = '⌫';
 export const DONE = '✓';
 
-export const SYMBOLS: string[] = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', SPACE, DELETE, DONE];
+export const LETTERS: string[] = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+export const SYMBOLS: string[] = [...LETTERS, SPACE, DELETE, DONE];
 
 /** Split a list into at most `parts` near-equal consecutive chunks. */
 export function chunk<T>(items: T[], parts = MAX_OPTIONS): T[][] {
@@ -25,8 +26,8 @@ export function chunk<T>(items: T[], parts = MAX_OPTIONS): T[][] {
 }
 
 /** The symbols still reachable after following `path` (each step = which group was chosen). */
-export function symbolsAt(path: number[]): string[] {
-  let symbols = SYMBOLS;
+export function symbolsAt(path: number[], all: string[] = SYMBOLS): string[] {
+  let symbols = all;
   for (const index of path) {
     const groups = symbols.length <= MAX_OPTIONS ? symbols.map((s) => [s]) : chunk(symbols);
     symbols = groups[index] ?? symbols;
@@ -48,8 +49,8 @@ const SHORT: Record<string, string> = { [SPACE]: '␣', [DELETE]: '⌫', [DONE]:
 const BACK: KeyEntry = { kind: 'back', label: '← Back' };
 
 /** What to show for the current position: 3 groups (when there are more than 3 symbols) or the symbols. */
-export function keyboardEntries(path: number[]): KeyEntry[] {
-  const symbols = symbolsAt(path);
+export function keyboardEntries(path: number[], all: string[] = SYMBOLS): KeyEntry[] {
+  const symbols = symbolsAt(path, all);
   const entries: KeyEntry[] =
     symbols.length <= MAX_OPTIONS
       ? symbols.map((symbol) => ({ kind: 'symbol', symbol, label: NAME[symbol] ?? symbol }))

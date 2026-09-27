@@ -40,12 +40,17 @@ export function StackLayout({
         {machine.phase === 'typing' ? (
           <TypingForm draft={draft} setDraft={setDraft} orchestrator={orchestrator} />
         ) : (
-          <OptionList
-            options={getOptions(machine)}
-            highlight={highlight}
-            dwell={dwell}
-            onPick={onPick}
-          />
+          <>
+            <OptionList
+              options={getOptions(machine)}
+              highlight={highlight}
+              dwell={dwell}
+              onPick={onPick}
+            />
+            {(machine.phase === 'quickType' || machine.phase === 'qtMore') && (
+              <TypingForm draft={draft} setDraft={setDraft} orchestrator={orchestrator} />
+            )}
+          </>
         )}
       </section>
       {extras}

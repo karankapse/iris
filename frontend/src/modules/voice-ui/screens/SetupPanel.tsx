@@ -1,15 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import { EMOTIONS, TARGET_POSITION } from '../../../contracts';
-import type { CalibrationStep, Emotion, FaceFrame } from '../../../contracts';
+import { EMOTIONS, LAYOUT, TARGET_POSITION } from '../../../contracts';
+import type { CalibrationStep, Emotion, FaceFrame, TrainingReport } from '../../../contracts';
 import type { Orchestrator } from '../../../app/Orchestrator';
 import type { Services } from '../../../app/services';
+import { RealEyeInput } from '../../eye-input';
+import type { CalibrationReport } from '../../eye-input/real/screenCalibration';
+import { CalibrationResults } from './CalibrationResults';
 
 /** Where each calibration dot is drawn (the corners match the option cards exactly). */
 const DOT_POSITION = { ...TARGET_POSITION, up: { x: 50, y: 14 }, down: { x: 50, y: 86 } } as const;
 
 const GET_READY_S = 2;
-const RECORD_S = 3;
+const RECORD_S = 5;
 const MIN_FRAMES = 10;
+/** Each emotion is recorded in a few short rounds (each its own recording): different
+ * strengths and a slightly different head angle, so the model learns more than one pose. */
+const ROUNDS = [
+  'a small, natural',
+  'a clear, strong',
+  'turn your head a little, then show a natural',
+];
 const MIN_AUDIO_DURATION_S = 30;
 
 interface VoiceItem {
@@ -51,6 +61,10 @@ export function SetupPanel({
   const [countdown, setCountdown] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [recorded, setRecorded] = useState<Partial<Record<Emotion, number>>>({});
+  const [training, setTraining] = useState<TrainingReport | null>(null);
+  const [report, setReport] = useState<CalibrationReport | null>(() =>
+    eyeInput instanceof RealEyeInput ? eyeInput.lastCalibration() : null,
+  );
 
   // Voice banking state
   const [voiceName, setVoiceName] = useState('My Voice');
@@ -111,6 +125,8 @@ export function SetupPanel({
         setStep(s);
         setSecondsLeft(Math.ceil(s.seconds));
       });
+      if (eyeInput instanceof RealEyeInput && mounted.current)
+        setReport(eyeInput.lastCalibration());
       const accuracy = eyeInput.status?.().accuracy;
       const measured =
         accuracy === undefined
@@ -124,28 +140,33 @@ export function SetupPanel({
 
   const recordEmotion = (label: Emotion) =>
     run(`record-${label}`, async () => {
-      for (let s = GET_READY_S; s > 0; s--) {
-        setCountdown(`Get ready to show "${label}"… ${s}`);
-        await new Promise((r) => setTimeout(r, 1000));
+      for (const [i, how] of ROUNDS.entries()) {
+        const round = `Round ${i + 1} of ${ROUNDS.length}`;
+        for (let s = GET_READY_S; s > 0; s--) {
+          setCountdown(`${round}: get ready to show ${how} "${label}"… ${s}`);
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        setCountdown(`${round}: show ${how} "${label}" now! Hold it…`);
+        const frames: FaceFrame[] = [];
+        const stop = faceTracker.onFrame((f) => frames.push(f));
+        await new Promise((r) => setTimeout(r, RECORD_S * 1000));
+        stop();
+        if (frames.length < MIN_FRAMES) {
+          throw new Error(
+            'The face was not visible during the recording. Check the camera and try again.',
+          );
+        }
+        // only numbers from good frames are kept (no images); blinks and turned-away frames are dropped
+        const kept = (await emotion.recordSample(label, frames)) ?? frames.length;
+        setRecorded((r) => ({ ...r, [label]: (r[label] ?? 0) + kept }));
       }
-      setCountdown(`Show "${label}" now! Hold it…`);
-      const frames: FaceFrame[] = [];
-      const stop = faceTracker.onFrame((f) => frames.push(f));
-      await new Promise((r) => setTimeout(r, RECORD_S * 1000));
-      stop();
-      if (frames.length < MIN_FRAMES) {
-        throw new Error(
-          'The face was not visible during the recording. Check the camera and try again.',
-        );
-      }
-      await emotion.recordSample(label, frames);
-      setRecorded((r) => ({ ...r, [label]: (r[label] ?? 0) + Math.min(frames.length, 30) }));
-      return `Recorded "${label}".`;
+      return `Recorded "${label}" (${ROUNDS.length} rounds).`;
     });
 
   const train = () =>
     run('train', async () => {
-      await emotion.train();
+      const result = await emotion.train();
+      if (result && mounted.current) setTraining(result);
       return 'Trained! Your emotion model is now used to suggest tones.';
     });
 
@@ -246,6 +267,7 @@ export function SetupPanel({
     <>
       {step && (
         <div className="calib-overlay" role="dialog" aria-label="Eye calibration">
+          {services.gaze && step.target !== 'closed' && <ZoneGuides active={zoneOfStep(step)} />}
           {step.target !== 'closed' && (
             <div
               className="calib-dot"
@@ -255,7 +277,11 @@ export function SetupPanel({
               }}
             />
           )}
-          <div className="calib-text">
+          <div
+            className="calib-text"
+            // keep the words away from the dot, so they don't pull the eyes off it
+            style={{ top: dotY(step) < 50 && dotY(step) > 18 ? '62%' : '34%' }}
+          >
             <p className="calib-step">
               Step {step.index} of {step.total}
             </p>
@@ -281,13 +307,23 @@ export function SetupPanel({
               <p>Eye input is the keyboard mock (VITE_MOCK_EYE=1): nothing to calibrate.</p>
             ) : (
               <>
-                <p>
-                  The person looks straight, up, down, then closes their eyes. Takes about 12
-                  seconds.
-                </p>
+                {services.gaze ? (
+                  <p>
+                    Sit about an arm&apos;s length from the screen with light on your face. First we
+                    check your position, then your eyes follow 13 dots across the rest area and the
+                    three answer boxes, twice (keep your head still), you close your eyes briefly,
+                    and 6 more dots measure and correct the result. About 50 seconds.
+                  </p>
+                ) : (
+                  <p>
+                    The person looks straight, up, down, then closes their eyes. Takes about 12
+                    seconds.
+                  </p>
+                )}
                 <button onClick={calibrateEyes} disabled={busy !== null}>
-                  Calibrate eyes
+                  {report ? 'Calibrate again' : 'Calibrate eyes'}
                 </button>
+                {report && busy !== 'eyes' && <CalibrationResults report={report} />}
               </>
             )}
           </section>
@@ -301,8 +337,10 @@ export function SetupPanel({
             ) : (
               <>
                 <p>
-                  For each emotion, record the person showing it their own way (subtle is fine).
-                  Record at least two different emotions, a few times each is better, then train.
+                  For each emotion, record the person showing it their own way (subtle is fine), in
+                  3 short rounds (about 20 seconds). Record at least two different emotions, each at
+                  least twice so the accuracy can be checked, then train. Only numbers describing
+                  the face are stored, never pictures.
                 </p>
                 <ul className="emotions">
                   {EMOTIONS.map((label) => (
@@ -320,6 +358,29 @@ export function SetupPanel({
                 <button onClick={train} disabled={busy !== null}>
                   Train my emotion model
                 </button>
+                {training && (
+                  <div className="emotion-accuracy">
+                    <p>
+                      {training.accuracy === null
+                        ? 'Accuracy: not measured yet.'
+                        : `Accuracy on recordings it didn't train on: ${Math.round(training.accuracy * 100)}%`}
+                    </p>
+                    {Object.keys(training.perEmotion).length > 0 && (
+                      <ul>
+                        {Object.entries(training.perEmotion).map(([e, acc]) => (
+                          <li key={e}>
+                            {e}: {Math.round((acc ?? 0) * 100)}%
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {training.advice.map((tip) => (
+                      <p key={tip} className="prompt">
+                        {tip}
+                      </p>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </section>
@@ -437,6 +498,53 @@ export function SetupPanel({
           </section>
         </div>
       </div>
+    </>
+  );
+}
+
+/** Vertical position (percent) of the dot a calibration step shows. */
+function dotY(step: CalibrationStep): number {
+  if (step.target === 'point') return step.position?.y ?? 50;
+  if (step.target === 'closed') return 50;
+  return DOT_POSITION[step.target].y;
+}
+
+/** Which part of the screen a calibration dot is in (same boxes as the app). */
+function zoneOfStep(step: CalibrationStep): 'center' | 'left' | 'middle' | 'right' {
+  const x = step.target === 'point' ? (step.position?.x ?? 50) : 50;
+  const y = dotY(step);
+  if (y < LAYOUT.restBottom * 100) return 'center';
+  if (x < LAYOUT.leftColumn * 100) return 'left';
+  if (x > LAYOUT.rightColumn * 100) return 'right';
+  return 'middle';
+}
+
+/** Faint outlines of the rest band and the three answer boxes; the one being taught is lit. */
+function ZoneGuides({ active }: { active: 'center' | 'left' | 'middle' | 'right' }) {
+  const rest = `${LAYOUT.restBottom * 100}%`;
+  const boxes = [
+    { zone: 'center', left: '0%', width: '100%', top: '0%', height: rest },
+    { zone: 'left', left: '0%', width: `${LAYOUT.leftColumn * 100}%`, top: rest, height: rest },
+    {
+      zone: 'middle',
+      left: `${LAYOUT.leftColumn * 100}%`,
+      width: `${(LAYOUT.rightColumn - LAYOUT.leftColumn) * 100}%`,
+      top: rest,
+      height: rest,
+    },
+    {
+      zone: 'right',
+      left: `${LAYOUT.rightColumn * 100}%`,
+      width: `${(1 - LAYOUT.rightColumn) * 100}%`,
+      top: rest,
+      height: rest,
+    },
+  ] as const;
+  return (
+    <>
+      {boxes.map(({ zone, ...pos }) => (
+        <div key={zone} className={`calib-zone ${zone === active ? 'active' : ''}`} style={pos} />
+      ))}
     </>
   );
 }

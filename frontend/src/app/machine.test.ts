@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { EMOTIONS } from '../contracts';
 import type { Suggestion } from '../contracts';
-import { DONE, SPACE, symbolsAt } from './keyboard';
+import { DONE, LETTERS, SPACE, symbolsAt } from './keyboard';
 import {
   chooseTone,
   getEntries,
   getOptions,
   initialState,
   MAX_RESTARTS,
+  obviouslyRelated,
   reduce,
   type Effect,
   type Event,
@@ -359,9 +360,13 @@ describe('quick phrases, "Other…" and mood', () => {
   });
 });
 
-describe('eye keyboard', () => {
+/** The exact-spelling keyboard: "Other…" -> "Spell it exactly". */
+const openKeyboard = (from: State = initialState()) =>
+  choose(choose(from, 'Other…'), 'Spell it exactly');
+
+describe('eye keyboard (spell exactly)', () => {
   it('types a reply letter by letter and sends it to tone confirmation', () => {
-    let s = choose(initialState(), 'Type my own reply');
+    let s = openKeyboard();
     expect(s.phase).toBe('typing');
     for (const ch of ['H', 'I']) s = typeSymbol(s, ch);
     expect(s.typed).toBe('Hi');
@@ -371,24 +376,24 @@ describe('eye keyboard', () => {
   });
 
   it('every keyboard screen has exactly 3 options', () => {
-    const s = choose(initialState(), 'Type my own reply');
+    const s = openKeyboard();
     expect(getOptions(s)).toHaveLength(3);
   });
 
   it('cancel backs out of a group first, then leaves the keyboard', () => {
-    let s = choose(initialState(), 'Type my own reply');
+    let s = openKeyboard();
     s = run([select(0)], s).state; // into the first group
     expect(s.kbPath).toEqual([0]);
     s = run([eye({ type: 'cancel' })], s).state;
     expect(s.kbPath).toEqual([]);
     expect(s.phase).toBe('typing');
     s = run([eye({ type: 'cancel' })], s).state;
-    expect(s.phase).toBe('listening');
+    expect(s.phase).toBe('menu'); // back where it was opened from
     expect(s.typed).toBe('');
   });
 
   it('"done" with nothing typed does nothing', () => {
-    let s = choose(initialState(), 'Type my own reply');
+    let s = openKeyboard();
     s = typeSymbol(s, DONE);
     expect(s.phase).toBe('typing');
   });
@@ -402,11 +407,128 @@ describe('eye keyboard', () => {
   });
 });
 
+/** First-letter typing: pick `letter` through the letter groups (3 selections). */
+function pickInitial(s: State, letter: string): { state: State; effects: Effect[] } {
+  const effects: Effect[] = [];
+  for (let guard = 0; guard < 5; guard++) {
+    const entries = getEntries(s);
+    const direct = entries.findIndex(
+      (e) => e.action.kind === 'initial' && e.action.letter === letter,
+    );
+    const index =
+      direct !== -1
+        ? direct
+        : entries.findIndex(
+            (e) =>
+              e.action.kind === 'group' &&
+              symbolsAt([...s.kbPath, e.action.index], LETTERS).includes(letter),
+          );
+    if (index === -1) throw new Error(`can't reach ${letter} from ${JSON.stringify(labels(s))}`);
+    const r = run([select(index)], s);
+    s = r.state;
+    effects.push(...r.effects);
+    if (direct !== -1) return { state: s, effects };
+  }
+  throw new Error('too many steps');
+}
+
+describe('first-letter typing', () => {
+  it('opens on the letter groups, and each letter takes 3 selections', () => {
+    const s = choose(initialState(), 'Type my own reply');
+    expect(s.phase).toBe('quickType');
+    expect(labels(s)).toHaveLength(3);
+    expect(labels(s)[0]).toContain('A');
+    let count = 0;
+    let t = s;
+    for (; t.initials === '' && count < 5; count++) {
+      const entries = getEntries(t);
+      const i = entries.findIndex(
+        (e) =>
+          (e.action.kind === 'initial' && e.action.letter === 'W') ||
+          (e.action.kind === 'group' &&
+            symbolsAt([...t.kbPath, e.action.index], LETTERS).includes('W')),
+      );
+      t = run([select(i)], t).state;
+    }
+    expect(count).toBe(3);
+    expect(t.initials).toBe('w');
+  });
+
+  it('asks the AI after each letter and offers the best guess first', () => {
+    let s = choose(initialState(), 'Type my own reply');
+    let r = pickInitial(s, 'I');
+    s = r.state;
+    expect(r.effects).toEqual([{ type: 'expand', requestId: 1, initials: 'i', mood: null }]);
+    expect(labels(s)).toEqual(['Guessing…', 'Next letter', 'Other…']);
+
+    s = choose(s, 'Next letter');
+    r = pickInitial(s, 'W');
+    s = r.state;
+    expect(r.effects).toEqual([{ type: 'expand', requestId: 2, initials: 'iw', mood: null }]);
+
+    // the answer to the first request arrives late: ignored
+    s = run([{ type: 'expansions_ready', requestId: 1, suggestions: [sug(9)] }], s).state;
+    expect(labels(s)[0]).toBe('Guessing…');
+    s = run(
+      [
+        {
+          type: 'expansions_ready',
+          requestId: 2,
+          suggestions: [
+            { id: 'a', text: 'I want water', tone: 'neutral' },
+            { id: 'b', text: 'I would wait', tone: 'serious' },
+          ],
+        },
+      ],
+      s,
+    ).state;
+    expect(labels(s)[0]).toBe('I want water');
+    s = choose(s, 'I want water');
+    expect(s.phase).toBe('confirmTone');
+    expect(s.reply?.text).toBe('I want water');
+  });
+
+  it('"Other…" has the other guesses, delete, spell exactly and start over', () => {
+    let s = pickInitial(choose(initialState(), 'Type my own reply'), 'I').state;
+    s = run(
+      [
+        {
+          type: 'expansions_ready',
+          requestId: 1,
+          suggestions: [
+            { id: 'a', text: 'I', tone: 'neutral' },
+            { id: 'b', text: 'Indeed', tone: 'happy' },
+          ],
+        },
+      ],
+      s,
+    ).state;
+    s = choose(s, 'Other…');
+    expect(s.phase).toBe('qtMore');
+    expect(labels(s)).toContain('Indeed');
+    s = choose(s, '⌫ Delete last letter');
+    expect(s.phase).toBe('quickType');
+    expect(s.initials).toBe('');
+    expect(labels(s)[0]).toContain('A'); // back to picking the first letter
+  });
+
+  it('back from the letter picker returns to the guess, and the caregiver box still works', () => {
+    let s = pickInitial(choose(initialState(), 'Type my own reply'), 'I').state;
+    s = choose(s, 'Next letter');
+    expect(s.qtPicking).toBe(true);
+    s = run([eye({ type: 'cancel' })], s).state;
+    expect(s.qtPicking).toBe(false);
+    expect(s.initials).toBe('i');
+    s = run([{ type: 'custom_reply', text: 'Thirsty' }], s).state;
+    expect(s.reply?.text).toBe('Thirsty');
+  });
+});
+
 describe('robustness', () => {
   it('ignores stale suggestion responses', () => {
     const r = run([
-      { type: 'partner_final', text: 'first' },
-      { type: 'partner_final', text: 'second' },
+      { type: 'partner_final', text: 'first', at: 0 },
+      { type: 'partner_final', text: 'second', at: 1000 },
       { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1)] }, // old request
     ]);
     expect(r.state.phase).toBe('suggesting');
@@ -416,8 +538,8 @@ describe('robustness', () => {
 
   it('more speech while preparing replies joins the turn; history gets each part once', () => {
     const r = run([
-      { type: 'partner_final', text: 'Are you hungry?' },
-      { type: 'partner_final', text: 'We have soup.' },
+      { type: 'partner_final', text: 'Are you hungry?', at: 10_000 },
+      { type: 'partner_final', text: 'We have soup.', at: 12_000 }, // 2 s later: a follow-up
     ]);
     expect(r.state.partnerText).toBe('Are you hungry? We have soup.');
     const suggests = r.effects.filter((e) => e.type === 'suggest');
@@ -428,15 +550,161 @@ describe('robustness', () => {
     expect(suggests.at(-1)).toMatchObject({ requestId: 2 }); // only the newest request counts
   });
 
-  it('never restarts a turn more than twice (constant chatter would never finish)', () => {
-    let s = run([{ type: 'partner_final', text: 'Are you hungry?' }]).state;
-    s = run([{ type: 'partner_final', text: 'We have soup.' }], s).state;
-    s = run([{ type: 'partner_final', text: 'And bread.' }], s).state;
-    expect(s.restarts).toBe(MAX_RESTARTS);
-    const r = run([{ type: 'partner_final', text: 'Goal for Arsenal!' }], s);
-    expect(r.state.requestId).toBe(3);
-    expect(r.state.heldPartner).toBe('Goal for Arsenal!');
-    expect(r.effects).toEqual([]);
+  describe('how the moment feels (words + face)', () => {
+    const ready = (feel: State['feel']) =>
+      run([
+        { type: 'partner_final', text: 'You got the job!' },
+        {
+          type: 'suggestions_ready',
+          requestId: 1,
+          suggestions: [sug(1, 'neutral')],
+          reaction: null,
+          feel,
+        },
+      ]).state;
+
+    it('is stored and becomes the tone the reply is spoken in', () => {
+      const feel = {
+        emotion: 'excited',
+        confidence: 0.8,
+        reason: 'good news',
+        source: 'words',
+      } as const;
+      const s = ready(feel);
+      expect(s.feel).toEqual(feel);
+      expect(s.measuredEmotion).toBe('excited');
+      const r = run([select(0)], s);
+      expect(r.effects).toContainEqual(
+        expect.objectContaining({
+          type: 'speak',
+          spoken: expect.objectContaining({ tone: 'excited' }),
+        }),
+      );
+    });
+
+    it('a neutral or unsure feeling leaves each reply its own tone', () => {
+      expect(
+        ready({ emotion: 'neutral', confidence: 0.9, reason: '', source: 'face + words' })
+          .measuredEmotion,
+      ).toBeNull();
+      expect(
+        ready({ emotion: 'sad', confidence: 0.3, reason: '', source: 'face' }).measuredEmotion,
+      ).toBeNull();
+    });
+
+    it('is cleared when the partner starts a new turn', () => {
+      const s = run(
+        [eye({ type: 'cancel' })],
+        ready({ emotion: 'happy', confidence: 0.9, reason: '', source: 'face' }),
+      ).state;
+      expect(run([{ type: 'partner_final', text: 'Anything else?' }], s).state.feel).toBeNull();
+    });
+  });
+
+  describe('speech heard while replies load', () => {
+    const asked = (at = 0) => run([{ type: 'partner_final', text: 'Are you hungry?', at }]).state;
+    const heard = (s: State, text: string, at?: number) =>
+      run([{ type: 'partner_final', text, at }], s);
+
+    it('a connector or a word that refers back counts as a follow-up without asking', () => {
+      expect(obviouslyRelated('And we have soup', null)).toBe(true);
+      expect(obviouslyRelated("It's tomato", null)).toBe(true);
+      expect(obviouslyRelated('Goal for Arsenal!', 10_000)).toBe(false);
+      expect(obviouslyRelated('Goal for Arsenal!', 2_000)).toBe(true); // right after: same person
+      const r = heard(asked(), 'Or are you thirsty?', 60_000);
+      expect(r.state.partnerText).toBe('Are you hungry? Or are you thirsty?');
+      expect(r.state.requestId).toBe(2);
+    });
+
+    it('unclear speech is checked while the replies keep loading', () => {
+      const r = heard(asked(0), 'Tonight: rain in the north', 20_000);
+      expect(r.state.phase).toBe('suggesting');
+      expect(r.state.requestId).toBe(1); // not restarted
+      expect(r.state.partnerText).toBe('Are you hungry?');
+      expect(r.effects).toEqual([
+        {
+          type: 'check_related',
+          requestId: 1,
+          previous: 'Are you hungry?',
+          new: 'Tonight: rain in the north',
+        },
+      ]);
+    });
+
+    it('related: the replies restart with all of it', () => {
+      const s = heard(asked(0), 'We made soup', 20_000).state;
+      const r = run(
+        [{ type: 'related_result', requestId: 1, related: true, text: 'We made soup' }],
+        s,
+      );
+      expect(r.state.partnerText).toBe('Are you hungry? We made soup');
+      expect(r.state.pendingRelated).toBe('');
+      expect(r.effects).toContainEqual(
+        expect.objectContaining({ type: 'suggest', requestId: 2, partnerText: 'We made soup' }),
+      );
+    });
+
+    it('unrelated: held for after the reply; the replies keep loading', () => {
+      const s = heard(asked(0), 'Tonight: rain', 20_000).state;
+      const r = run(
+        [{ type: 'related_result', requestId: 1, related: false, text: 'Tonight: rain' }],
+        s,
+      );
+      expect(r.state.requestId).toBe(1);
+      expect(r.state.heldPartner).toBe('Tonight: rain');
+      expect(r.effects).toEqual([]);
+    });
+
+    it('more speech while a check runs is held, not restarted', () => {
+      let s = heard(asked(0), 'Tonight: rain', 20_000).state;
+      s = heard(s, 'and wind', 20_500).state;
+      expect(s.requestId).toBe(1);
+      expect(s.heldPartner).toBe('and wind');
+    });
+
+    it('never restarts more than twice per turn', () => {
+      let s = asked(0);
+      s = heard(s, 'We have soup.', 1_000).state;
+      s = heard(s, 'And bread.', 2_000).state;
+      expect(s.restarts).toBe(MAX_RESTARTS);
+      const r = heard(s, 'And cheese.', 3_000);
+      expect(r.state.requestId).toBe(3); // no third restart
+      expect(r.state.heldPartner).toBe('And cheese.');
+      expect(r.effects).toEqual([]);
+    });
+
+    it('a new turn resets the restart count', () => {
+      let s = asked(0);
+      s = heard(s, 'We have soup.', 1_000).state;
+      s = run(
+        [
+          { type: 'suggestions_ready', requestId: 2, suggestions: [sug(1)] },
+          eye({ type: 'cancel' }),
+        ],
+        s,
+      ).state;
+      expect(s.phase).toBe('listening');
+      expect(heard(s, 'Hello again', 90_000).state.restarts).toBe(0);
+    });
+
+    it('a stale check result is ignored', () => {
+      let s = heard(asked(0), 'Tonight: rain', 20_000).state;
+      s = run([{ type: 'suggestions_ready', requestId: 1, suggestions: [sug(1)] }], s).state;
+      const r = run(
+        [{ type: 'related_result', requestId: 1, related: true, text: 'Tonight: rain' }],
+        s,
+      );
+      expect(r.state).toBe(s);
+      expect(r.effects).toEqual([]);
+    });
+
+    it('replies that arrive before the check are shown; the speech is held', () => {
+      const s = heard(asked(0), 'Tonight: rain', 20_000).state;
+      const r = run([{ type: 'suggestions_ready', requestId: 1, suggestions: [sug(1)] }], s);
+      expect(r.state.phase).toBe('selectReply');
+      expect(r.state.heldPartner).toBe('Tonight: rain');
+      expect(r.state.pendingRelated).toBe('');
+    });
   });
 
   it('speech while the user is choosing is held, shown, and handled after they reply', () => {
@@ -453,7 +721,6 @@ describe('robustness', () => {
     expect(r.state.phase).toBe('suggesting'); // now the held question is answered
     expect(r.state.partnerText).toBe('Or are you thirsty?');
     expect(r.state.heldPartner).toBe('');
-    expect(r.state.restarts).toBe(0); // a new turn
     expect(r.effects).toContainEqual(
       expect.objectContaining({ type: 'suggest', partnerText: 'Or are you thirsty?' }),
     );
@@ -462,7 +729,7 @@ describe('robustness', () => {
   it('speech while typing does not wipe what was typed', () => {
     let s = choose(initialState(), 'Type my own reply');
     s = run([{ type: 'partner_final', text: 'Take your time' }], s).state;
-    expect(s.phase).toBe('typing');
+    expect(s.phase).toBe('quickType');
     expect(s.heldPartner).toBe('Take your time');
   });
 
