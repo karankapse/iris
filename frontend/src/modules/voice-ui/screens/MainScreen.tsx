@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../../app/AppContext';
 import { NavDrawer, NavLinks } from './AppShell';
 import { CameraPreview } from './CameraPreview';
-import { ColumnLayout } from './ColumnLayout';
 import { EyeTuningPanel } from './EyeTuningPanel';
 import { GazeDebugOverlay } from './GazeDebugOverlay';
 import { GazeDot } from './GazeDot';
 import { StackLayout } from './StackLayout';
+import { V0ColumnLayout } from './v0/V0ColumnLayout';
 
 /**
  * The Talk page: full screen, just the conversation. Everything else (calibration, settings,
@@ -16,7 +16,7 @@ import { StackLayout } from './StackLayout';
 export function MainScreen() {
   const { services, orchestrator, view } = useApp();
   const navigate = useNavigate();
-  const { eyeMode, stt } = view;
+  const { eyeMode } = view;
   const [draft, setDraft] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const showDot = (() => {
@@ -67,38 +67,26 @@ export function MainScreen() {
         />
       )}
       {eyeMode !== 'vertical' ? (
-        <ColumnLayout
+        <V0ColumnLayout
           orchestrator={orchestrator}
           view={view}
+          services={services}
           draft={draft}
           setDraft={setDraft}
           onPick={pick}
-          face={
-            <>
-              {services.usesCamera ? (
-                <CameraPreview services={services} showReadout={false} />
-              ) : (
-                // no camera in use (keyboard mock): a simple face stands in for the live view
-                <div className="face-placeholder" aria-hidden="true">
-                  <span />
-                  <span />
-                </div>
-              )}
-              <div className="face-row">
-                {services.usesMic && (
-                  <span className={`chip-state ${stt.state}`}>mic: {stt.state}</span>
-                )}
-                {services.usesCamera && (
-                  <button className="linkbtn small" onClick={() => navigate('/calibrate')}>
-                    Calibrate
-                  </button>
-                )}
-                <button className="linkbtn small" onClick={() => setShowMenu(true)}>
-                  ☰ Menu
-                </button>
+          camera={
+            services.usesCamera ? (
+              <CameraPreview services={services} showReadout={false} />
+            ) : (
+              // no camera in use (keyboard mock): a simple face stands in for the live view
+              <div className="face-placeholder" aria-hidden="true">
+                <span />
+                <span />
               </div>
-            </>
+            )
           }
+          onCalibrate={services.usesCamera ? () => navigate('/calibrate') : undefined}
+          onOpenMenu={() => setShowMenu(true)}
         />
       ) : (
         <StackLayout

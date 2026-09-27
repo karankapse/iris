@@ -86,6 +86,15 @@ export function PhasePrompt({ machine }: { machine: State }) {
       <h1 className="status" role="status" aria-live="polite">
         {STATUS[machine.phase]}
       </h1>
+      <PhaseDetails machine={machine} />
+    </>
+  );
+}
+
+/** What goes with the status line: the reaction tone, typed letters, or the reply being spoken. */
+export function PhaseDetails({ machine }: { machine: State }) {
+  return (
+    <>
       {machine.phase === 'selectReply' && machine.measuredEmotion && (
         <p className="tone">
           Reaction tone: <strong>{machine.measuredEmotion}</strong>

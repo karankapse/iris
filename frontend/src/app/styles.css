@@ -1,3 +1,102 @@
+/* Tailwind for Arya's Talk-screen redesign (screens/v0). Theme + utilities only: no global reset,
+   so the other pages keep their look. Its colours use --v0-* names (defined below) so they never
+   clash with the app's own --muted / --accent / --border. */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme inline {
+  --color-warning: var(--v0-warning);
+  --color-warning-foreground: var(--v0-warning-foreground);
+  --color-ring: var(--v0-ring);
+  --color-input: var(--v0-input);
+  --color-border: var(--v0-border);
+  --color-destructive: var(--v0-destructive);
+  --color-accent-foreground: var(--v0-accent-foreground);
+  --color-accent: var(--v0-accent);
+  --color-muted-foreground: var(--v0-muted-foreground);
+  --color-muted: var(--v0-muted);
+  --color-secondary-foreground: var(--v0-secondary-foreground);
+  --color-secondary: var(--v0-secondary);
+  --color-primary-foreground: var(--v0-primary-foreground);
+  --color-primary: var(--v0-primary);
+  --color-popover-foreground: var(--v0-popover-foreground);
+  --color-popover: var(--v0-popover);
+  --color-card-foreground: var(--v0-card-foreground);
+  --color-card: var(--v0-card);
+  --color-foreground: var(--v0-foreground);
+  --color-background: var(--v0-background);
+  --radius-2xl: 1.575rem;
+  --radius-3xl: 1.925rem;
+  --radius-4xl: 2.275rem;
+}
+
+:root {
+  --v0-background: oklch(0.165 0.025 255);
+  --v0-foreground: oklch(0.97 0.008 90);
+  --v0-card: oklch(0.225 0.03 255);
+  --v0-card-foreground: oklch(0.97 0.008 90);
+  --v0-popover: oklch(0.225 0.03 255);
+  --v0-popover-foreground: oklch(0.97 0.008 90);
+  --v0-primary: oklch(0.84 0.12 190);
+  --v0-primary-foreground: oklch(0.165 0.025 255);
+  --v0-secondary: oklch(0.27 0.03 255);
+  --v0-secondary-foreground: oklch(0.97 0.008 90);
+  --v0-muted: oklch(0.27 0.03 255);
+  --v0-muted-foreground: oklch(0.72 0.025 255);
+  --v0-accent: oklch(0.27 0.03 255);
+  --v0-accent-foreground: oklch(0.97 0.008 90);
+  --v0-warning: oklch(0.82 0.13 75);
+  --v0-warning-foreground: oklch(0.165 0.025 255);
+  --v0-destructive: oklch(0.82 0.13 75);
+  --v0-border: oklch(0.97 0.008 90 / 10%);
+  --v0-input: oklch(0.97 0.008 90 / 14%);
+  --v0-ring: oklch(0.84 0.12 190);
+}
+
+/* the small reset Tailwind's components expect, only inside the redesigned screen */
+@layer base {
+  .v0 *,
+  .v0 *::before,
+  .v0 *::after {
+    border: 0 solid var(--v0-border);
+  }
+  .v0 button,
+  .v0 input {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+  }
+  .v0 h2,
+  .v0 p,
+  .v0 ul {
+    margin: 0;
+    padding: 0;
+    font-size: inherit;
+    font-weight: inherit;
+    list-style: none;
+  }
+}
+
+@keyframes iris-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.animate-iris-pulse {
+  animation: iris-pulse 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-iris-pulse {
+    animation: none;
+  }
+}
+
 /* High contrast, large targets. Eye control is imprecise and tiring: never make things small. */
 :root {
   /* One calm palette: neutral surfaces, ONE accent, status colours only for status. */
@@ -38,10 +137,12 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-button,
-input,
-select {
-  font: inherit;
+@layer base {
+  button,
+  input,
+  select {
+    font: inherit;
+  }
 }
 
 .screen {
@@ -2185,15 +2286,17 @@ a.linkbtn {
 .option-hint {
   color: var(--muted);
 }
-button,
-.linkbtn,
-select,
-summary {
-  min-height: 44px;
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
+@layer base {
+  button,
+  .linkbtn,
+  select,
+  summary {
+    min-height: 44px;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
 }
 :where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 3px solid var(--accent);
@@ -2422,4 +2525,41 @@ input[type='checkbox'] {
 /* Small numerals need text contrast even on the lighter selected surface. */
 .column-card.highlighted .option-number {
   color: var(--text);
+}
+
+/* the live camera fills the square in the Talk screen's status card (screens/v0) */
+.v0-camera .camera {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: #000;
+}
+.v0-camera .camera canvas {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  border-radius: 0;
+}
+.v0-camera .face-placeholder {
+  position: absolute;
+  inset: 12%;
+  width: auto;
+}
+.v0 .v0-details .tone,
+.v0 .v0-details .reply {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--v0-muted-foreground);
+}
+.v0 .v0-details .reply {
+  font-size: 1.4rem;
+  color: var(--v0-foreground);
+}
+.v0 .v0-details strong {
+  color: var(--v0-primary);
 }
