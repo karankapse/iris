@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Where SMTP is blocked (Railway), send through Brevo's HTTPS API instead: set its API key and
     # verify the EMAIL_FROM address in Brevo. Takes priority over SMTP when set.
     brevo_api_key: str = ""
+    # Confirm new accounts by email (the normal way). Turn off where no email can be sent yet
+    # (REQUIRE_EMAIL_VERIFICATION=false): accounts then work right after signing up.
+    require_email_verification: bool = True
     app_url: str = "http://localhost:5173"  # used in links inside emails
     database_path: Path = REPO_ROOT / "backend" / "data" / "iris.db"
     cors_origins: list[str] = ["http://localhost:5173"]
