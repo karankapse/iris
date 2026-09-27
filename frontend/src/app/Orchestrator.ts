@@ -109,6 +109,9 @@ export class Orchestrator {
   private suspendedBy = new Set<string>();
   /** Whether the reply being spoken was stopped. */
   private speechStopped = false;
+  /** Finishes the reply being spoken (once). Used by "Stop speaking" if the voice hangs. */
+  private finishSpeech: (() => void) | null = null;
+  private speechId = 0;
 
   constructor(
     private services: Services,
@@ -519,19 +522,25 @@ export class Orchestrator {
         if (byEyeSelection) learning?.hold(performance.now());
         else learning?.discard();
         this.speechStopped = false;
+        const id = ++this.speechId;
+        // Runs once per reply, whether the voice finishes, fails or is stopped.
+        const finish = () => {
+          if (id !== this.speechId || this.finishSpeech !== finish) return; // a newer reply
+          this.finishSpeech = null;
+          this.speaking = false;
+          this.spokeUntil = performance.now();
+          if (this.speechStopped) learning?.discard();
+          else learning?.confirm(performance.now());
+          conversation.addTurn({ speaker: 'user', text: effect.spoken.text });
+          this.dispatch({ type: 'speak_done' });
+        };
+        this.finishSpeech = finish;
         tts
           .speak(effect.spoken.text, effect.spoken.tone, {
             speed: this.view.settings.speechSpeed,
           })
           .catch((e) => console.error('[tts]', e))
-          .finally(() => {
-            this.speaking = false;
-            this.spokeUntil = performance.now();
-            if (this.speechStopped) learning?.discard();
-            else learning?.confirm(performance.now());
-            conversation.addTurn({ speaker: 'user', text: effect.spoken.text });
-            this.dispatch({ type: 'speak_done' });
-          });
+          .finally(finish);
         break;
       }
 
@@ -539,11 +548,16 @@ export class Orchestrator {
         save(STORAGE.mood, effect.mood);
         break;
 
-      case 'stop_speaking':
+      case 'stop_speaking': {
         this.speechStopped = true;
         this.services.gazeLearning?.discard();
         tts.cancel();
+        // Safety net: if a voice engine doesn't report back after being stopped, finish the
+        // reply ourselves so the app never sticks on the speaking screen with the mic ignored.
+        const pending = this.finishSpeech;
+        if (pending) setTimeout(() => this.finishSpeech === pending && pending(), 1000);
         break;
+      }
 
       case 'user_feedback':
         emotion
