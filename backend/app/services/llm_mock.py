@@ -3,7 +3,7 @@
 Lets everyone develop the UI without spending money or needing a key.
 """
 
-from app.schemas import ConversationTurn, Emotion, Suggestion
+from app.schemas import ConversationTurn, Emotion, Suggestion, UserProfile
 
 
 def _s(i: int, text: str, tone: str) -> Suggestion:
@@ -14,6 +14,7 @@ def mock_suggestions(
     history: list[ConversationTurn],
     mood: Emotion | None = None,
     reaction: Emotion | None = None,
+    profile: UserProfile | None = None,
 ) -> list[Suggestion]:
     last = next((t.text.lower() for t in reversed(history) if t.speaker == "partner"), "")
     active_emotion = reaction or mood or "neutral"
@@ -52,6 +53,25 @@ def mock_suggestions(
                 _s(1, "Are you sure they didn't mix me up?", "joking"),
                 _s(2, "Drinks are on you then!", "joking"),
                 _s(3, "That's awesome!", "happy"),
+            ]
+
+    if any(w in last for w in ("what is your name", "who are you")):
+        if profile and profile.name:
+            return [
+                _s(1, f"My name is {profile.name}.", "happy"),
+                _s(2, f"I am {profile.name}.", "neutral"),
+                _s(3, "I'd rather not say right now.", "serious"),
+            ]
+
+    if any(
+        w in last for w in ("do you need anything", "what do you need", "can i get you something")
+    ):
+        if profile and profile.common_needs:
+            need = profile.common_needs[0]
+            return [
+                _s(1, f"Yes, please {need}.", "neutral"),
+                _s(2, "No, I'm okay for now.", "neutral"),
+                _s(3, "Just some water, thanks.", "happy"),
             ]
 
     if any(w in last for w in ("pain", "hurt", "uncomfortable")):

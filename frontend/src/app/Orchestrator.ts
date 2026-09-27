@@ -325,7 +325,7 @@ export class Orchestrator {
   private run(effect: Effect) {
     const { conversation, tts, emotion } = this.services;
     switch (effect.type) {
-      case 'suggest':
+      case 'suggest': {
         conversation.addTurn({ speaker: 'partner', text: effect.partnerText });
         void (async () => {
           try {
@@ -352,6 +352,7 @@ export class Orchestrator {
           }
         })();
         break;
+      }
 
       case 'snapshot_features':
         // Remember the face features from the moment the tone was proposed; they become a

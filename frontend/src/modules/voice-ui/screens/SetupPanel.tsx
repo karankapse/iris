@@ -321,14 +321,17 @@ export function SetupPanel({
                   ))}
                 </ul>
                 {countdown && <p className="prompt">{countdown}</p>}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
+                <div
+                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}
+                >
                   <button onClick={train} disabled={busy !== null}>
                     Train my emotion model
                   </button>
                   {emotion.modelStats && (
                     <span className="stats">
                       <strong>Current model:</strong> {emotion.modelStats.nSamples} samples
-                      {emotion.modelStats.accuracy && `, ${Math.round(emotion.modelStats.accuracy * 100)}% accurate`}
+                      {emotion.modelStats.accuracy &&
+                        `, ${Math.round(emotion.modelStats.accuracy * 100)}% accurate`}
                     </span>
                   )}
                 </div>

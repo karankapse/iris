@@ -9,6 +9,7 @@ def _samples(label, rows, source="calibration"):
 
 def test_health_reports_mock_mode(client):
     body = client.get("/api/health").json()
+    body.pop("whisper_available", None)  # depends on the machine (local Whisper installed or not)
     assert body == {
         "ok": True,
         "mock_llm": True,
@@ -83,19 +84,20 @@ def test_train_returns_exportable_model_that_predicts_correctly(client):
     assert res.status_code == 200
     m = res.json()
 
-    # Re-implement the browser's prediction to prove the exported weights are usable.
+    # Re-implement the browser's prediction (frontend/src/modules/emotion/real/predict.ts) to prove
+    # the exported network is usable: standardise, then each layer is W^T x + b, with ReLU on
+    # hidden layers and softmax at the end.
     def predict(x):
-        scaled = [(v - mu) / s for v, mu, s in zip(x, m["means"], m["scales"], strict=True)]
-        logits = [
-            sum(w * v for w, v in zip(row, scaled, strict=True)) + b
-            for row, b in zip(m["coef"], m["intercept"], strict=True)
-        ]
-        exps = [math.exp(z - max(logits)) for z in logits]
+        a = [(v - mu) / s for v, mu, s in zip(x, m["means"], m["scales"], strict=True)]
+        for i, (W, b) in enumerate(zip(m["coefs"], m["intercepts"], strict=True)):
+            z = [b[o] + sum(a[j] * W[j][o] for j in range(len(a))) for o in range(len(b))]
+            a = z if i == len(m["coefs"]) - 1 else [max(0.0, v) for v in z]
+        exps = [math.exp(v - max(a)) for v in a]
         probs = [e / sum(exps) for e in exps]
         return m["classes"][probs.index(max(probs))]
 
     assert m["classes"] == ["happy", "serious"]
-    assert len(m["coef"]) == 2 and len(m["coef"][0]) == 3  # binary case expanded to 2 rows
+    assert len(m["intercepts"][-1]) == 2  # binary case expanded to 2 outputs (one per class)
     assert predict([0.9, 0.0, 0.0]) == "happy"
     assert predict([0.0, 0.9, 0.9]) == "serious"
 

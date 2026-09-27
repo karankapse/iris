@@ -65,10 +65,12 @@ export class AutoSpeechToText implements SpeechToText {
     const engine = await pickEngine(() => fetch('/api/health').then((r) => r.json()));
     if (!this.wanted) return; // stopped while we were choosing
 
-    const inner: SpeechToText = 
-      engine === 'muse' ? new MuseSpeechToText() : 
-      engine === 'local_whisper' ? new LocalWhisperSpeechToText() : 
-      new WebSpeechToText();
+    const inner: SpeechToText =
+      engine === 'muse'
+        ? new MuseSpeechToText()
+        : engine === 'local_whisper'
+          ? new LocalWhisperSpeechToText()
+          : new WebSpeechToText();
     this.inner = inner;
     this.unsubs = [
       inner.onTranscript((t) => this.transcripts.emit(t)),
