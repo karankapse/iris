@@ -194,12 +194,12 @@ describe('EXACTLY 3 options on every screen (no blanks), the 3rd is always "Othe
       atSelectReply(),
       run(
         [
-          { type: 'partner_final', text: 'hi' },
+          { type: 'partner_final', text: 'hi there' },
           { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1)] }, // only ONE suggestion
         ],
         { ...initialState(), phrases: [] },
       ).state,
-      run([{ type: 'partner_final', text: 'hi' }]).state, // waiting for the AI
+      run([{ type: 'partner_final', text: 'hi there' }]).state, // waiting for the AI
     ];
     for (const start of starts) {
       for (const s of allReachable(start)) {
@@ -231,7 +231,7 @@ describe('EXACTLY 3 options on every screen (no blanks), the 3rd is always "Othe
 
   it('with only one AI suggestion, a quick phrase fills the second slot (no blank)', () => {
     const s = run([
-      { type: 'partner_final', text: 'hi' },
+      { type: 'partner_final', text: 'hi there' },
       { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1)] },
     ]).state;
     expect(labels(s)).toEqual(['reply 1', 'I need help', 'Other…']);
@@ -321,13 +321,16 @@ describe('quick phrases, "Other…" and mood', () => {
     expect(r.state.phase).toBe('menu');
     expect(r.effects).toEqual([{ type: 'save_mood', mood: 'happy' }]);
 
+    // back out to the listening screen (partner speech is ignored while in menus)
+    const listening = run([eye({ type: 'cancel' }), eye({ type: 'cancel' })], r.state).state;
+    expect(listening.phase).toBe('listening');
     const next = run(
       [
-        { type: 'partner_final', text: 'hi' },
+        { type: 'partner_final', text: 'hi there' },
         // the reply screen we came from was request 1, so this is request 2
         { type: 'suggestions_ready', requestId: 2, suggestions: [sug(1, 'sad')] },
       ],
-      r.state,
+      listening,
     ).state;
     expect(run([select(0)], next).state.tone).toBe('happy'); // mood beats the AI's "sad"
   });
@@ -412,12 +415,12 @@ describe('eye keyboard', () => {
 describe('robustness', () => {
   it('ignores stale suggestion responses', () => {
     const r = run([
-      { type: 'partner_final', text: 'first' },
-      { type: 'partner_final', text: 'second' },
+      { type: 'partner_final', text: 'first thing' },
+      { type: 'partner_final', text: 'second thing' },
       { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1)] }, // old request
     ]);
     expect(r.state.phase).toBe('suggesting');
-    expect(r.state.partnerText).toBe('second');
+    expect(r.state.partnerText).toBe('second thing');
   });
 
   it('ignores partner speech while speaking', () => {
@@ -429,7 +432,7 @@ describe('robustness', () => {
 
   it('a failed AI call returns to listening with an error', () => {
     const s = run([
-      { type: 'partner_final', text: 'hi' },
+      { type: 'partner_final', text: 'hi there' },
       { type: 'suggestions_failed', requestId: 1, message: 'boom' },
     ]).state;
     expect(s.phase).toBe('listening');
@@ -477,5 +480,22 @@ describe('robustness', () => {
     expect(choose(fromMenu('Quick phrases', { phrases: s.phrases }), 'Hello').reply?.text).toBe(
       'Hello',
     );
+  });
+});
+
+describe('partner speech is only taken in when it makes sense', () => {
+  it('ignores lone filler words, but not a one-word question', () => {
+    expect(run([{ type: 'partner_final', text: 'Yeah,' }]).state.phase).toBe('listening');
+    expect(run([{ type: 'partner_final', text: 'um' }]).state.phase).toBe('listening');
+    expect(run([{ type: 'partner_final', text: 'Hungry?' }]).state.phase).toBe('suggesting');
+    expect(run([{ type: 'partner_final', text: 'Are you hungry' }]).state.phase).toBe('suggesting');
+  });
+
+  it('does not replace the replies while the user is choosing', () => {
+    const s = atSelectReply();
+    const r = run([{ type: 'partner_final', text: 'something in the background' }], s);
+    expect(r.state.phase).toBe('selectReply');
+    expect(r.state.suggestions).toEqual(s.suggestions);
+    expect(r.effects).toEqual([]);
   });
 });

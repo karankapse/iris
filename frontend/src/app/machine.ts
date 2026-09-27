@@ -374,6 +374,20 @@ export const getOptions = (s: State): Option[] => getEntries(s).map((e) => e.opt
 
 // ---- the reducer ---------------------------------------------------------------------------------
 
+/** Screens where new partner speech is taken in. While the user is choosing (replies, menus,
+ * keyboard) or speaking, the room is ignored, so replies don't change under their eyes. */
+const TAKES_PARTNER_SPEECH: Phase[] = ['listening', 'suggesting', 'feedback'];
+
+/** A lone word like "yeah" or "um" is background noise, not a sentence (unless it's a question). */
+export function isRealSentence(text: string): boolean {
+  const words = text.split(/\s+/).filter((w) => /[a-z0-9]/i.test(w));
+  return words.length >= 2 || (words.length === 1 && text.trim().endsWith('?'));
+}
+
+function acceptsPartnerTurn(state: State, text: string): boolean {
+  return TAKES_PARTNER_SPEECH.includes(state.phase) && isRealSentence(text);
+}
+
 const same = (state: State): Result => ({ state, effects: [] });
 
 export function reduce(state: State, event: Event): Result {
@@ -383,8 +397,7 @@ export function reduce(state: State, event: Event): Result {
 
     case 'partner_final': {
       const text = event.text.trim();
-      // While the app is speaking, ignore the room (it would also hear its own voice).
-      if (!text || state.phase === 'speaking') return same(state);
+      if (!acceptsPartnerTurn(state, text)) return same(state);
       const requestId = state.requestId + 1;
       const reaction =
         state.detected.confidence >= MIN_DETECTION_CONFIDENCE

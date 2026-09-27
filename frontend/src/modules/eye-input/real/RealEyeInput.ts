@@ -66,7 +66,7 @@ const PROGRESS_STEP = 0.05;
 const SCREEN_CALIBRATED_KEY = 'iris.gazeCalibrated.v2'; // v2: column layout (older calibrations don't count)
 const SETTLE_MS = 900; // time to find the dot
 const TRAIN_MS = 1500;
-const TRAIN_EVERY_MS = 75;
+const TRAIN_EVERY_MS = 50; // more samples per step = a better fit
 const CHECK_MS = 1200;
 /**
  * Calibration looks at the THREE COLUMNS (where the options are) and the rest area, not at random
@@ -372,7 +372,23 @@ export class RealEyeInput implements EyeInput {
 
   private select(optionIndex: number) {
     this.armed = false; // must look back at the centre before the next dwell can complete
+    this.learnFromSelection(optionIndex);
     this.emitter.emit({ type: 'select', optionIndex });
+  }
+
+  /**
+   * Keep improving while in use: the person just held their gaze on this option's words long
+   * enough to select it, so "the eyes look like this" = "looking at those words". Feed that back
+   * to WebGazer as extra training, a few samples spread over the words.
+   */
+  private learnFromSelection(optionIndex: number) {
+    if (!this.gaze || this.mode !== 'full') return;
+    const region = optionRegions(this.optionCount, 'full')[optionIndex];
+    if (!region) return;
+    const pos = TARGET_POSITION[region];
+    for (const dy of [0, -4, -8]) {
+      this.gaze.train((pos.x / 100) * window.innerWidth, ((pos.y + dy) / 100) * window.innerHeight);
+    }
   }
 
   /** Emit a `highlight` event only when something visible changed. */
