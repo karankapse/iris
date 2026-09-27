@@ -187,3 +187,12 @@ def test_suggestion_prompt_includes_the_profile():
     )
     assert "My name is Sam." in text and "daughter Maya" in text and "chess" in text
     assert "About me" not in _format_history([], None, UserProfile())  # empty profile adds nothing
+
+
+def test_a_model_saved_by_an_older_version_counts_as_not_trained(client):
+    # e.g. the logistic-regression format used before the neural network
+    old = '{"user_id": "u9", "feature_names": ["a"], "classes": ["happy", "sad"], "coef": [[1]]}'
+    client.app.state.db.save_model("u9", old)
+    res = client.get("/api/emotion/model/u9")
+    assert res.status_code == 404  # not a 500: the app just treats it as "please retrain"
+    assert "retrain" in res.json()["detail"]
