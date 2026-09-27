@@ -5,7 +5,7 @@ import type { Phase, State } from '../../../app/machine';
 
 export const STATUS: Record<Phase, string> = {
   listening: 'Listening…',
-  suggesting: 'Measuring reaction & getting replies…',
+  suggesting: 'Preparing replies…',
   selectReply: 'Choose a reply',
   moreReplies: 'More replies',
   menu: 'Other options',
@@ -46,7 +46,7 @@ export function PartnerSaid({ machine }: { machine: State }) {
       )}
       <div className="said-scroll" ref={box} onScroll={onScroll} tabIndex={0}>
         {machine.phase === 'listening' || machine.phase === 'suggesting' ? (
-          <p>{machine.interim || machine.partnerText || '—'}</p>
+          <p>{machine.interim || machine.partnerText || 'Waiting for your partner…'}</p>
         ) : (
           <>
             {/* busy choosing a reply: keep what they're answering; newer speech waits below */}
@@ -79,24 +79,16 @@ export function ErrorBanner({
   );
 }
 
-const TONE_EMOJIS: Record<string, string> = {
-  neutral: '😐',
-  happy: '😊',
-  excited: '🤩',
-  sad: '😔',
-  joking: '😏',
-  serious: '🧐',
-};
-
 /** The big status line, plus the reply and tone while one is being confirmed or spoken. */
 export function PhasePrompt({ machine }: { machine: State }) {
   return (
     <>
-      <h1 className="status">{STATUS[machine.phase]}</h1>
+      <h1 className="status" role="status" aria-live="polite">
+        {STATUS[machine.phase]}
+      </h1>
       {machine.phase === 'selectReply' && machine.measuredEmotion && (
         <p className="tone">
-          Reaction tone: <strong>{machine.measuredEmotion}</strong>{' '}
-          {TONE_EMOJIS[machine.measuredEmotion] ?? ''}
+          Reaction tone: <strong>{machine.measuredEmotion}</strong>
         </p>
       )}
       {(machine.phase === 'quickType' || machine.phase === 'qtMore') && (
@@ -116,7 +108,7 @@ export function PhasePrompt({ machine }: { machine: State }) {
           <p className="reply">“{machine.reply.text}”</p>
           {machine.tone && (
             <p className="tone">
-              Tone: <strong>{machine.tone}</strong> {TONE_EMOJIS[machine.tone] ?? ''}
+              Tone: <strong>{machine.tone}</strong>
             </p>
           )}
         </>
@@ -147,9 +139,12 @@ export function TypingForm({
       <input
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="Caregiver can type here for now"
+        aria-label="Type a reply"
+        placeholder="Type a reply"
       />
-      <button type="submit">Use this reply</button>
+      <button type="submit" disabled={!draft.trim()}>
+        Use this reply
+      </button>
       <button
         type="button"
         onClick={() => orchestrator.dispatch({ type: 'eye', event: { type: 'cancel' } })}
@@ -175,9 +170,12 @@ export function PartnerTypeBox({ orchestrator }: { orchestrator: Orchestrator })
       <input
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Type what the partner says, then Enter"
+        aria-label="Partner’s message"
+        placeholder="Type your partner’s message"
       />
-      <button type="submit">Send</button>
+      <button type="submit" disabled={!text.trim()}>
+        Send
+      </button>
     </form>
   );
 }

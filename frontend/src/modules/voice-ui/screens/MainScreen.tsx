@@ -108,7 +108,6 @@ export function MainScreen() {
           setDraft={setDraft}
           onPick={pick}
           topButtons={<NavLinks />}
-          extras={null}
         />
       )}
 
