@@ -1,12 +1,31 @@
 /* High contrast, large targets. Eye control is imprecise and tiring: never make things small. */
 :root {
-  --bg: #0d1117;
-  --panel: #161b22;
-  --text: #f0f6fc;
-  --muted: #9da7b3;
-  --accent: #58a6ff;
-  --good: #3fb950;
-  --bad: #f0883e;
+  /* One calm palette: neutral surfaces, ONE accent, status colours only for status. */
+  --bg: #001e36;
+  --surface: #003057;
+  --surface-2: #123e5d;
+  --paper: #f7f5ed;
+  --paper-ink: #003057;
+  --paper-muted: #52616b;
+  --panel: var(--surface);
+  --border: rgba(184, 200, 211, 0.18);
+  --border-strong: rgba(184, 200, 211, 0.35);
+  --text: #faf9f5;
+  --muted: #b8c8d3;
+  --accent: #b3a369;
+  --accent-ink: #001e36; /* text on the accent */
+  --good: #4ade80;
+  --bad: #f87171;
+  /* spacing, corners, shadow: use these, not one-off values */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 12px;
+  --shadow: none;
   color-scheme: dark;
 }
 * {
@@ -16,7 +35,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 button,
 input,
@@ -1215,4 +1235,540 @@ kbd {
   height: 55%;
   background: rgba(217, 94, 156, 0.15);
   border-color: #d95e9c;
+}
+
+/* ============================================================================================
+   Iris theme: navy, gold, and warm white. Fixed gaze geometry is preserved.
+   ============================================================================================ */
+.columns-grid {
+  background: var(--bg);
+  padding: var(--space-4);
+  gap: var(--space-4);
+}
+.column-card {
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  transition:
+    border-color 0.12s,
+    background 0.12s;
+}
+.column-card .option-number {
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+.column-card .option-label {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.column-card .option-hint {
+  color: var(--muted);
+  font-size: 0.95rem;
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+/* the eyes are here: a clear accent frame and a light tint, no glow */
+.column-card.highlighted {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  box-shadow: inset 0 0 0 2px var(--accent); /* a 4px frame without shifting the layout */
+}
+.column-card.highlighted .option-number {
+  color: var(--accent);
+}
+.column-card.info {
+  border: 2px dashed var(--border-strong);
+  background: transparent;
+}
+.column-card .dwell {
+  height: 10px;
+  background: var(--accent);
+  border-radius: 0 4px 4px 0;
+}
+
+/* Conversation and identity surfaces within the gaze rest zone. */
+.float-card {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+.said-float .label {
+  color: var(--muted);
+}
+.said-float .partner-said p {
+  color: var(--text);
+}
+.said-float .status {
+  color: var(--accent);
+  font-weight: 600;
+}
+.said-float .reply {
+  color: var(--text);
+}
+.said-float .tone {
+  color: var(--muted);
+}
+.partner-said .also-said,
+.partner-said .feels {
+  color: var(--muted);
+}
+.face-float .camera canvas {
+  border-radius: var(--radius-sm);
+}
+.face-float .linkbtn {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: transparent;
+}
+
+/* buttons, inputs, chips, banners: one style each */
+.linkbtn {
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+.linkbtn:hover,
+.face-float .linkbtn:hover {
+  background: var(--surface-2);
+  border-color: var(--muted);
+}
+.partner-type input,
+.typing input {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+.partner-type input:focus,
+.typing input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.partner-type button,
+.typing button {
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.chip-state {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.chip-state.listening {
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+  color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 30%, transparent);
+}
+.chip-state.error {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+  color: var(--bad);
+  border-color: color-mix(in srgb, var(--bad) 30%, transparent);
+}
+.chip {
+  border: 1px solid var(--border-strong);
+}
+.chip.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+.error {
+  background: color-mix(in srgb, var(--bad) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--bad) 45%, transparent);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+.error button {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  padding: var(--space-1) var(--space-3);
+  cursor: pointer;
+}
+
+/* panels and their plain buttons (menu drawer, setup, tuning, settings) */
+.drawer {
+  background: var(--surface);
+  border-left: 1px solid var(--border-strong);
+}
+.modal-card,
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+:where(.drawer, .modal-card, .panel, .tester) button:not(.linkbtn, .chip, .reaction) {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+}
+:where(.drawer, .modal-card, .panel, .tester)
+  button:not(.linkbtn, .chip, .reaction):hover:not(:disabled) {
+  border-color: var(--muted);
+}
+.btn-primary,
+:where(.drawer, .modal-card, .panel, .tester) button.btn-primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+a.linkbtn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Keep conversation surfaces in the upper-half rest zone. The column grid and
+   bottom label positions are shared with calibration and intentionally unchanged. */
+.said-float {
+  left: 32px;
+  top: 32px;
+  width: calc(72% - 48px);
+  height: calc(50% - 64px);
+  min-height: 0;
+  max-height: none;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: left;
+  padding: clamp(16px, 2vw, 28px);
+  overflow: auto;
+}
+.said-float .partner-said {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.said-float .partner-said p {
+  font-size: clamp(1.25rem, 2vw, 1.8rem);
+  line-height: 1.4;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.said-float .said-scroll {
+  max-height: none;
+  min-height: 44px;
+}
+.said-float .status {
+  font-size: clamp(1.1rem, 1.6vw, 1.4rem);
+  line-height: 1.4;
+}
+.said-float .reply {
+  font-size: 1.25rem;
+  line-height: 1.4;
+}
+.said-float .typing input {
+  min-width: 120px;
+}
+.said-float .partner-type input,
+.said-float .typing input {
+  font-size: 1rem;
+  padding: 10px 12px;
+}
+.face-float {
+  left: auto;
+  right: 32px;
+  top: 32px;
+  width: calc(28% - 16px);
+  height: auto;
+  max-height: calc(50% - 64px);
+  align-items: flex-start;
+  text-align: left;
+  padding: 16px;
+  background: var(--bg);
+  border: 0;
+  overflow: auto;
+}
+.brand {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.6rem, 4.5vw, 4rem);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.06em;
+  color: var(--text);
+}
+.face-float .linkbtn {
+  margin-top: 12px;
+  white-space: normal;
+  text-align: left;
+}
+.face-float .muted {
+  line-height: 1.5;
+}
+.column-card {
+  transition: none;
+}
+.column-card .option-label {
+  overflow-wrap: anywhere;
+}
+.option {
+  border-color: var(--border-strong);
+  border-radius: var(--radius);
+}
+.option.highlighted {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+.option .option-text {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+}
+.option.info {
+  cursor: default;
+  border-style: dashed;
+  color: var(--muted);
+}
+.option-hint {
+  color: var(--muted);
+}
+button,
+.linkbtn,
+select,
+summary {
+  min-height: 44px;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+.column-card:focus-visible {
+  outline-offset: -7px;
+}
+input,
+select,
+textarea {
+  accent-color: var(--accent);
+}
+select,
+textarea,
+.devpanel input {
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font: inherit;
+}
+input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.dot-toggle,
+.check {
+  min-height: 44px;
+  align-items: center;
+}
+.help {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.chip {
+  border-radius: var(--radius-sm);
+}
+.caregiver-dialog {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  padding: 0;
+  width: min(560px, 100%);
+  height: 100dvh;
+  max-width: 100%;
+  max-height: 100dvh;
+  border: 0;
+  color: var(--text);
+  background: var(--surface);
+}
+.caregiver-dialog::backdrop {
+  background: rgb(0 0 0 / 65%);
+}
+.caregiver-dialog .drawer {
+  width: 100%;
+  height: 100%;
+  padding: 24px;
+}
+.drawer header {
+  align-items: flex-start;
+  gap: 16px;
+}
+.drawer header .help {
+  margin: 8px 0 0;
+}
+.drawer .panel,
+.drawer .devpanel {
+  border: 0;
+  border-top: 1px solid var(--border-strong);
+  border-radius: 0;
+  padding: 20px 0;
+  background: transparent;
+}
+.drawer .moodbar {
+  padding-top: 20px;
+}
+.drawer-buttons {
+  padding-bottom: 16px;
+}
+.drawer .camera {
+  align-self: flex-start;
+}
+.error.floating,
+.gaze-dot {
+  box-shadow: none;
+}
+@media (max-width: 800px) {
+  .said-float {
+    left: 24px;
+    top: 24px;
+    width: calc(68% - 32px);
+    height: calc(50% - 48px);
+  }
+  .face-float {
+    right: 24px;
+    top: 24px;
+    width: calc(32% - 24px);
+    padding: 12px;
+  }
+  .face-float .muted {
+    font-size: 0.9rem;
+  }
+  .column-card {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Warm paper gives the conversation its own hierarchy without additional controls.
+   These details are paint-only: no changes to gaze targets, dwell, or label positions. */
+.said-float {
+  background: var(--paper);
+  color: var(--paper-ink);
+  border-color: var(--paper);
+  box-shadow: inset 0 4px 0 var(--accent);
+}
+.said-float .partner-said p,
+.said-float .reply,
+.said-float .status {
+  color: var(--paper-ink);
+}
+.said-float .label,
+.said-float .tone,
+.said-float .partner-said .feels,
+.said-float .partner-said .also-said {
+  color: var(--paper-muted);
+  opacity: 1;
+}
+.said-float .label {
+  font-weight: 650;
+  letter-spacing: 0.12em;
+}
+.said-float .status {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+}
+.said-float .partner-type input,
+.said-float .typing input {
+  background: #fff;
+  color: var(--paper-ink);
+  border-color: #8596a1;
+}
+.said-float input::placeholder {
+  color: var(--paper-muted);
+  opacity: 1;
+}
+.said-float :where(input, button, [tabindex]):focus-visible {
+  outline-color: var(--paper-ink);
+}
+.said-float .partner-type input:focus,
+.said-float .typing input:focus {
+  outline-color: var(--paper-ink);
+}
+.said-float .typing button[type='button'] {
+  background: transparent;
+  color: var(--paper-ink);
+  box-shadow: inset 0 0 0 1px #8596a1;
+}
+.face-float {
+  background: transparent;
+}
+.face-float .brand::after {
+  content: '.';
+  color: var(--accent);
+}
+.face-float .muted {
+  max-width: 18ch;
+}
+.face-float .linkbtn {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.column-card::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 61%;
+  width: 40px;
+  height: 2px;
+  transform: translateX(-50%);
+  background: var(--accent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.column-card.highlighted::before {
+  width: 64px;
+  opacity: 1;
+}
+.column-card.info::before {
+  display: none;
+}
+.column-card .option-number {
+  color: var(--accent);
+  font-weight: 650;
+}
+.column-card.highlighted,
+.option.highlighted {
+  background: #194761;
+  border-color: var(--accent);
+}
+.drawer header h2 {
+  color: var(--text);
+  letter-spacing: -0.025em;
+}
+.drawer header {
+  border-top: 3px solid var(--accent);
+  padding-top: 16px;
+}
+.chip.active {
+  color: var(--text);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* Small numerals need text contrast even on the lighter selected surface. */
+.column-card.highlighted .option-number {
+  color: var(--text);
 }

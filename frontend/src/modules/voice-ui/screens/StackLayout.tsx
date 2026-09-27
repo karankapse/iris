@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { getOptions } from '../../../app/machine';
 import type { Orchestrator } from '../../../app/Orchestrator';
 import type { View } from '../../../app/Orchestrator';
-import { ErrorBanner, PartnerSaid, PhasePrompt, TypingForm } from './parts';
+import { ErrorBanner, PartnerSaid, PartnerTypeBox, PhasePrompt, TypingForm } from './parts';
 import { OptionList } from './OptionList';
 
 interface Props {
@@ -13,20 +13,10 @@ interface Props {
   onPick: (i: number) => void;
   /** Buttons for the top bar. */
   topButtons: ReactNode;
-  /** Everything under the options (camera, mic, mood, dev panel). */
-  extras: ReactNode;
 }
 
 /** VERTICAL-only mode: one column, options stacked. Looking up/down steps through them. */
-export function StackLayout({
-  orchestrator,
-  view,
-  draft,
-  setDraft,
-  onPick,
-  topButtons,
-  extras,
-}: Props) {
+export function StackLayout({ orchestrator, view, draft, setDraft, onPick, topButtons }: Props) {
   const { machine, highlight, dwell } = view;
   return (
     <main className="screen">
@@ -48,7 +38,7 @@ export function StackLayout({
           />
         )}
       </section>
-      {extras}
+      {machine.phase === 'listening' && <PartnerTypeBox orchestrator={orchestrator} />}
     </main>
   );
 }

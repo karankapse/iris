@@ -50,9 +50,14 @@ export class MockEyeInput implements EyeInput {
 
   private onKey = (e: KeyboardEvent) => {
     if (!this.running) return;
-    // Don't hijack typing in text boxes (e.g. the Dev Panel or custom-reply field).
+    // Native controls own their keys; Enter/Space must not also select a gaze option.
     const target = e.target as HTMLElement | null;
-    if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
+    if (
+      target?.closest(
+        'input, textarea, select, button, a, summary, dialog, [contenteditable="true"]',
+      )
+    )
+      return;
 
     const handled = () => e.preventDefault();
 

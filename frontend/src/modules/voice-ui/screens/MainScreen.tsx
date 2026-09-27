@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Emotion } from '../../../contracts';
 import type { Services } from '../../../app/services';
 import { useOrchestrator } from '../../../app/useOrchestrator';
@@ -26,6 +26,7 @@ export function MainScreen({ services }: { services: Services }) {
   const [showSetup, setShowSetup] = useState(needsCalibration);
   const [firstRun] = useState(needsCalibration);
   const [showMenu, setShowMenu] = useState(false);
+  const menuDialog = useRef<HTMLDialogElement>(null);
   const [showDot, setShowDot] = useState(() => {
     try {
       return localStorage.getItem('iris.showGazeDot.v2') === '1'; // off by default: the box lights up instead
@@ -33,6 +34,27 @@ export function MainScreen({ services }: { services: Services }) {
       return false;
     }
   });
+  const overlayOpen = showMenu || showSetup;
+  // While the menu drawer is open the eyes can't choose options behind it. Only on open/close
+  // (never on first render), and not while the setup screen is open: it pauses the eyes itself.
+  const menuPaused = useRef(false);
+  useEffect(() => {
+    if (showSetup) {
+      menuPaused.current = false;
+      return;
+    }
+    if (showMenu !== menuPaused.current) {
+      menuPaused.current = showMenu;
+      orchestrator.setSuspended(showMenu);
+    }
+  }, [orchestrator, showMenu, showSetup]);
+
+  // Native modal semantics contain keyboard focus and block pointer access behind the drawer.
+  useEffect(() => {
+    if (showMenu) menuDialog.current?.showModal();
+    else menuDialog.current?.close();
+  }, [showMenu]);
+
   const toggleDot = (on: boolean) => {
     setShowDot(on);
     try {
@@ -54,7 +76,7 @@ export function MainScreen({ services }: { services: Services }) {
           setShowSetup(true);
         }}
       >
-        Set up / calibrate
+        Setup and calibration
       </button>
       <button
         className="linkbtn"
@@ -68,7 +90,7 @@ export function MainScreen({ services }: { services: Services }) {
     </>
   );
 
-  // The detail panels: inline under the options in the stacked layout, in a drawer in the corner layout.
+  // Caregiver controls live in the same drawer in both eye modes.
   const panels = (
     <>
       {services.usesCamera && <CameraPreview services={services} />}
@@ -76,7 +98,7 @@ export function MainScreen({ services }: { services: Services }) {
       {services.gaze && (
         <label className="dot-toggle">
           <input type="checkbox" checked={showDot} onChange={(e) => toggleDot(e.target.checked)} />{' '}
-          show the red gaze dot
+          Show gaze position
         </label>
       )}
       <MoodBar
@@ -110,64 +132,70 @@ export function MainScreen({ services }: { services: Services }) {
   return (
     <>
       {showDot && services.gaze && <GazeDot services={services} />}
-      {eyeMode === 'full' ? (
-        <ColumnLayout
-          orchestrator={orchestrator}
-          view={view}
-          draft={draft}
-          setDraft={setDraft}
-          onPick={pick}
-          face={
-            <>
-              {services.usesCamera ? (
-                <CameraPreview services={services} showReadout={false} />
-              ) : (
-                // no camera in use (keyboard mock): a simple face stands in for the live view
-                <div className="face-placeholder" aria-hidden="true">
-                  <span />
-                  <span />
-                </div>
-              )}
-              <div className="face-row">
+      <div inert={overlayOpen}>
+        {eyeMode === 'full' ? (
+          <ColumnLayout
+            orchestrator={orchestrator}
+            view={view}
+            draft={draft}
+            setDraft={setDraft}
+            onPick={pick}
+            face={
+              <>
+                <span className="brand">Iris</span>
+                <span className="muted">Your words, your voice</span>
                 {services.usesMic && (
-                  <span className={`chip-state ${stt.state}`}>mic: {stt.state}</span>
+                  <span className={`chip-state ${stt.state}`}>Microphone: {stt.state}</span>
                 )}
-                {services.usesCamera && (
-                  <button className="linkbtn small" onClick={() => setShowSetup(true)}>
-                    Calibrate
-                  </button>
-                )}
-                <button className="linkbtn small" onClick={() => setShowMenu(true)}>
-                  ☰ Menu
+                <button className="linkbtn" onClick={() => setShowMenu(true)}>
+                  Caregiver settings
                 </button>
-              </div>
-            </>
-          }
-        />
-      ) : (
-        <StackLayout
-          orchestrator={orchestrator}
-          view={view}
-          draft={draft}
-          setDraft={setDraft}
-          onPick={pick}
-          topButtons={actionButtons}
-          extras={panels}
-        />
-      )}
-
-      {showMenu && (
-        <div className="drawer-backdrop" onClick={() => setShowMenu(false)}>
-          <aside className="drawer" onClick={(e) => e.stopPropagation()}>
+              </>
+            }
+          />
+        ) : (
+          <StackLayout
+            orchestrator={orchestrator}
+            view={view}
+            draft={draft}
+            setDraft={setDraft}
+            onPick={pick}
+            topButtons={
+              <button className="linkbtn" onClick={() => setShowMenu(true)}>
+                Caregiver settings
+              </button>
+            }
+          />
+        )}
+      </div>
+      <dialog
+        ref={menuDialog}
+        className="caregiver-dialog"
+        aria-labelledby="caregiver-title"
+        onKeyDown={(e) => {
+          if (!e.altKey) e.stopPropagation();
+        }}
+        onCancel={() => setShowMenu(false)}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setShowMenu(false);
+        }}
+      >
+        {showMenu && (
+          <aside className="drawer">
             <header>
-              <h2>Menu</h2>
-              <button onClick={() => setShowMenu(false)}>Close</button>
+              <div>
+                <h2 id="caregiver-title">Caregiver settings</h2>
+                <p className="help">Eye selection is paused while settings are open.</p>
+              </div>
+              <button autoFocus onClick={() => setShowMenu(false)}>
+                Close
+              </button>
             </header>
             <div className="drawer-buttons">{actionButtons}</div>
             {panels}
           </aside>
-        </div>
-      )}
+        )}
+      </dialog>
 
       {showSetup && (
         <SetupPanel
