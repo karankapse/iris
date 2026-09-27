@@ -561,8 +561,8 @@ export class RealEyeInput implements EyeInput {
   }
 
   /**
-   * GLANCE mode: looking at a side highlights that side's option; a quick flick left/right (out and
-   * back) moves one option that way. Staying on an option for the dwell time (7 s by default)
+   * GLANCE mode: looking at a side highlights that side's option (and looking back at the middle,
+   * the middle one); a quick flick left/right (out and back) moves one option that way. Staying on an option for the dwell time (7 s by default)
    * selects it, and so does a deliberate blink.
    */
   private onFrameGlance(frame: FaceFrame, outcome: BlinkOutcome, blinkProgress: number) {
@@ -577,13 +577,16 @@ export class RealEyeInput implements EyeInput {
     );
     if (gesture && this.optionCount > 0 && index !== null) {
       const last = this.optionCount - 1;
-      const side = gesture.dir === 'left' ? -1 : 1;
       const next =
         gesture.type === 'look'
-          ? side < 0 // looking AT a side: jump to that side's option
+          ? // looking AT an option: jump straight to it
+            gesture.dir === 'left'
             ? 0
-            : last
-          : Math.max(0, Math.min(last, index + side)); // flick out and back: one step
+            : gesture.dir === 'right'
+              ? last
+              : Math.floor(last / 2)
+          : // flick out and back: one step that way
+            Math.max(0, Math.min(last, index + (gesture.dir === 'left' ? -1 : 1)));
       if (next !== index) {
         index = next;
         this.glanceMovedAt = t; // moving restarts the countdown

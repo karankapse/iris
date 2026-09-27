@@ -39,6 +39,20 @@ describe('EyeGestures', () => {
     expect(run(g, -0.6, 1000, 3300)).toEqual([{ type: 'look', dir: 'left' }]);
   });
 
+  it('looking back at the middle after looking at a side is a look at the middle', () => {
+    const g = new EyeGestures();
+    expect(run(g, -0.6, 1000, 0)).toEqual([{ type: 'look', dir: 'left' }]);
+    expect(run(g, 0, 500, 1000)).toEqual([]); // not yet: could be a passing glance
+    expect(run(g, 0, 500, 1500)).toEqual([{ type: 'look', dir: 'center' }]);
+    expect(run(g, 0, 2000, 2000)).toEqual([]); // reported once
+  });
+
+  it('coming back from a flick is not a look at the middle', () => {
+    const g = new EyeGestures();
+    run(g, -0.6, 300, 0);
+    expect(run(g, 0, 2000, 300)).toEqual([{ type: 'flick', dir: 'left' }]);
+  });
+
   it('ignores twitches and small movements', () => {
     const g = new EyeGestures();
     run(g, 0.6, 40, 0); // 2 frames
@@ -157,15 +171,33 @@ describe('RealEyeInput in glance mode', () => {
     expect(h.lit()).toBe(2);
   });
 
-  it('looking at a side highlights that side, and looking back at the middle keeps it', () => {
+  it('looking at an option highlights it: left, right, and back to the middle', () => {
     const h = setup();
     h.play(300);
     h.play(1000, -0.6);
     expect(h.lit()).toBe(0);
-    h.play(500);
-    expect(h.lit()).toBe(0);
     h.play(1000, 0.6);
     expect(h.lit()).toBe(2); // straight to the right option, not one step
+    h.play(400);
+    expect(h.lit()).toBe(2); // a moment in the middle doesn't move it yet
+    h.play(600);
+    expect(h.lit()).toBe(1); // still looking at the middle: the middle option
+  });
+
+  it('the middle option can be selected by looking back at it and waiting', () => {
+    const h = setup();
+    h.play(300);
+    h.play(1000, 0.6); // look at the right option
+    h.play(7800); // back to the middle and stay (0.7 s to move there, then 7 s)
+    expect(h.selects()).toEqual([{ type: 'select', optionIndex: 1 }]);
+  });
+
+  it('after a flick, looking back in the middle keeps the new option', () => {
+    const h = setup();
+    h.play(300);
+    h.play(300, -0.6); // flick left
+    h.play(3000);
+    expect(h.lit()).toBe(0);
   });
 
   it('selects after staying on an option for 7 seconds, not before', () => {
