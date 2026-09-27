@@ -242,7 +242,7 @@ export class CornerTracker {
 
 // ---- saving ---------------------------------------------------------------------------------------
 
-const STORAGE_KEY = 'iris.gazeModel.v1';
+const STORAGE_KEY = 'iris.gazeModel.v2'; // v2: rest area + 3 columns
 
 export function saveCornerModel(model: CornerModel) {
   try {

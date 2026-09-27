@@ -614,3 +614,47 @@ describe('RealEyeInput.configure (user settings)', () => {
     expect(events.filter((e) => e.type === 'select').length).toBe(1);
   });
 });
+
+describe('iris classifier beats WebGazer once calibrated', () => {
+  it('uses the eyes (MediaPipe iris) to pick the column even if WebGazer says otherwise', async () => {
+    localStorage.clear();
+    const { trainCornerModel, saveCornerModel } = await import('./corners');
+    // what the eyes look like at each area: [gazeX, gazeY, irisX, irisY, yaw, pitch]
+    const at = {
+      center: [0, -0.3, 0, -0.05, 0, 0],
+      left: [-0.5, 0.5, 0.15, 0.08, 0, 0],
+      middle: [0, 0.5, 0, 0.08, 0, 0],
+      right: [0.5, 0.5, -0.15, 0.08, 0, 0],
+    };
+    const samples = Object.fromEntries(
+      Object.entries(at).map(([z, v]) => [
+        z,
+        Array.from({ length: 20 }, (_, i) => v.map((x) => x + (i % 5) * 0.004)),
+      ]),
+    ) as Record<'center' | 'left' | 'middle' | 'right', number[][]>;
+    saveCornerModel(trainCornerModel(samples)!.model);
+
+    const tracker = new FakeTracker();
+    const gaze = new FakeGaze();
+    const eye = new RealEyeInput(tracker, gaze);
+    const events: EyeEvent[] = [];
+    eye.on((e) => events.push(e));
+    eye.start({ mode: 'full', optionCount: 3 });
+    const frameAt = (t: number, v: number[]): FaceFrame => ({
+      ...face(t),
+      gaze: { x: v[0], y: v[1] },
+      metrics: { irisX: v[2], irisY: v[3] },
+    });
+    let t = 1000;
+    for (; t < 1600; t += 33) tracker.emit(frameAt(t, at.center));
+    // eyes look LEFT, but WebGazer reports the middle of the screen (the bug the user saw)
+    for (; t < 2200; t += 33) {
+      tracker.emit(frameAt(t, at.left));
+      gaze.emit({ x: window.innerWidth * 0.5, y: window.innerHeight * 0.8, t });
+    }
+    const lit = events.filter(
+      (e): e is Extract<EyeEvent, { type: 'highlight' }> => e.type === 'highlight',
+    );
+    expect(lit.at(-1)?.optionIndex).toBe(0); // left column
+  });
+});

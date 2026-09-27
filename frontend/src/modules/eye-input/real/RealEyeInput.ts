@@ -13,6 +13,7 @@ import type {
 import { createEmitter } from '../../../core/emitter';
 import { BlinkDetector, type BlinkOutcome } from './blink';
 import {
+  classify,
   CornerTracker,
   defaultCornerModel,
   gazeFeatures,
@@ -63,7 +64,7 @@ const MIN_CALIBRATION_FRAMES = 10;
 const PROGRESS_STEP = 0.05;
 
 // Screen-gaze calibration (WebGazer). Positions are percent of the screen.
-const SCREEN_CALIBRATED_KEY = 'iris.gazeCalibrated.v3'; // v3: calibration now measures per-person column positions
+const SCREEN_CALIBRATED_KEY = 'iris.gazeCalibrated.v4'; // v4: iris-based classifier
 const SETTLE_MS = 900; // time to find the dot
 const TRAIN_MS = 1500;
 const TRAIN_EVERY_MS = 50; // more samples per step = a better fit
@@ -303,9 +304,12 @@ export class RealEyeInput implements EyeInput {
 
     if (this.mode === 'full') {
       // With screen gaze, zones come from onGaze(); here only the blink can act on the current zone.
-      const zone = this.gaze
-        ? this.currentZone
-        : this.corners.update(frame.t, gazeFeatures(frame), this.settling);
+      // Preferred: the iris-based classifier trained on this person's calibration (MediaPipe sees
+      // the eyes far more precisely than WebGazer's eye crops). WebGazer is only the fallback.
+      const zone =
+        this.gaze && !this.savedModel
+          ? this.currentZone
+          : this.corners.update(frame.t, gazeFeatures(frame), this.settling);
       this.applyZone(frame.t, zone, outcome);
     } else this.onFrameVertical(frame, outcome, progress, this.settling);
 
@@ -324,6 +328,7 @@ export class RealEyeInput implements EyeInput {
     }
     this.lastGazeAt = p.t;
     const zone = this.zones.update(p.t, p, this.settling);
+    if (this.savedModel) return; // the iris-based classifier decides (see onFrame)
     this.applyZone(p.t, zone, null);
   }
 
@@ -557,9 +562,12 @@ export class RealEyeInput implements EyeInput {
         await sleep(SETTLE_MS);
         const readings: GazePoint[] = [];
         const off = gaze.onGaze((p) => p && readings.push(p));
+        current = []; // face frames too: used to measure the iris classifier on fresh data
         await sleep(CHECK_MS);
         off();
         readingsBy[zone] = readings;
+        bucket.push({ key: `check-${zone}`, frames: current });
+        current = null;
       }
       if (CHECK_ZONES.some((z) => readingsBy[z].length < 5)) {
         throw new Error(
@@ -595,7 +603,39 @@ export class RealEyeInput implements EyeInput {
         if (close(a, b))
           warnings.push(`The ${a} and ${b} columns looked almost the same to the camera.`);
       }
-      const overall = usable.reduce((s, r) => s + r.hit, 0) / usable.reduce((s, r) => s + r.n, 0);
+      let overall = usable.reduce((s, r) => s + r.hit, 0) / usable.reduce((s, r) => s + r.n, 0);
+
+      // 4) Train the IRIS-based classifier on the face frames from the training steps (what the
+      //    eyes looked like at the rest area and each column), and measure it on the check frames.
+      const faceSamples = {} as Record<Zone, number[][]>;
+      for (const z of ZONES) {
+        faceSamples[z] = bucket
+          .filter((b) => b.key === z)
+          .flatMap((b) => b.frames.map(gazeFeatures));
+      }
+      const trained = trainCornerModel(faceSamples);
+      if (trained) {
+        this.corners.setModel(trained.model);
+        this.savedModel = trained.model;
+        saveCornerModel(trained.model);
+        let hit = 0;
+        let n = 0;
+        for (const z of ZONES) {
+          for (const f of bucket.find((b) => b.key === `check-${z}`)?.frames ?? []) {
+            n++;
+            if (classify(trained.model, gazeFeatures(f)).zone === z) hit++;
+          }
+        }
+        if (n > 0) {
+          console.info(
+            '[eye calibration] iris classifier accuracy',
+            (hit / n).toFixed(2),
+            'vs WebGazer',
+            overall.toFixed(2),
+          );
+          overall = hit / n;
+        }
+      }
       this.accuracy = overall;
       console.info(
         '[gaze calibration] accuracy',

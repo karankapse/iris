@@ -28,15 +28,15 @@ export function MainScreen({ services }: { services: Services }) {
   const [showMenu, setShowMenu] = useState(false);
   const [showDot, setShowDot] = useState(() => {
     try {
-      return localStorage.getItem('iris.showGazeDot') !== '0';
+      return localStorage.getItem('iris.showGazeDot.v2') === '1'; // off by default: the box lights up instead
     } catch {
-      return true;
+      return false;
     }
   });
   const toggleDot = (on: boolean) => {
     setShowDot(on);
     try {
-      localStorage.setItem('iris.showGazeDot', on ? '1' : '0');
+      localStorage.setItem('iris.showGazeDot.v2', on ? '1' : '0');
     } catch {
       /* ignore */
     }
