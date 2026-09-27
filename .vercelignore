@@ -1,0 +1,8 @@
+# never upload secrets or local data with a CLI deploy
+.env
+.env.local
+.env.development
+backend/data/
+backend/.venv/
+**/node_modules/
+frontend/dist/

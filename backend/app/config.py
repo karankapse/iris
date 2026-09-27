@@ -15,7 +15,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=REPO_ROOT / ".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+        # an empty variable (e.g. SMTP_PORT= on a host) means "not set": use the default
+        env_ignore_empty=True,
     )
 
     anthropic_api_key: str = ""
