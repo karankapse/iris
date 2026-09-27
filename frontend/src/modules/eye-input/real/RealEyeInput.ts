@@ -23,7 +23,7 @@ import {
   type Zone,
 } from './corners';
 import { GazeStepper } from './gaze';
-import { ScreenZoneTracker, zoneAt } from './screenZones';
+import { nearestZone, saveCentroids, ScreenZoneTracker, type GazeCentroids } from './screenZones';
 import {
   loadTuning,
   median,
@@ -63,11 +63,11 @@ const MIN_CALIBRATION_FRAMES = 10;
 const PROGRESS_STEP = 0.05;
 
 // Screen-gaze calibration (WebGazer). Positions are percent of the screen.
-const SCREEN_CALIBRATED_KEY = 'iris.gazeCalibrated.v2'; // v2: column layout (older calibrations don't count)
+const SCREEN_CALIBRATED_KEY = 'iris.gazeCalibrated.v3'; // v3: calibration now measures per-person column positions
 const SETTLE_MS = 900; // time to find the dot
 const TRAIN_MS = 1500;
 const TRAIN_EVERY_MS = 50; // more samples per step = a better fit
-const CHECK_MS = 1200;
+const CHECK_MS = 2000; // long enough for a solid measurement of where each area's gaze lands
 /**
  * Calibration looks at the THREE COLUMNS (where the options are) and the rest area, not at random
  * dots: that is exactly what the person has to tell apart when choosing. Each column is shown lit
@@ -385,6 +385,7 @@ export class RealEyeInput implements EyeInput {
     if (!this.gaze || this.mode !== 'full') return;
     const region = optionRegions(this.optionCount, 'full')[optionIndex];
     if (!region) return;
+    this.zones.learn(region); // the measured position for this column follows the person
     const pos = TARGET_POSITION[region];
     for (const dy of [0, -4, -8]) {
       this.gaze.train((pos.x / 100) * window.innerWidth, ((pos.y + dy) / 100) * window.innerHeight);
@@ -542,44 +543,63 @@ export class RealEyeInput implements EyeInput {
       bucket.push({ key: 'closed', frames: current });
       current = null;
 
-      // 3) CHECK: how often does the gaze land in the right box?
-      const results: { zone: Zone; hit: number; n: number; err: number }[] = [];
+      // 3) MEASURE where this person's gaze estimate lands for each area. Classifying by these
+      //    (instead of fixed screen thirds) fixes skew, e.g. "looking left" landing mid-screen.
+      const readingsBy = {} as Record<Zone, GazePoint[]>;
       for (const zone of CHECK_ZONES) {
-        const pos = TARGET_POSITION[zone];
         step(
-          zone === 'center' ? 'center' : zone,
-          'Look at the dot (checking accuracy)',
+          zone,
+          zone === 'center'
+            ? 'Look at the middle again'
+            : `Look at the ${zone.toUpperCase()} column again`,
           (SETTLE_MS + CHECK_MS) / 1000,
         );
         await sleep(SETTLE_MS);
-        const at = px(pos);
         const readings: GazePoint[] = [];
         const off = gaze.onGaze((p) => p && readings.push(p));
         await sleep(CHECK_MS);
         off();
-        const vp = { w: window.innerWidth, h: window.innerHeight };
-        const hit = readings.filter((r) => zoneAt(r.x, r.y, vp) === zone).length;
-        const err = readings.length
-          ? readings.reduce((sum, r) => sum + Math.hypot(r.x - at.x, r.y - at.y), 0) /
-            readings.length
-          : NaN;
-        results.push({ zone, hit, n: readings.length, err });
+        readingsBy[zone] = readings;
       }
-      const usable = results.filter((r) => r.n >= 5);
-      if (usable.length < results.length) {
+      if (CHECK_ZONES.some((z) => readingsBy[z].length < 5)) {
         throw new Error(
-          "I couldn't get gaze readings while checking. Make sure the camera can see your face, then try again.",
+          "I couldn't get gaze readings. Make sure the camera can see your face, then try again.",
         );
+      }
+      const vp = { w: window.innerWidth, h: window.innerHeight };
+      const centroids = {} as GazeCentroids;
+      for (const z of CHECK_ZONES) {
+        centroids[z] = {
+          x: median(readingsBy[z].map((r) => r.x / vp.w)),
+          y: median(readingsBy[z].map((r) => r.y / vp.h)),
+        };
+      }
+      saveCentroids(centroids);
+      this.zones.setCentroids(centroids);
+      console.info('[gaze calibration] measured positions', JSON.stringify(centroids));
+
+      const results = CHECK_ZONES.map((zone) => {
+        const hit = readingsBy[zone].filter(
+          (r) => nearestZone(r.x, r.y, vp, centroids).zone === zone,
+        ).length;
+        return { zone, hit, n: readingsBy[zone].length };
+      });
+      const usable = results;
+      // two areas whose gaze lands almost in the same place can't be told apart
+      const close = (a: Zone, b: Zone) =>
+        Math.hypot(centroids[a].x - centroids[b].x, centroids[a].y - centroids[b].y) < 0.06;
+      for (const [a, b] of [
+        ['left', 'middle'],
+        ['middle', 'right'],
+      ] as [Zone, Zone][]) {
+        if (close(a, b))
+          warnings.push(`The ${a} and ${b} columns looked almost the same to the camera.`);
       }
       const overall = usable.reduce((s, r) => s + r.hit, 0) / usable.reduce((s, r) => s + r.n, 0);
       this.accuracy = overall;
       console.info(
         '[gaze calibration] accuracy',
-        JSON.stringify(
-          results.map((r) => ({ ...r, err: Math.round(r.err) })),
-          null,
-          0,
-        ),
+        JSON.stringify(results, null, 0),
         'overall',
         overall.toFixed(2),
       );

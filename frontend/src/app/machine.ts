@@ -470,7 +470,8 @@ export function reduce(state: State, event: Event): Result {
     }
 
     case 'speak_done':
-      return state.phase === 'speaking' ? same({ ...state, phase: 'feedback' }) : same(state);
+      // Straight back to listening: the conversation keeps flowing (no "was the tone right?" step).
+      return state.phase === 'speaking' ? same({ ...state, phase: 'listening' }) : same(state);
 
     case 'partner_reaction':
       if (!state.lastSpoken) return same(state);

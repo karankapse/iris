@@ -77,7 +77,7 @@ function typeSymbol(s: State, symbol: string): State {
 }
 
 describe('happy path', () => {
-  it('goes listening -> suggesting -> selectReply -> speaking -> feedback -> listening', () => {
+  it('goes listening -> suggesting -> selectReply -> speaking -> straight back to listening', () => {
     const start = run([{ type: 'partner_final', text: 'How are you?' }]);
     expect(start.state.phase).toBe('suggesting');
     expect(start.effects).toEqual([
@@ -95,11 +95,9 @@ describe('happy path', () => {
       { type: 'speak', spoken: { id: 'utt-1', text: 'reply 1', tone: 'happy' } },
     ]);
 
-    const done = run([{ type: 'speak_done' }, eye({ type: 'confirm' })], spoke.state);
-    expect(done.state.phase).toBe('listening');
-    expect(done.effects).toEqual([
-      { type: 'user_feedback', spoken: { id: 'utt-1', text: 'reply 1', tone: 'happy' }, ok: true },
-    ]);
+    const done = run([{ type: 'speak_done' }], spoke.state);
+    expect(done.state.phase).toBe('listening'); // no feedback step: the conversation keeps flowing
+    expect(done.effects).toEqual([]);
   });
 
   it('includes live detected facial emotion as reaction when partner speaks', () => {
@@ -452,15 +450,6 @@ describe('robustness', () => {
   it('cancel while speaking asks to stop', () => {
     const speaking = run([select(0), eye({ type: 'confirm' })], atSelectReply()).state;
     expect(run([eye({ type: 'cancel' })], speaking).effects).toEqual([{ type: 'stop_speaking' }]);
-  });
-
-  it('cancel on the feedback screen means "no, the tone was off"', () => {
-    const fb = run(
-      [select(0), eye({ type: 'confirm' }), { type: 'speak_done' }],
-      atSelectReply(),
-    ).state;
-    const r = run([eye({ type: 'cancel' })], fb);
-    expect(r.effects).toEqual([{ type: 'user_feedback', spoken: fb.lastSpoken, ok: false }]);
   });
 
   it('partner reaction is forwarded for the last spoken reply', () => {
