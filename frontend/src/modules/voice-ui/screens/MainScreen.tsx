@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../../app/AppContext';
 import { NavDrawer, NavLinks } from './AppShell';
 import { CameraPreview } from './CameraPreview';
 import { ColumnLayout } from './ColumnLayout';
+import { EyeTuningPanel } from './EyeTuningPanel';
+import { GazeDebugOverlay } from './GazeDebugOverlay';
 import { GazeDot } from './GazeDot';
 import { StackLayout } from './StackLayout';
 
@@ -24,6 +26,29 @@ export function MainScreen() {
       return false;
     }
   })();
+  // Debug overlay (Alt+D) and tuning panel (Alt+T): remembered across reloads.
+  const [showDebug, setShowDebug] = useStoredFlag('iris.showGazeDebug');
+  const [showTuning, setShowTuning] = useStoredFlag('iris.showEyeTuning');
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey) return;
+      if (e.code === 'KeyD') setShowDebug((v) => !v);
+      else if (e.code === 'KeyT') setShowTuning((v) => !v);
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setShowDebug, setShowTuning]);
+
+  // While the menu drawer is open the eyes can't choose options behind it (only on open/close).
+  const menuPaused = useRef(false);
+  useEffect(() => {
+    if (showMenu !== menuPaused.current) {
+      menuPaused.current = showMenu;
+      orchestrator.setSuspended(showMenu);
+    }
+  }, [orchestrator, showMenu]);
 
   const pick = (optionIndex: number) =>
     orchestrator.dispatch({ type: 'eye', event: { type: 'select', optionIndex } });
@@ -31,6 +56,15 @@ export function MainScreen() {
   return (
     <>
       {showDot && services.gaze && <GazeDot services={services} />}
+      {showDebug && <GazeDebugOverlay services={services} />}
+      {showTuning && (
+        <EyeTuningPanel
+          services={services}
+          orchestrator={orchestrator}
+          settings={view.settings}
+          onClose={() => setShowTuning(false)}
+        />
+      )}
       {eyeMode !== 'vertical' ? (
         <ColumnLayout
           orchestrator={orchestrator}
@@ -80,4 +114,22 @@ export function MainScreen() {
       {showMenu && <NavDrawer onClose={() => setShowMenu(false)} />}
     </>
   );
+}
+
+function useStoredFlag(key: string) {
+  const [on, setOn] = useState(() => {
+    try {
+      return localStorage.getItem(key) === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, on ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [key, on]);
+  return [on, setOn] as const;
 }

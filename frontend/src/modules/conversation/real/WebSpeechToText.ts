@@ -82,6 +82,8 @@ export class WebSpeechToText implements SpeechToText {
     // The browser ends recognition after silence or a hiccup; keep going while we still want it.
     rec.onend = () => {
       if (!this.wanted || this.recognition !== rec) return;
+      // Words Chrome never finalized would be lost when the new session's results arrive.
+      this.turns.keepInterim();
       setTimeout(() => {
         if (!this.wanted || this.recognition !== rec) return;
         try {

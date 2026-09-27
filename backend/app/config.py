@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     # --- ElevenLabs Voice Cloning & Expressive Emotional TTS (/api/voice/*) ---
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = "CwhRBWXzGAHq8TQ4Fs17"
-    elevenlabs_model: str = "eleven_multilingual_v2"
+    elevenlabs_model: str = "eleven_v3"
 
     @property
     def use_mock_llm(self) -> bool:

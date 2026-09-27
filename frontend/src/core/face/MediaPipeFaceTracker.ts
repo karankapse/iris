@@ -2,7 +2,13 @@ import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import type { FaceFrame, FaceTracker } from '../../contracts';
 import { createEmitter } from '../emitter';
 import { withoutGlobalModule } from './isolateModule';
-import { estimateGaze, headPoseFromMatrix, irisMetrics, mouthAsymmetry } from './faceMath';
+import {
+  estimateGaze,
+  eyeAspectRatio,
+  headPoseFromMatrix,
+  irisMetrics,
+  mouthAsymmetry,
+} from './faceMath';
 
 // Files are served from /public. Run `npm run setup:mediapipe` once to put them there.
 const WASM_PATH = '/mediapipe/wasm';
@@ -114,11 +120,17 @@ export class MediaPipeFaceTracker implements FaceTracker {
           for (const c of result.faceBlendshapes[0]?.categories ?? []) {
             blendshapes[c.categoryName] = c.score;
           }
+          // Landmarks are 0..1 of width and height; the aspect makes distances comparable.
+          const aspect = video.videoHeight ? video.videoWidth / video.videoHeight : 1;
           this.emitter.emit({
             t: now,
             blendshapes,
             gaze: estimateGaze(blendshapes),
-            metrics: { mouthAsymmetry: mouthAsymmetry(landmarks), ...irisMetrics(landmarks) },
+            metrics: {
+              mouthAsymmetry: mouthAsymmetry(landmarks),
+              ...irisMetrics(landmarks, aspect),
+              ear: eyeAspectRatio(landmarks, aspect),
+            },
             landmarks: landmarks.map((p) => ({ x: p.x, y: p.y })),
             headPose: headPoseFromMatrix(result.facialTransformationMatrixes[0]?.data),
           });

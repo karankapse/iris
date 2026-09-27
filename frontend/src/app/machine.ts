@@ -51,6 +51,11 @@ export interface State {
   partnerText: string;
   /** Partial (still-being-recognised) partner speech, shown live in the partner view. */
   interim: string;
+  /** What the partner said while the user was busy choosing or typing a reply. It is held (the
+   * options don't change under their eyes) and handled as soon as they are free again. */
+  heldPartner: string;
+  /** How many times this turn's replies were restarted by more speech (max MAX_RESTARTS). */
+  restarts: number;
   suggestions: Suggestion[];
   /** Increases per request so a slow, old response can't overwrite a newer one. */
   requestId: number;
@@ -127,6 +132,8 @@ export function initialState(
     phase: 'listening',
     partnerText: '',
     interim: '',
+    heldPartner: '',
+    restarts: 0,
     suggestions: [],
     requestId: 0,
     reply: null,
@@ -374,9 +381,9 @@ export const getOptions = (s: State): Option[] => getEntries(s).map((e) => e.opt
 
 // ---- the reducer ---------------------------------------------------------------------------------
 
-/** Screens where new partner speech is taken in. While the user is choosing (replies, menus,
- * keyboard) or speaking, the room is ignored, so replies don't change under their eyes. */
-const TAKES_PARTNER_SPEECH: Phase[] = ['listening', 'suggesting', 'feedback'];
+/** Screens where new partner speech starts a turn right away. While the user is choosing (replies,
+ * menus, keyboard) it is held for later, so replies don't change under their eyes. */
+const TAKES_PARTNER_SPEECH: Phase[] = ['listening', 'feedback'];
 
 /** A lone word like "yeah" or "um" is background noise, not a sentence (unless it's a question). */
 export function isRealSentence(text: string): boolean {
@@ -384,44 +391,89 @@ export function isRealSentence(text: string): boolean {
   return words.length >= 2 || (words.length === 1 && text.trim().endsWith('?'));
 }
 
-function acceptsPartnerTurn(state: State, text: string): boolean {
-  return TAKES_PARTNER_SPEECH.includes(state.phase) && isRealSentence(text);
-}
-
 const same = (state: State): Result => ({ state, effects: [] });
 
 export function reduce(state: State, event: Event): Result {
+  const result = reduceEvent(state, event);
+  // Speech heard while the user was busy is handled as soon as they're free again.
+  const next = result.state;
+  if (next.phase === 'listening' && next.heldPartner && state.phase !== 'listening') {
+    const text = next.heldPartner.replace(/^… /, '');
+    const held = startSuggesting({ ...next, heldPartner: '' }, text, text);
+    return { state: held.state, effects: [...result.effects, ...held.effects] };
+  }
+  return result;
+}
+
+/** Speech held while the user is busy is kept short: only the most recent words matter. */
+const HELD_WORDS = 20;
+function lastWords(text: string, n = HELD_WORDS): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return (words.length > n ? '… ' : '') + words.slice(-n).join(' ');
+}
+
+const hold = (state: State, text: string): State => ({
+  ...state,
+  heldPartner: lastWords(`${state.heldPartner} ${text}`),
+  interim: '',
+});
+
+/** More speech may restart a turn's replies at most this often (a TV would never stop). */
+export const MAX_RESTARTS = 2;
+
+/**
+ * Start preparing replies. `shown` is the partner's whole turn (what the screen shows); `added`
+ * is the part that is new (it goes into the conversation history once). `restart`: the same
+ * turn continued (counts toward MAX_RESTARTS) rather than a new turn.
+ */
+function startSuggesting(state: State, shown: string, added: string, restart = false): Result {
+  const requestId = state.requestId + 1;
+  const reaction =
+    state.detected.confidence >= MIN_DETECTION_CONFIDENCE
+      ? state.detected.emotion
+      : (state.mood ?? null);
+  return {
+    state: {
+      ...state,
+      phase: 'suggesting',
+      partnerText: shown,
+      interim: '',
+      suggestions: [],
+      reply: null,
+      tone: null,
+      measuredEmotion: reaction,
+      requestId,
+      restarts: restart ? state.restarts + 1 : 0,
+      error: null,
+      page: 0,
+      typed: '',
+      kbPath: [],
+      returnStack: [],
+    },
+    effects: [{ type: 'suggest', requestId, partnerText: added, mood: state.mood, reaction }],
+  };
+}
+
+function reduceEvent(state: State, event: Event): Result {
   switch (event.type) {
     case 'partner_partial':
       return same({ ...state, interim: event.text });
 
     case 'partner_final': {
       const text = event.text.trim();
-      if (!acceptsPartnerTurn(state, text)) return same(state);
-      const requestId = state.requestId + 1;
-      const reaction =
-        state.detected.confidence >= MIN_DETECTION_CONFIDENCE
-          ? state.detected.emotion
-          : (state.mood ?? null);
-      return {
-        state: {
-          ...state,
-          phase: 'suggesting',
-          partnerText: text,
-          interim: '',
-          suggestions: [],
-          reply: null,
-          tone: null,
-          measuredEmotion: reaction,
-          requestId,
-          error: null,
-          page: 0,
-          typed: '',
-          kbPath: [],
-          returnStack: [],
-        },
-        effects: [{ type: 'suggest', requestId, partnerText: text, mood: state.mood, reaction }],
-      };
+      // While the app is speaking, ignore the room (it would also hear its own voice), and a lone
+      // "yeah" / "um" is background noise, not a turn.
+      if (!isRealSentence(text) || state.phase === 'speaking') return same(state);
+      if (state.phase === 'suggesting') {
+        // Still preparing replies: it's the same turn ("Are you hungry? We have soup."), so ask
+        // again with all of it, but only a couple of times (constant chatter would never finish).
+        if (state.restarts >= MAX_RESTARTS) return same(hold(state, text));
+        return startSuggesting(state, `${state.partnerText} ${text}`, text, true);
+      }
+      // The user is choosing or typing a reply: don't change the screen under their eyes.
+      // Hold it, and handle it as soon as they're done (see reduce()).
+      if (!TAKES_PARTNER_SPEECH.includes(state.phase)) return same(hold(state, text));
+      return startSuggesting(state, text, text);
     }
 
     case 'suggestions_ready':

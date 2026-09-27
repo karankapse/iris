@@ -8,6 +8,7 @@ import type {
   TtsProvider,
 } from '../contracts';
 import { flags } from '../core/config';
+import { FilteredGaze } from '../core/gaze/FilteredGaze';
 import { MouseGaze } from '../core/gaze/MouseGaze';
 import { WebGazerGaze } from '../core/gaze/WebGazerGaze';
 import { MediaPipeFaceTracker } from '../core/face/MediaPipeFaceTracker';
@@ -32,11 +33,23 @@ function createStt(provider: typeof flags.stt): SpeechToText {
   return new MockSpeechToText();
 }
 
+/** Gaze learning during use (see eye-input/real/onlineLearning.ts). */
+export interface GazeLearning {
+  /** The app is acting on the eye selection that just happened (e.g. speaking a reply). */
+  hold(now: number): void;
+  /** ...and it was right (e.g. spoken to the end): learn from it. */
+  confirm(now: number): number;
+  /** ...or it was stopped / undone: never learn from it. */
+  discard(): void;
+}
+
 export interface Services {
   faceTracker: FaceTracker;
   /** Where on the screen the person looks (WebGazer or mouse). null = not used. */
   gaze: ScreenGaze | null;
   eyeInput: EyeInput;
+  /** Learning from confirmed eye selections (real eye input with screen gaze only). */
+  gazeLearning?: GazeLearning | null;
   emotion: EmotionDetector;
   stt: SpeechToText;
   conversation: ConversationService;
@@ -60,18 +73,24 @@ export function createServices(): Services {
 
   const mockEmotion = flags.mockEmotion ? new MockEmotionDetector() : null;
 
-  const gaze: ScreenGaze | null = flags.mockEye
+  const rawGaze: ScreenGaze | null = flags.mockEye
     ? null
     : flags.gazeEngine === 'webgazer'
       ? new WebGazerGaze()
       : flags.gazeEngine === 'mouse'
         ? new MouseGaze()
         : null;
+  // Head-pose compensation + One Euro smoothing on top of whichever tracker is used; it is still
+  // a ScreenGaze, so everything downstream (eye input, gaze dot) gets the cleaned-up points.
+  const gaze = rawGaze ? new FilteredGaze(rawGaze) : null;
+  if (gaze) faceTracker.onFrame((frame) => gaze.onFaceFrame(frame));
 
+  const eyeInput = flags.mockEye ? new MockEyeInput() : new RealEyeInput(faceTracker, gaze);
   return {
     faceTracker,
     gaze,
-    eyeInput: flags.mockEye ? new MockEyeInput() : new RealEyeInput(faceTracker, gaze),
+    eyeInput,
+    gazeLearning: eyeInput instanceof RealEyeInput ? eyeInput.learning : null,
     emotion: mockEmotion ?? new RealEmotionDetector(),
     stt: createStt(flags.stt),
     conversation: new HistoryConversationService(

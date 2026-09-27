@@ -1,5 +1,5 @@
 // Small pieces shared by the two screen layouts (corners and stacked list).
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Orchestrator } from '../../../app/Orchestrator';
 import type { Phase, State } from '../../../app/machine';
 
@@ -19,10 +19,35 @@ export const STATUS: Record<Phase, string> = {
 };
 
 export function PartnerSaid({ machine }: { machine: State }) {
+  // Long turns scroll inside a small box; new words keep it scrolled to the latest line
+  // (unless the reader has scrolled up to read something earlier).
+  const box = useRef<HTMLDivElement>(null);
+  const pinned = useRef(true);
+  const text = `${machine.interim}|${machine.partnerText}|${machine.heldPartner}`;
+  useEffect(() => {
+    const el = box.current;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [text]);
+  const onScroll = () => {
+    const el = box.current;
+    if (el) pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 8;
+  };
+
   return (
     <div className="partner-said">
       <span className="label">Partner said</span>
-      <p>{machine.interim || machine.partnerText || '—'}</p>
+      <div className="said-scroll" ref={box} onScroll={onScroll} tabIndex={0}>
+        {machine.phase === 'listening' || machine.phase === 'suggesting' ? (
+          <p>{machine.interim || machine.partnerText || '—'}</p>
+        ) : (
+          <>
+            {/* busy choosing a reply: keep what they're answering; newer speech waits below */}
+            <p>{machine.partnerText || '—'}</p>
+            {/* only finished sentences, not live words, so it doesn't keep growing on screen */}
+            {machine.heldPartner && <p className="also-said">Also said: {machine.heldPartner}</p>}
+          </>
+        )}
+      </div>
     </div>
   );
 }
