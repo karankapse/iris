@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../../app/AppContext';
 import { getSession, logout } from '../../../core/auth';
+import { loadEyeCalibration } from '../../../core/eyeCalibration';
 
 export const PAGES = [
   { to: '/', label: 'Talk', icon: '💬' },
@@ -51,16 +52,19 @@ export function AppShell() {
     orchestrator.setSuspended(!onTalk);
   }, [onTalk, orchestrator]);
 
-  // Never calibrated? Go to the Calibrate page first (once per visit).
+  // Load this account's eye calibration, then: never calibrated? Go to the Calibrate page first
+  // (once per visit).
   const redirected = useRef(false);
   useEffect(() => {
     if (redirected.current) return;
     redirected.current = true;
-    const needs =
-      services.usesCamera &&
-      orchestrator.getView().eyeMode !== 'vertical' &&
-      services.eyeInput.status?.().calibrated === false;
-    if (needs && onTalk) navigate('/calibrate?first=1', { replace: true });
+    void loadEyeCalibration(services.eyeInput).then(() => {
+      const needs =
+        services.usesCamera &&
+        orchestrator.getView().eyeMode !== 'vertical' &&
+        services.eyeInput.status?.().calibrated === false;
+      if (needs && onTalk) navigate('/calibrate?first=1', { replace: true });
+    });
   }, [navigate, onTalk, orchestrator, services]);
 
   if (onTalk) return <Outlet />;

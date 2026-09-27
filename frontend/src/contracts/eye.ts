@@ -101,6 +101,8 @@ export interface EyeInput {
   on(handler: (event: EyeEvent) => void): () => void;
   /** Apply the user's adjustable settings (safe to call any time). */
   configure?(settings: EyeSettings): void;
+  /** The saved calibration was replaced (e.g. loaded from the account): start using it. */
+  reloadCalibration?(): void;
   /** Optional live diagnostics for the camera panel (which corner is detected, is it calibrated). */
   status?(): {
     region: 'center' | Region | null;

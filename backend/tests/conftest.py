@@ -29,6 +29,7 @@ def outbox(monkeypatch):
     """Every test: emails are captured here, never sent (and SMTP is switched off as a backstop)."""
     sent: list[dict] = []
     monkeypatch.setenv("SMTP_HOST", "")
+    monkeypatch.setenv("BREVO_API_KEY", "")
 
     def fake_send(settings, to, subject, body, html=None):
         sent.append({"to": to, "subject": subject, "body": body, "html": html})

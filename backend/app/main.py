@@ -1,5 +1,7 @@
 """FastAPI entry point. Run with: `uv run uvicorn app.main:app --reload` (from backend/)."""
 
+import importlib.util
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -29,7 +31,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "mock_llm": settings.use_mock_llm,
             "stt_configured": bool(settings.model_api_key),
             "voice_configured": bool(settings.elevenlabs_api_key),
-            "whisper_available": True,
+            # local Whisper needs Apple Silicon (mlx); servers (Linux) don't have it
+            "whisper_available": importlib.util.find_spec("mlx_whisper") is not None,
         }
 
     app.include_router(conversation.router)

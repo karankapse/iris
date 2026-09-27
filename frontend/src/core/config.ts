@@ -35,3 +35,17 @@ export const flags = {
   tts:
     (import.meta.env.VITE_TTS_PROVIDER as 'browser' | 'silent' | 'cloned' | undefined) ?? 'cloned',
 };
+
+/**
+ * Where the backend runs when it is NOT on the same site as the page (production: the page is on
+ * Vercel, the backend on Railway). Plain HTTP calls still use `/api/...` (Vercel forwards them);
+ * live WebSocket streams can't be forwarded, so they connect to the backend directly.
+ */
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined)?.replace(/\/+$/, '');
+
+/** The WebSocket address for a backend path such as `/api/stt/stream`. */
+export function wsUrl(path: string): string {
+  if (BACKEND_URL) return BACKEND_URL.replace(/^http/, 'ws') + path;
+  const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+  return `${scheme}://${location.host}${path}`;
+}

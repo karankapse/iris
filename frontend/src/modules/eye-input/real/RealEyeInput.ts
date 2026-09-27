@@ -344,6 +344,17 @@ export class RealEyeInput implements EyeInput {
     saveTuning(this.tuning);
   }
 
+  reloadCalibration() {
+    this.glanceTuning = loadGlance() ?? DEFAULT_GLANCE;
+    this.glance.setTuning(this.glanceTuning);
+    // calibrated values from storage; the user's settings (dwell, blink length...) stay as set
+    const { dwellMs, selectMs, cancelMs, regionHoldMs } = this.tuning;
+    this.tuning = { ...loadTuning(), dwellMs, selectMs, cancelMs, regionHoldMs };
+    this.applyTuning();
+    this.savedModel = loadCornerModel();
+    this.corners.setModel(this.savedModel ?? defaultCornerModel());
+  }
+
   private applyTuning() {
     if (this.learning) {
       this.learning.enabled = this.tuning.onlineLearning !== 0;
