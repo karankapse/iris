@@ -243,17 +243,16 @@ async def speak(req: SpeakRequest, request: Request):
 
     sliders = EMOTION_SLIDERS.get(req.emotion, EMOTION_SLIDERS["neutral"])
 
-    # Punctuation styling for extra expressiveness
-    styled_text = req.text.strip()
-    if req.emotion in ("happy", "excited"):
-        styled_text = styled_text.rstrip(".!?,") + "!"
-    elif req.emotion == "neutral":
-        styled_text = styled_text.rstrip(".!?,") + "."
-    elif req.emotion == "sad":
-        if not (styled_text.endswith("...") or styled_text.endswith(".")):
-            styled_text = styled_text.rstrip(".!?,") + "..."
-    elif req.emotion == "serious":
-        styled_text = styled_text.rstrip(".!?,") + "."
+    # Eleven v3 supports Audio Tags like [excited], [sad], [happy], etc.
+    # We prefix the text with the emotion to force the model to adopt that tone.
+    # For 'joking', we can use [laughs] or [playful]. We'll just use the raw emotion name.
+    emotion_tag = req.emotion
+    if emotion_tag == "joking":
+        emotion_tag = "playful"
+    elif emotion_tag == "neutral":
+        emotion_tag = "calm"
+        
+    styled_text = f"[{emotion_tag}] {req.text.strip()}"
 
     client = httpx.AsyncClient(timeout=30.0)
     try:
