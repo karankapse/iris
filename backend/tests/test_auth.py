@@ -247,3 +247,19 @@ def test_without_smtp_the_email_is_logged_not_lost(caplog):
     with caplog.at_level("WARNING", logger="iris.email"):
         assert deliver(Settings(smtp_host=""), "a@b.c", "Hello", "Body text") is False
     assert "SMTP not configured" in caplog.text and "Body text" in caplog.text
+
+
+def test_eye_calibration_is_saved_per_account(client, outbox):
+    sam = signup_confirmed(client, outbox)["token"]
+    other = {"email": "kim@example.com", "password": "another pass", "name": "Kim"}
+    kim = signup_confirmed(client, outbox, other)["token"]
+    saved = {"iris.glance.v1": '{"signal":"iris","threshold":0.02}'}
+
+    assert client.get("/api/auth/me/eye-calibration", headers=bearer(sam)).json() == {"data": None}
+    res = client.put("/api/auth/me/eye-calibration", json={"data": saved}, headers=bearer(sam))
+    assert res.status_code == 204
+    assert client.get("/api/auth/me/eye-calibration", headers=bearer(sam)).json() == {"data": saved}
+    # another account doesn't see it, and it needs a login
+    assert client.get("/api/auth/me/eye-calibration", headers=bearer(kim)).json() == {"data": None}
+    assert client.get("/api/auth/me/eye-calibration").status_code == 401
+    assert client.put("/api/auth/me/eye-calibration", json={"data": saved}).status_code == 401

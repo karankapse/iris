@@ -57,6 +57,11 @@ CREATE TABLE IF NOT EXISTS emotion_models (
     model TEXT NOT NULL,           -- JSON of EmotionModel
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS eye_calibrations (
+    user_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,            -- JSON: browser storage key -> saved calibration
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE IF NOT EXISTS profiles (
     user_id TEXT PRIMARY KEY,
     data TEXT NOT NULL,            -- JSON of UserProfile
@@ -331,6 +336,22 @@ class Database:
                 (user_id, profile_json),
             )
 
+    def save_eye_calibration(self, user_id: str, data_json: str) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute(
+                "INSERT INTO eye_calibrations (user_id, data) VALUES (?, ?)"
+                " ON CONFLICT(user_id) DO UPDATE SET data = excluded.data,"
+                " updated_at = CURRENT_TIMESTAMP",
+                (user_id, data_json),
+            )
+
+    def get_eye_calibration(self, user_id: str) -> str | None:
+        with closing(self._connect()) as conn:
+            row = conn.execute(
+                "SELECT data FROM eye_calibrations WHERE user_id = ?", (user_id,)
+            ).fetchone()
+            return row["data"] if row else None
+
     def get_profile(self, user_id: str) -> str | None:
         with closing(self._connect()) as conn:
             row = conn.execute("SELECT data FROM profiles WHERE user_id = ?", (user_id,)).fetchone()
@@ -428,6 +449,7 @@ class Database:
         "email_verifications",
         "emotion_samples",
         "conversation_log",
+        "eye_calibrations",
         "emotion_models",
         "profiles",
         "feedback",
