@@ -57,6 +57,28 @@ export interface UserProfile {
   phrases: string[];
 }
 
+/** The user's face while reacting to what was just said (not just one label). */
+export interface FaceReaction {
+  /** Share of the reaction window per emotion, weighted by confidence (0..1). */
+  scores: Partial<Record<Emotion, number>>;
+  /** Strongest non-neutral expression, if any. */
+  peak: Emotion | null;
+  confidence: number;
+}
+
+/** How this moment feels, judged from the partner's words AND the user's face. */
+export interface ConversationEmotion {
+  emotion: Emotion;
+  confidence: number;
+  reason: string;
+  source: 'face' | 'words' | 'face + words';
+}
+
+export interface ReplyBundle {
+  suggestions: Suggestion[];
+  emotion: ConversationEmotion | null;
+}
+
 export interface ConversationService {
   addTurn(turn: ConversationTurn): void;
   history(): ConversationTurn[];
@@ -66,4 +88,11 @@ export interface ConversationService {
     profile?: UserProfile,
     reaction?: Emotion | null,
   ): Promise<Suggestion[]>;
+  /** Optional: the replies plus how the moment feels (words + face), from the same AI call. */
+  suggestRepliesWithEmotion?(
+    mood: Emotion | null,
+    profile?: UserProfile,
+    reaction?: Emotion | null,
+    face?: FaceReaction,
+  ): Promise<ReplyBundle>;
 }

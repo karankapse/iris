@@ -7,7 +7,7 @@ const SLIDERS: { key: SliderKey; label: string; help: string; show: (v: number) 
   {
     key: 'dwellMs',
     label: 'Dwell time',
-    help: 'How long to keep looking at a box to select it. Longer = fewer accidental selections.',
+    help: 'How long the highlight must stay on an option before it is selected. Longer = more time to read, fewer accidents.',
     show: (v) => `${(v / 1000).toFixed(1)} s`,
   },
   {

@@ -5,19 +5,25 @@ import type { EyeSettings } from '../contracts';
 export interface Settings extends EyeSettings {
   /** Speech speed multiplier (1 = the tone's normal speed). */
   speechSpeed: number;
+  /**
+   * Remember conversations (what was said, how the user felt, what they replied) on this
+   * computer, so suggestions learn how this person feels about each topic.
+   */
+  rememberConversations: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  dwellMs: 2500, // long enough to read the reply before it is chosen
+  dwellMs: 7000, // staying on an option this long selects it (glance mode); plenty of time to read
   blinkMs: 500,
   steadinessMs: 150,
   doubleBlinkBack: false,
   speechSpeed: 1,
+  rememberConversations: true,
 };
 
 /** [min, max, step] for the sliders, also used to clamp anything loaded from storage. */
 export const SETTING_LIMITS = {
-  dwellMs: [800, 4000, 100],
+  dwellMs: [1000, 12000, 500],
   blinkMs: [300, 1200, 50],
   steadinessMs: [50, 500, 25],
   speechSpeed: [0.6, 1.5, 0.05],
@@ -43,10 +49,11 @@ export function normalizeSettings(input: Partial<Settings> | null | undefined): 
       SETTING_LIMITS.speechSpeed,
     ),
     doubleBlinkBack: s.doubleBlinkBack === true,
+    rememberConversations: s.rememberConversations !== false,
   };
 }
 
-const KEY = 'iris.settings.v2';
+const KEY = 'iris.settings.v3';
 
 export function loadSettings(): Settings {
   try {

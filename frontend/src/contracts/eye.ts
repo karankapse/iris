@@ -13,7 +13,7 @@ export type Region = 'left' | 'middle' | 'right';
  * highlight (many locked-in users can only move their eyes vertically). The UI and the eye
  * input both use this function, so what's drawn always matches where you have to look.
  */
-export function optionRegions(optionCount: number, mode: 'full' | 'vertical'): Region[] {
+export function optionRegions(optionCount: number, mode: EyeMode): Region[] {
   if (mode === 'vertical' || optionCount <= 0) return [];
   return (['left', 'middle', 'right'] as const).slice(0, Math.min(optionCount, 3));
 }
@@ -42,7 +42,8 @@ export const TARGET_POSITION: Record<'center' | Region, { x: number; y: number }
 };
 
 export type EyeMode =
-  | 'full' //     left/right/up/down + blinks
+  | 'glance' //   glance left / right to move the highlight, hold (dwell) or blink to select
+  | 'full' //     look AT an option's column to highlight it
   | 'vertical'; // up/down + blinks only (many locked-in users can only move eyes vertically)
 
 export type EyeEvent =

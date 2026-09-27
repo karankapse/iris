@@ -3,6 +3,13 @@
 Why logistic regression? It's tiny, trains in milliseconds on a few dozen samples, and its
 weights are just numbers, so we can send them to the browser and predict there (no video,
 and no per-frame network calls, leave the machine).
+
+Making it good with little data:
+  - Honest accuracy: frames of one recording are near-identical, so the model is checked on
+    whole recordings it did NOT train on (grouped cross-validation), never on shuffled frames.
+  - The regularisation strength C is picked by that check.
+  - No emotion may drown out the others (capped at MAX_CLASS_RATIO x the rarest one).
+  - Recent recordings count more than old ones (faces, light and camera position drift).
 """
 
 from collections import Counter

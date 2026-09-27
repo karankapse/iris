@@ -1,4 +1,5 @@
 import type { Emotion, TtsProvider } from '../../../contracts';
+import { getUserId } from '../../../core/auth';
 import { BrowserTts } from './BrowserTts';
 
 /**
@@ -9,11 +10,9 @@ import { BrowserTts } from './BrowserTts';
 export class ClonedTts implements TtsProvider {
   private currentAudio: HTMLAudioElement | null = null;
   private fallback: TtsProvider;
-  private userId: string;
 
-  constructor(fallback: TtsProvider = new BrowserTts(), userId = 'local-user') {
+  constructor(fallback: TtsProvider = new BrowserTts()) {
     this.fallback = fallback;
-    this.userId = userId;
   }
 
   async speak(text: string, emotion: Emotion): Promise<void> {
@@ -29,7 +28,7 @@ export class ClonedTts implements TtsProvider {
         body: JSON.stringify({
           text,
           emotion,
-          user_id: this.userId,
+          user_id: getUserId(), // the logged-in person's own (cloned) voice
         }),
       });
 
