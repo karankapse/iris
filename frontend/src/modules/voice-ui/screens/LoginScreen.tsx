@@ -78,10 +78,11 @@ export function LoginScreen({ onDone }: { onDone: () => void }) {
           'If that email has an account, a reset link is on its way. Check the inbox (and spam).',
         );
       } else if (mode === 'signup') {
-        await signup(email, password, name);
+        const { needsVerification } = await signup(email, password, name);
         setPassword('');
         setConfirm('');
-        setMode('checkInbox');
+        if (needsVerification) setMode('checkInbox');
+        else onDone(); // email confirmation is off here: already signed in
       } else {
         await login(email, password);
         onDone();

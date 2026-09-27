@@ -263,3 +263,12 @@ def test_eye_calibration_is_saved_per_account(client, outbox):
     assert client.get("/api/auth/me/eye-calibration", headers=bearer(kim)).json() == {"data": None}
     assert client.get("/api/auth/me/eye-calibration").status_code == 401
     assert client.put("/api/auth/me/eye-calibration", json={"data": saved}).status_code == 401
+
+
+def test_without_email_confirmation_accounts_work_right_away(client, outbox, monkeypatch):
+    monkeypatch.setenv("REQUIRE_EMAIL_VERIFICATION", "false")
+    res = client.post("/api/auth/signup", json=ACCOUNT)
+    assert res.status_code == 201
+    assert res.json()["needs_verification"] is False
+    assert outbox == []  # nothing to confirm
+    assert client.post("/api/auth/login", json=LOGIN).status_code == 200

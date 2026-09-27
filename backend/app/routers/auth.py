@@ -86,6 +86,9 @@ def signup(req: SignupRequest, db: DbDep, background: BackgroundTasks) -> Signup
     user = {"id": auth.new_user_id(), "email": email, "name": req.name.strip()}
     if not db.create_user(user["id"], email, user["name"], auth.hash_password(req.password)):
         raise HTTPException(409, "An account with this email already exists")
+    if not get_settings().require_email_verification:
+        db.set_verified(user["id"])  # no email set up yet: the account works right away
+        return SignupResponse(email=email, needs_verification=False)
     _send_confirmation(db, background, user)
     return SignupResponse(email=email)
 
@@ -126,7 +129,7 @@ def login(req: LoginRequest, db: DbDep) -> AuthResponse:
         db.record_login_failure(email, auth.now_iso())
         raise HTTPException(401, "Wrong email or password")
     db.clear_login_failures(email)
-    if not user["email_verified"]:
+    if not user["email_verified"] and get_settings().require_email_verification:
         raise HTTPException(403, "Please confirm your email first: check your inbox for the link.")
     return _start_session(db, user)
 

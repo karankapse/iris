@@ -72,10 +72,23 @@ async function post<T = AuthResponse>(path: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-/** Creates the account and emails a confirmation link. Not signed in until the link is clicked. */
-export async function signup(email: string, password: string, name: string): Promise<string> {
-  const r = await post<{ email: string }>('/api/auth/signup', { email, password, name });
-  return r.email;
+/**
+ * Creates the account and emails a confirmation link: not signed in until the link is clicked.
+ * Where email confirmation is switched off, it signs in right away (returns needsVerification false).
+ */
+export async function signup(
+  email: string,
+  password: string,
+  name: string,
+): Promise<{ email: string; needsVerification: boolean }> {
+  const r = await post<{ email: string; needs_verification?: boolean }>('/api/auth/signup', {
+    email,
+    password,
+    name,
+  });
+  const needsVerification = r.needs_verification !== false;
+  if (!needsVerification) await login(email, password);
+  return { email: r.email, needsVerification };
 }
 
 /** The emailed confirmation link: confirms the address and signs in. */
