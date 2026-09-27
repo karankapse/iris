@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     )
 
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-5"
+    # Replies must appear right away: the fast model (set ANTHROPIC_MODEL to trade speed for depth).
+    anthropic_model: str = "claude-haiku-4-5"
     # A small, fast model for quick yes/no checks (e.g. "is this new speech related?").
     anthropic_fast_model: str = "claude-haiku-4-5"
     # Force canned suggestions even if a key is set. Also used automatically when no key exists.

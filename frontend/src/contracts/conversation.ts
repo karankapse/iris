@@ -82,6 +82,8 @@ export interface ReplyBundle {
 export interface ConversationService {
   addTurn(turn: ConversationTurn): void;
   history(): ConversationTurn[];
+  /** Optional: forget the history (the user started a new conversation). */
+  clear?(): void;
   /** Ask the AI for 3-4 suggested replies (never more than 4). */
   suggestReplies(
     mood: Emotion | null,

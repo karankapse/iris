@@ -17,6 +17,8 @@ interface Props {
   /** The live camera view (or a stand-in face without a camera). */
   camera: ReactNode;
   onCalibrate?: () => void;
+  onNewConversation?: () => void;
+  onToggleMute?: () => void;
   onOpenMenu: () => void;
 }
 
@@ -43,6 +45,8 @@ export function V0ColumnLayout({
   onPick,
   camera,
   onCalibrate,
+  onNewConversation,
+  onToggleMute,
   onOpenMenu,
 }: Props) {
   const { machine, highlight, dwell } = view;
@@ -82,6 +86,9 @@ export function V0ColumnLayout({
           camera={camera}
           tracking={tracking}
           onCalibrate={onCalibrate}
+          onNewConversation={onNewConversation}
+          onToggleMute={onToggleMute}
+          micMuted={view.micMuted}
           onOpenMenu={onOpenMenu}
         />
       </header>

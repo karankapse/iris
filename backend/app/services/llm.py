@@ -36,6 +36,8 @@ syndrome) reply to the people around them. They choose a reply using only their 
 every word costs them effort.
 
 Write 3 or 4 possible replies the person might want to say next, in the first person.
+- Reply to what the partner said LAST. Earlier lines and past moments are only background: \
+don't answer an earlier question again, go back to an older topic, or repeat what I already said.
 - Keep each reply very short: usually under 12 words, never more than 20.
 - Make the replies meaningfully different from each other (e.g. yes / no / a question / \
 an emotional response), so one of them is likely right.
@@ -126,14 +128,16 @@ def _format_history(
         context.append("I have no specific mood or reaction detected (neutral).")
 
     context_str = " ".join(context)
+    latest = _partner_text(recent)
     return (
         _format_profile(profile)
         + memory
         + "Conversation so far:\n"
         + "\n".join(lines)
+        + (f'\n\nThe partner just said: "{latest}"' if latest else "")
         + f"\n\n{context_str}\n"
-        + "Use the connotation of what the partner said and my emotional reaction "
-        + "to suggest my next replies."
+        + "Use the connotation of what the partner just said and my emotional reaction "
+        + "to suggest my next replies to it."
     )
 
 
@@ -146,6 +150,17 @@ def generate_suggestions(
     memory: str = "",
 ) -> list[Suggestion]:
     return generate_reply_bundle(settings, history, mood, profile, reaction, memory)[0]
+
+
+_clients: dict[tuple, anthropic.Anthropic] = {}
+
+
+def claude(api_key: str) -> anthropic.Anthropic:
+    """One client per key, reused: each turn skips opening a new connection to Claude."""
+    key = (anthropic.Anthropic, api_key)  # (the class too, so tests can swap in a fake)
+    if key not in _clients:
+        _clients[key] = anthropic.Anthropic(api_key=api_key)
+    return _clients[key]
 
 
 def _partner_text(history: list[ConversationTurn]) -> str:
@@ -169,7 +184,7 @@ def generate_reply_bundle(
         items = mock_suggestions(history, mood=mood, reaction=lean, profile=profile)
         return items, rules
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = claude(settings.anthropic_api_key)
     response = client.messages.parse(
         model=settings.anthropic_model,
         max_tokens=1024,
@@ -236,7 +251,7 @@ def expand_initials(
     if settings.use_mock_llm:
         return _mock_expansions(letters, profile)
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = claude(settings.anthropic_api_key)
     response = client.messages.parse(
         model=settings.anthropic_model,
         max_tokens=1024,

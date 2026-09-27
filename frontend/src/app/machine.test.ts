@@ -732,6 +732,20 @@ describe('robustness', () => {
     );
   });
 
+  it('newer speech replaces the replies still loading for held speech', () => {
+    let s = atSelectReply();
+    s = run([{ type: 'partner_final', text: 'Or are you thirsty?' }], s).state;
+    s = run([select(0), { type: 'speak_done' }], s).state;
+    expect(s.phase).toBe('suggesting'); // catching up on the held question
+    const r = run([{ type: 'partner_final', text: 'Great, I will bring it now.' }], s);
+    expect(r.state.partnerText).toBe('Great, I will bring it now.');
+    expect(r.state.heldPartner).toBe('');
+    expect(r.state.catchingUp).toBe(false);
+    expect(r.effects).toContainEqual(
+      expect.objectContaining({ type: 'suggest', partnerText: 'Great, I will bring it now.' }),
+    );
+  });
+
   it('speech while typing does not wipe what was typed', () => {
     let s = fromMenu('Type my own reply');
     s = run([{ type: 'partner_final', text: 'Take your time' }], s).state;

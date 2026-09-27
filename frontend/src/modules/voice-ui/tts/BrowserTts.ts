@@ -3,6 +3,9 @@ import { EMOTION_PROFILES, type VoiceProfile } from './emotionProfiles';
 import { planSpeech, type SpeechChunk } from './prosody';
 import { preferredVoice } from './voices';
 
+/** Speech that hasn't started by then is stuck in Chrome's queue. */
+const START_TIMEOUT_MS = 1000;
+
 /**
  * The free voice: the browser's built-in speechSynthesis, with a good en-US voice (Samantha/Ava
  * when available) and cadence per emotion: the reply is spoken phrase by phrase, each with its
@@ -26,6 +29,11 @@ export class BrowserTts implements TtsProvider {
     this.cancel(); // never overlap two replies
     const generation = this.generation;
     const voice = await preferredVoice();
+    // Chrome can swallow or stall speech queued in the same moment as cancel(), or get stuck
+    // "paused": let the cancel settle and make sure the queue is running.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    if (generation !== this.generation) return;
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
     for (const chunk of planSpeech(text, profile, speed)) {
       if (generation !== this.generation) return;
       await this.say(chunk, voice);
@@ -40,7 +48,22 @@ export class BrowserTts implements TtsProvider {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }
 
-  private say(chunk: SpeechChunk, voice: SpeechSynthesisVoice | null): Promise<void> {
+  /**
+   * Speak one chunk. If Chrome hasn't started it within START_TIMEOUT_MS it is stuck in the
+   * queue: clear it and try once more, so it can never come out later, during the next reply.
+   */
+  private async say(chunk: SpeechChunk, voice: SpeechSynthesisVoice | null): Promise<void> {
+    const generation = this.generation;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (await this.sayOnce(chunk, voice)) return;
+      window.speechSynthesis.cancel();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      if (generation !== this.generation) return;
+    }
+  }
+
+  /** False if the chunk never started (stuck). */
+  private sayOnce(chunk: SpeechChunk, voice: SpeechSynthesisVoice | null): Promise<boolean> {
     return new Promise((resolve) => {
       const u = new SpeechSynthesisUtterance(chunk.text);
       if (voice) {
@@ -50,16 +73,29 @@ export class BrowserTts implements TtsProvider {
       u.rate = chunk.rate;
       u.pitch = chunk.pitch;
       u.volume = chunk.volume;
-      // Some browsers occasionally never fire 'end': don't hang the reply forever.
+      let started = false;
+      u.onstart = () => (started = true);
+      const startCheck = setTimeout(() => {
+        if (!started && !window.speechSynthesis.speaking) finish(false);
+      }, START_TIMEOUT_MS);
+      // Some browsers occasionally never fire 'end': don't hang the reply forever, and clear it
+      // so it can't be spoken later.
       const words = chunk.text.split(/\s+/).length;
-      const guard = setTimeout(done, 2000 + (words * 700) / chunk.rate);
-      function done() {
+      const guard = setTimeout(
+        () => {
+          window.speechSynthesis.cancel();
+          finish(true);
+        },
+        2000 + (words * 700) / chunk.rate,
+      );
+      function finish(ok: boolean) {
+        clearTimeout(startCheck);
         clearTimeout(guard);
-        resolve();
+        resolve(ok);
       }
       // Resolve on both normal end and errors (cancel() triggers an 'interrupted' error).
-      u.onend = done;
-      u.onerror = done;
+      u.onend = () => finish(true);
+      u.onerror = () => finish(true);
       window.speechSynthesis.speak(u);
     });
   }

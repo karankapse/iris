@@ -1,17 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import {
+  AudioLines,
+  Crosshair,
+  KeyRound,
+  MessageCircle,
+  SlidersHorizontal,
+  UserRound,
+} from 'lucide-react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../../../app/AppContext';
+import { NavBar, type NavItem } from '../../../components/ui/tubelight-navbar';
 import { getSession, logout } from '../../../core/auth';
 import { loadEyeCalibration } from '../../../core/eyeCalibration';
 
-export const PAGES = [
-  { to: '/', label: 'Talk', icon: '💬' },
-  { to: '/calibrate', label: 'Calibrate', icon: '👁' },
-  { to: '/profile', label: 'Profile', icon: '🙂' },
-  { to: '/settings', label: 'Settings', icon: '⚙️' },
-  { to: '/voice', label: 'Voice', icon: '🔊' },
-  { to: '/account', label: 'Account', icon: '👤' },
-] as const;
+export const PAGES: readonly NavItem[] = [
+  { url: '/', name: 'Talk', icon: MessageCircle },
+  { url: '/calibrate', name: 'Calibrate', icon: Crosshair },
+  { url: '/profile', name: 'Profile', icon: UserRound },
+  { url: '/settings', name: 'Settings', icon: SlidersHorizontal },
+  { url: '/voice', name: 'Voice', icon: AudioLines },
+  { url: '/account', name: 'Account', icon: KeyRound },
+];
 
 export async function signOut() {
   await logout();
@@ -20,21 +29,7 @@ export async function signOut() {
 
 /** Links to every page (used by the top bar and by the Talk page's menu). */
 export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
-  return (
-    <nav className="nav-links" aria-label="Pages">
-      {PAGES.map((p) => (
-        <NavLink
-          key={p.to}
-          to={p.to}
-          end={p.to === '/'}
-          onClick={onNavigate}
-          className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
-        >
-          <span aria-hidden="true">{p.icon}</span> {p.label}
-        </NavLink>
-      ))}
-    </nav>
-  );
+  return <NavBar items={PAGES} onNavigate={onNavigate} />;
 }
 
 /**
@@ -74,10 +69,7 @@ export function AppShell() {
     <div className="shell">
       <header className="topbar-nav">
         <div className="brand">
-          <div className="face-placeholder tiny" aria-hidden="true">
-            <span />
-            <span />
-          </div>
+          <img className="brand-mark" src="/iris-mark.png" alt="" />
           <strong>Iris</strong>
         </div>
         <NavLinks />
@@ -110,7 +102,7 @@ export function NavDrawer({ onClose }: { onClose: () => void }) {
           <h2>Iris</h2>
           <button onClick={close}>Close</button>
         </header>
-        <NavLinks onNavigate={onClose} />
+        <NavBar items={PAGES} variant="list" onNavigate={onClose} />
         <div className="account-row">
           <span>
             Signed in as <strong>{user?.name}</strong>

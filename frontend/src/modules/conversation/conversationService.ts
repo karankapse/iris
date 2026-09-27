@@ -48,6 +48,10 @@ export class HistoryConversationService implements ConversationService {
     return [...this.turns];
   }
 
+  clear() {
+    this.turns = [];
+  }
+
   async suggestReplies(mood: Emotion | null, profile?: UserProfile, reaction?: Emotion | null) {
     return (await this.suggestRepliesWithEmotion(mood, profile, reaction)).suggestions;
   }
