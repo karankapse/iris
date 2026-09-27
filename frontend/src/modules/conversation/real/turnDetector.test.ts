@@ -97,6 +97,11 @@ class FakeRecognition {
   abort() {
     this.aborted++;
   }
+  /** Chrome ends the session on its own (then WebSpeechToText restarts it): results start over. */
+  endSession() {
+    this.results = [];
+    this.onend?.();
+  }
   /** Replace the latest interim result (or add one), like Chrome does while you talk. */
   say(text: string, isFinal = false) {
     const lastIsInterim = this.results.length > 0 && !this.results.at(-1)!.isFinal;
@@ -140,6 +145,16 @@ describe('WebSpeechToText with turn detection', () => {
     vi.advanceTimersByTime(1200);
     expect(got.filter((t) => t.isFinal).map((t) => t.text)).toEqual(['are you hungry']);
     expect(rec.aborted).toBe(1);
+  });
+
+  it('keeps words Chrome never finalized when its session ends mid-sentence', () => {
+    const { got, rec } = start();
+    rec.say('do you want');
+    rec.endSession(); // e.g. a network hiccup: no final result for "do you want"
+    vi.advanceTimersByTime(500); // restarted
+    rec.say('to go outside?', true);
+    vi.advanceTimersByTime(1200);
+    expect(got.filter((t) => t.isFinal).map((t) => t.text)).toEqual(['do you want to go outside?']);
   });
 
   it('stop() discards a half-finished turn', () => {

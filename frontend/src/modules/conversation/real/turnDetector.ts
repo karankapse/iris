@@ -71,6 +71,18 @@ export class TurnDetector {
     this.changed();
   }
 
+  /**
+   * The recognizer's session ended (it restarts itself) while it still had an unfinalized guess:
+   * keep that text as part of the turn, because the next session starts from scratch and its
+   * first interim result would otherwise replace it.
+   */
+  keepInterim() {
+    if (!this.interim) return;
+    this.finals.push(this.interim);
+    this.interim = '';
+    this.changed(); // same text: the turn's timers are not restarted
+  }
+
   /** End the current turn now. */
   flush() {
     const text = this.text();

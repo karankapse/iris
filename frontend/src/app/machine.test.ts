@@ -7,6 +7,7 @@ import {
   getEntries,
   getOptions,
   initialState,
+  MAX_RESTARTS,
   reduce,
   type Effect,
   type Event,
@@ -315,6 +316,7 @@ describe('quick phrases, "Other…" and mood', () => {
 
     const next = run(
       [
+        eye({ type: 'cancel' }), // leave the menu (speech is held while the user is in it)
         { type: 'partner_final', text: 'hi' },
         { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1, 'sad')] },
       ],
@@ -408,7 +410,68 @@ describe('robustness', () => {
       { type: 'suggestions_ready', requestId: 1, suggestions: [sug(1)] }, // old request
     ]);
     expect(r.state.phase).toBe('suggesting');
-    expect(r.state.partnerText).toBe('second');
+    // said while replies were being prepared: one turn
+    expect(r.state.partnerText).toBe('first second');
+  });
+
+  it('more speech while preparing replies joins the turn; history gets each part once', () => {
+    const r = run([
+      { type: 'partner_final', text: 'Are you hungry?' },
+      { type: 'partner_final', text: 'We have soup.' },
+    ]);
+    expect(r.state.partnerText).toBe('Are you hungry? We have soup.');
+    const suggests = r.effects.filter((e) => e.type === 'suggest');
+    expect(suggests.map((e) => e.type === 'suggest' && e.partnerText)).toEqual([
+      'Are you hungry?',
+      'We have soup.',
+    ]);
+    expect(suggests.at(-1)).toMatchObject({ requestId: 2 }); // only the newest request counts
+  });
+
+  it('never restarts a turn more than twice (constant chatter would never finish)', () => {
+    let s = run([{ type: 'partner_final', text: 'Are you hungry?' }]).state;
+    s = run([{ type: 'partner_final', text: 'We have soup.' }], s).state;
+    s = run([{ type: 'partner_final', text: 'And bread.' }], s).state;
+    expect(s.restarts).toBe(MAX_RESTARTS);
+    const r = run([{ type: 'partner_final', text: 'Goal for Arsenal!' }], s);
+    expect(r.state.requestId).toBe(3);
+    expect(r.state.heldPartner).toBe('Goal for Arsenal!');
+    expect(r.effects).toEqual([]);
+  });
+
+  it('speech while the user is choosing is held, shown, and handled after they reply', () => {
+    let s = atSelectReply(); // choosing among replies
+    const choices = labels(s);
+    s = run([{ type: 'partner_final', text: 'Or are you thirsty?' }], s).state;
+    expect(s.phase).toBe('selectReply'); // nothing changed under their eyes
+    expect(labels(s)).toEqual(choices);
+    expect(s.heldPartner).toBe('Or are you thirsty?');
+
+    s = run([select(0), eye({ type: 'confirm' }), { type: 'speak_done' }], s).state; // reply
+    expect(s.phase).toBe('feedback'); // still held while they rate the tone
+    const r = run([eye({ type: 'confirm' })], s);
+    expect(r.state.phase).toBe('suggesting'); // now the held question is answered
+    expect(r.state.partnerText).toBe('Or are you thirsty?');
+    expect(r.state.heldPartner).toBe('');
+    expect(r.state.restarts).toBe(0); // a new turn
+    expect(r.effects).toContainEqual(
+      expect.objectContaining({ type: 'suggest', partnerText: 'Or are you thirsty?' }),
+    );
+  });
+
+  it('speech while typing does not wipe what was typed', () => {
+    let s = choose(initialState(), 'Type my own reply');
+    s = run([{ type: 'partner_final', text: 'Take your time' }], s).state;
+    expect(s.phase).toBe('typing');
+    expect(s.heldPartner).toBe('Take your time');
+  });
+
+  it('held speech keeps only the most recent words', () => {
+    let s = atSelectReply();
+    for (let i = 1; i <= 30; i++) s = run([{ type: 'partner_final', text: `w${i}` }], s).state;
+    expect(s.heldPartner.split(' ')).toHaveLength(21); // "…" + the last 20 words
+    expect(s.heldPartner.startsWith('… w11 ')).toBe(true);
+    expect(s.heldPartner.endsWith(' w30')).toBe(true);
   });
 
   it('ignores partner speech while speaking', () => {
