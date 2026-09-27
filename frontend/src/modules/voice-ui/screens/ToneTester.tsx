@@ -5,6 +5,7 @@ import type { Emotion } from '../../../contracts';
 import { getServices } from '../../../app/services';
 import { flags } from '../../../core/config';
 import { EMOTION_PROFILES } from '../tts/emotionProfiles';
+import { ToneAB } from './ToneAB';
 
 const SAMPLE = "I'm so glad you came to see me today.";
 const GAP_MS = 500;
@@ -90,13 +91,15 @@ export function ToneTester() {
               <button onClick={() => play(tone)}>▶ {tone}</button>
               {flags.tts === 'browser' && (
                 <span className="muted">
-                  rate {p.rate} · pitch {p.pitch} · volume {p.volume}
+                  rate {p.rate} · pitch {p.pitch} · volume {p.volume} · movement {p.pitchVariation}
                 </span>
               )}
             </li>
           );
         })}
       </ul>
+
+      <ToneAB tts={tts} text={text} />
     </main>
   );
 }
